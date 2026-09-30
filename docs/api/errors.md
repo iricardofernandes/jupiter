@@ -96,6 +96,26 @@ intent is back in `requires_payment_method`. It is also what a payment gets when
 Secure could not be reached for 15 minutes: the payment waits, in `processing`, rather
 than going on without the authentication that was asked for.
 
+### payment_intent_payment_attempt_expired
+The Pix charge expired before the customer paid it. The payment intent is back in
+`requires_payment_method`; confirm it again for a new BR Code. A Pix that arrives for the
+expired charge anyway is returned to the payer.
+
+### payment_intent_payment_attempt_failed
+The Pix charge could not be made. `decline_code` is `pix_charge_refused` when the bank
+refused it, or `pix_charge_unresolved` when it did not confirm it within 15 minutes. The
+payment intent is back in `requires_payment_method`.
+
+### balance_insufficient
+A payout asked for more than the balance has available: what payments posted, less
+refunds, payouts and payouts still in flight.
+
+### Refund and payout failures
+A refund of a Pix payment that the bank could not return fails with `failure_reason`
+`pix_return_failed` (for example, the payer's account is closed) or `pix_return_refused`.
+A payout the bank could not make fails with `failure_code` `pix_transfer_failed` and the
+bank's reason in `failure_message`; its amount is available again.
+
 ### incorrect_number
 The card number fails its check digit, or has a length its brand does not use. `param` is
 `card[number]`. The number is never repeated in the error.

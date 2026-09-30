@@ -132,3 +132,19 @@ The risk engine decides on every payment; the intent's `risk_decision` says what
 decided. Send the customer's `customer_ip` for its address rules. [Risk](risk.md)
 describes the rules, the lists and card-testing detection; `go run ./cmd/loadgen
 -scenario card-testing` sends a burst that trips it.
+
+## Pix
+
+Pix in test mode goes to the bank's sandbox (`JUPITER_PIX_TEST_*`); the simulator plays
+it locally. Confirm with the payment method `pix`, show the customer the BR Code, and pay
+it as a customer would, through the simulator:
+
+```sh
+curl -X POST http://127.0.0.1:8080/v1/payment_intents -H "Authorization: Bearer $SK_TEST" \
+  -H "Idempotency-Key: $(uuidgen)" -d '{"amount": 1500, "currency": "brl", "payment_method": "pix", "confirm": true}'
+# next_action.pix_display_qr_code.data is the BR Code
+curl -X POST http://127.0.0.1:8587/admin/pay -d '{"brcode": "<data>", "payer_tax_id": "12345678909"}'
+```
+
+The intent succeeds when the bank notifies Jupiter. [Accepting Pix](pix.md) covers due
+dates, refunds and what happens to a charge nobody pays.

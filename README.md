@@ -6,16 +6,21 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **6 — 3-D Secure, network tokens and risk** · milestone M1 reached
+> ### Current phase: **7 — Pix** · milestone M2 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
 > kept in a separate vault, live payments over ISO 8583 to a card network and issuer
-> simulator, and now the decisions around them: a risk engine with velocity rules,
-> merchant rules and card-testing detection, 3-D Secure 2 authentication against a
-> simulated directory server and ACS, frictionless or with a challenge, and network
-> tokens with their lifecycle. A deterministic simulation runs 10,000 payments with faults
-> on every push. Next is Pix (phase 7), which reaches milestone M2; see
-> [`docs/plan.md`](docs/plan.md).
+> simulator, with a risk engine, 3-D Secure 2 and network tokens around them. Now Pix per
+> the Banco Central's specification:
+> - charges with and without due dates through a bank's API Pix, over mutual TLS with
+>   certificate-bound tokens;
+> - BR Codes checked against every example in the Manual de Padrões;
+> - signed payload locations;
+> - refunds as returns, and stray Pix returned to their payers;
+> - payouts by Pix, which end the golden path for now.
+>
+> A deterministic simulation runs 10,000 payments with faults on every push. Next are
+> Pix Automático (phase 8) and receivables (phase 9); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -59,7 +64,8 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, and the risk engine |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix and payouts |
+| [`api/bacen-pix/`](api/bacen-pix/) | The Banco Central's API Pix specification, pinned, which `pkg/pixapi` is generated from |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
@@ -77,7 +83,7 @@ make check             # format, vet, lint, vulnerabilities, unit and architectu
 make test-integration  # tests against a real PostgreSQL in Docker
 make up                # local infrastructure; returns once every service is healthy
 make migrate           # apply database migrations to it, Jupiter's and the vault's
-make certs             # a development CA and the vault's and API's mTLS certificates
+make certs             # a development CA and the mTLS certificates of the vault, the API, the worker and the Pix bank
 make merchant NAME=x   # create a merchant; prints its API keys once
 make ledger-check      # verify the ledger's invariants on it
 make demo              # walk through the golden path, step by step
@@ -104,7 +110,8 @@ Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
 
 To run the binaries, start the vault first (`go run ./cmd/vault`) and, for live mode, the
 card network and 3-D Secure simulators (`go run ./cmd/sim-card-network`,
-`go run ./cmd/sim-3ds`), then the API and the worker
+`go run ./cmd/sim-3ds`) and, for Pix in either mode, the Pix bank (`go run ./cmd/sim-pix`,
+see [its README](internal/sim/pix/README.md)), then the API and the worker
 (`go run ./cmd/api`, `go run ./cmd/worker`). [`.env.example`](.env.example) lists
 what each reads: databases, keys (`openssl rand -base64 32`) and the certificates from
 `make certs`. Then save a card and pay with it:

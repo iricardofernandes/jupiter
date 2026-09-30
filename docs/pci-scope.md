@@ -51,6 +51,9 @@ requirement numbers come from the research's background knowledge and are
   two merchants cannot match their customers through the API. Someone who can read
   Jupiter's database, which holds the vault's fingerprint, could.
 - **Merchants' servers that send tokens**, not numbers.
+- **Pix and payouts** (the Pix connector, the payer's tax id on charges with a due date,
+  Pix keys): no card data. The payer's CPF or CNPJ is personal data under the LGPD, kept
+  in the payment intent's Pix options and sent only to Jupiter's bank.
 
 ## What holds the line
 
