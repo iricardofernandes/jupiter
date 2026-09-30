@@ -48,7 +48,8 @@ func classifyCmd(segments []string) unit {
 	case binary == "vault":
 		return unit{kind: kindVault, name: "vault"}
 	case strings.HasPrefix(binary, "sim-"):
-		return unit{kind: kindSim, name: strings.TrimPrefix(binary, "sim-")}
+		// cmd/sim-card-network is the binary of internal/sim/cardnetwork.
+		return unit{kind: kindSim, name: strings.ReplaceAll(strings.TrimPrefix(binary, "sim-"), "-", "")}
 	default:
 		return unit{kind: kindCmd, name: binary}
 	}

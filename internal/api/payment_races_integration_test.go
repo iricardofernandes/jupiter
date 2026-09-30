@@ -79,7 +79,7 @@ func TestExpiryAndCaptureRace(t *testing.T) {
 	for range 10 {
 		ids = append(ids, h.createIntent(map[string]any{"amount": 1000, "payment_method": payments.TestCardVisa, "capture_method": "manual", "confirm": true}, http.StatusOK).Id)
 	}
-	h.clock.Advance(7*24*time.Hour + time.Minute)
+	h.clock.Advance(10*24*time.Hour + time.Minute)
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		if _, err := h.payments.ExpireAuthorizations(t.Context(), h.pool); err != nil {

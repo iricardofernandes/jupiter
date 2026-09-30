@@ -6,7 +6,7 @@ import (
 )
 
 // cvcs holds security codes in process memory, never on disk, until the one
-// authorization that uses them takes them, or until they expire. PCI DSS forbids storing
+// authorization that uses them takes them out of the map, or until they expire. PCI DSS forbids storing
 // the code after authorization; not storing it at all is simpler. A vault restart loses
 // the codes it held, and with several vault instances a code lives only on the one that
 // tokenized the card: the authorization then goes without it.

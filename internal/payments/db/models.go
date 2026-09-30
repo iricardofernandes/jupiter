@@ -26,29 +26,39 @@ type PaymentsAttempt struct {
 	Resolutions            int32
 	CreatedAt              pgtype.Timestamptz
 	UpdatedAt              pgtype.Timestamptz
+	Initiator              string
+	StoresCredential       bool
+	Installments           pgtype.Int4
+	InstallmentsFinancedBy pgtype.Text
+	NetworkTransactionID   string
+	ClearedOn              pgtype.Date
+	AmountCleared          pgtype.Int8
 }
 
 type PaymentsIntent struct {
-	ID                 string
-	MerchantID         string
-	Livemode           bool
-	Amount             int64
-	Currency           string
-	CaptureMethod      string
-	Status             string
-	PaymentMethod      string
-	Description        string
-	AmountCapturable   int64
-	AmountReceived     int64
-	AmountRefunded     int64
-	LatestAttempt      pgtype.Text
-	LastErrorCode      string
-	LastDeclineCode    string
-	LastErrorMessage   string
-	NextAction         string
-	CancellationReason string
-	CreatedAt          pgtype.Timestamptz
-	UpdatedAt          pgtype.Timestamptz
+	ID                     string
+	MerchantID             string
+	Livemode               bool
+	Amount                 int64
+	Currency               string
+	CaptureMethod          string
+	Status                 string
+	PaymentMethod          string
+	Description            string
+	AmountCapturable       int64
+	AmountReceived         int64
+	AmountRefunded         int64
+	LatestAttempt          pgtype.Text
+	LastErrorCode          string
+	LastDeclineCode        string
+	LastErrorMessage       string
+	NextAction             string
+	CancellationReason     string
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+	Installments           pgtype.Int4
+	InstallmentsFinancedBy pgtype.Text
+	SetupFutureUsage       string
 }
 
 type PaymentsLedgerAccount struct {
@@ -60,18 +70,19 @@ type PaymentsLedgerAccount struct {
 }
 
 type PaymentsPaymentMethod struct {
-	ID               string
-	MerchantID       string
-	Livemode         bool
-	Type             string
-	VaultToken       string
-	Brand            string
-	Bin              string
-	Last4            string
-	ExpMonth         int32
-	ExpYear          int32
-	VaultFingerprint string
-	CreatedAt        pgtype.Timestamptz
+	ID                   string
+	MerchantID           string
+	Livemode             bool
+	Type                 string
+	VaultToken           string
+	Brand                string
+	Bin                  string
+	Last4                string
+	ExpMonth             int32
+	ExpYear              int32
+	VaultFingerprint     string
+	CreatedAt            pgtype.Timestamptz
+	NetworkTransactionID string
 }
 
 type PaymentsRefund struct {
@@ -91,6 +102,7 @@ type PaymentsRefund struct {
 	Resolutions   int32
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ClearedOn     pgtype.Date
 }
 
 type PaymentsTestRail struct {

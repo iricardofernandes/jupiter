@@ -1,7 +1,9 @@
 -- name: InsertIntent :exec
 INSERT INTO payments.intents (id, merchant_id, livemode, amount, currency, capture_method, status, payment_method,
-                              description, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10);
+                              description, installments, installments_financed_by, setup_future_usage,
+                              created_at, updated_at)
+VALUES (@id, @merchant_id, @livemode, @amount, @currency, @capture_method, @status, @payment_method, @description,
+        sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @setup_future_usage, @created_at, @created_at);
 
 -- name: GetIntent :one
 SELECT * FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3;
@@ -32,12 +34,16 @@ SET amount = @amount, status = @status, payment_method = @payment_method, descri
     amount_capturable = @amount_capturable, amount_received = @amount_received, amount_refunded = @amount_refunded,
     latest_attempt = @latest_attempt, last_error_code = @last_error_code, last_decline_code = @last_decline_code,
     last_error_message = @last_error_message, next_action = @next_action,
-    cancellation_reason = @cancellation_reason, updated_at = @updated_at
+    cancellation_reason = @cancellation_reason, installments = sqlc.narg('installments'),
+    installments_financed_by = sqlc.narg('installments_financed_by'), setup_future_usage = @setup_future_usage,
+    updated_at = @updated_at
 WHERE id = @id;
 
 -- name: InsertAttempt :exec
-INSERT INTO payments.attempts (id, intent_id, number, payment_method, amount, status, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $7);
+INSERT INTO payments.attempts (id, intent_id, number, payment_method, amount, status, initiator, stores_credential,
+                              installments, installments_financed_by, created_at, updated_at)
+VALUES (@id, @intent_id, @number, @payment_method, @amount, @status, @initiator, @stores_credential,
+        sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @created_at, @created_at);
 
 -- name: NextAttemptNumber :one
 SELECT (coalesce(max(number), 0) + 1)::integer FROM payments.attempts WHERE intent_id = $1;
@@ -53,7 +59,8 @@ UPDATE payments.attempts
 SET status = @status, authenticated = @authenticated, rail_reference = @rail_reference,
     decline_code = @decline_code, ledger_hold = @ledger_hold, capture_amount = @capture_amount,
     amount_captured = @amount_captured, authorization_expires_at = @authorization_expires_at,
-    unknown_since = @unknown_since, resolutions = @resolutions, updated_at = @updated_at
+    unknown_since = @unknown_since, resolutions = @resolutions, network_transaction_id = @network_transaction_id,
+    cleared_on = @cleared_on, amount_cleared = @amount_cleared, updated_at = @updated_at
 WHERE id = @id;
 
 -- name: AttemptsToResolve :many
@@ -179,3 +186,11 @@ SELECT * FROM payments.payment_methods WHERE id = @id AND merchant_id = @merchan
 
 -- name: GetPaymentMethodByToken :one
 SELECT * FROM payments.payment_methods WHERE vault_token = @vault_token;
+
+-- name: SetPaymentMethodNetworkTransaction :exec
+UPDATE payments.payment_methods SET network_transaction_id = @network_transaction_id
+WHERE id = @id AND network_transaction_id = '';
+
+-- name: ClearRefund :execrows
+UPDATE payments.refunds SET cleared_on = @cleared_on
+WHERE id = @id AND status = 'succeeded' AND amount = @amount AND cleared_on IS NULL;

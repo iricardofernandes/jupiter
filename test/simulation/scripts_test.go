@@ -13,6 +13,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/payments"
+	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 )
 
 // script is one payment's life, chosen from the seed when it starts. It advances one
@@ -54,7 +55,9 @@ type intentView struct {
 
 func (s *sim) newScript(n int) *script {
 	r := s.rng
-	sc := &script{id: n, key: s.keys[r.IntN(len(s.keys))], lastReply: map[string][]byte{}}
+	merchant := r.IntN(len(s.keys))
+	sc := &script{id: n, key: s.keys[merchant], lastReply: map[string][]byte{}}
+	live := r.IntN(100) < 15
 	sc.amount = 100 + r.Int64N(100_000)
 	if r.IntN(10) == 0 {
 		sc.amount = sc.amount/100*100 + int64(91+r.IntN(3)) // a magic amount
@@ -72,9 +75,14 @@ func (s *sim) newScript(n int) *script {
 	if r.IntN(10) < 3 {
 		sc.card = savedCards[sc.method]
 	}
+	if live {
+		// Live mode takes saved cards only, and has no authentication step yet (phase 6).
+		sc.key, sc.card = s.liveKeys[merchant], liveCards[sc.method]
+		s.stats.live++
+	}
 	sc.manual = r.IntN(2) == 0
 	sc.authPass = r.IntN(5) != 0
-	sc.retry = r.IntN(2) == 0
+	sc.retry = r.IntN(2) == 0 && !live
 	switch roll := r.IntN(10); {
 	case roll < 2:
 		sc.cancel = true
@@ -141,6 +149,14 @@ func (s *sim) step(sc *script) {
 			s.t.Fatalf("script %d: creating the intent answered %d %s", sc.id, resp.status, resp.body)
 		}
 	}
+}
+
+// liveCards are the card numbers the network's issuer treats as each test payment method.
+var liveCards = map[string]string{
+	payments.TestCardVisa:                   "4242424242424242",
+	payments.TestCardDeclined:               "4000000000000002",
+	payments.TestCardInsufficientFunds:      "4000000000009995",
+	payments.TestCardAuthenticationRequired: "5555555555554444",
 }
 
 // savedCards are the test card numbers that behave as each test payment method.
@@ -265,7 +281,7 @@ func (s *sim) run(n int) [32]byte {
 				// Now and then, long enough for every uncaptured authorization to expire, but
 				// short of the ledger's backstop a day later: an outage that long is an alert,
 				// covered by its own test.
-				advance = 7*24*time.Hour + time.Hour
+				advance = 10*24*time.Hour + time.Hour
 				s.stats.expiryJumps++
 			}
 			s.background(advance)
@@ -328,7 +344,11 @@ func (s *sim) background(advance time.Duration) {
 	if _, err := s.ledger.ApplyQueued(ctx, s.pool, 10_000); err != nil {
 		s.t.Fatalf("ApplyQueued: %v", err)
 	}
-	s.record("background: expired %d, resolved %d, completed %d", expired, resolved, completed)
+	forwarded, err := s.acquirer.RetryForwards(ctx, 1000)
+	if err != nil {
+		s.t.Fatalf("RetryForwards: %v", err)
+	}
+	s.record("background: expired %d, resolved %d, completed %d, forwarded %d", expired, resolved, completed, forwarded)
 }
 
 func (s *sim) drain() {
@@ -338,7 +358,8 @@ func (s *sim) drain() {
 		err := s.pool.QueryRow(s.t.Context(), `SELECT
 			(SELECT count(*) FROM payments.intents WHERE status = 'processing') +
 			(SELECT count(*) FROM payments.refunds WHERE status IN ('pending', 'refund_unknown')) +
-			(SELECT count(*) FROM api.idempotency_keys WHERE response_status IS NULL AND recovery_point <> 'started')`).Scan(&open)
+			(SELECT count(*) FROM api.idempotency_keys WHERE response_status IS NULL AND recovery_point <> 'started') +
+			(SELECT count(*) FROM acquirer.exchanges WHERE next_forward_at IS NOT NULL)`).Scan(&open)
 		if err != nil {
 			s.t.Fatal(err)
 		}
@@ -373,6 +394,7 @@ func (s *sim) check(final bool) {
 	}
 	if final {
 		s.checkRail()
+		s.checkNetwork()
 	}
 	if s.t.Failed() {
 		s.t.FailNow()
@@ -387,15 +409,16 @@ func (s *sim) checkRail() {
 			SELECT count(*) FROM payments.test_rail r JOIN payments.attempts a ON a.id = r.key
 			WHERE r.kind = 'authorize' AND r.status = 'approved' AND a.status NOT IN ('captured', 'authorized')`},
 		{"attempts Jupiter voided whose authorization the rail did not reverse", `
-			SELECT count(*) FROM payments.attempts a LEFT JOIN payments.test_rail r ON r.key = a.id
+			SELECT count(*) FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id AND NOT i.livemode
+			LEFT JOIN payments.test_rail r ON r.key = a.id
 			WHERE a.status = 'voided' AND coalesce(r.status, '') <> 'voided'`},
 		{"captures that differ between the rail and Jupiter", `
-			SELECT count(*) FROM payments.attempts a
+			SELECT count(*) FROM (SELECT a.* FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id AND NOT i.livemode) a
 			FULL JOIN (SELECT authorization_key, sum(amount) AS amount FROM payments.test_rail
 			           WHERE kind = 'capture' AND status = 'approved' GROUP BY authorization_key) c ON c.authorization_key = a.id
 			WHERE coalesce(c.amount, 0) <> CASE WHEN a.status = 'captured' THEN a.amount_captured ELSE 0 END`},
 		{"refunds that differ between the rail and Jupiter", `
-			SELECT count(*) FROM payments.attempts a
+			SELECT count(*) FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id AND NOT i.livemode
 			LEFT JOIN (SELECT authorization_key, sum(amount) AS amount FROM payments.test_rail
 			           WHERE kind = 'refund' AND status = 'approved' GROUP BY authorization_key) r ON r.authorization_key = a.id
 			LEFT JOIN (SELECT attempt_id, sum(amount) AS amount FROM payments.refunds
@@ -414,5 +437,66 @@ func (s *sim) checkRail() {
 		if n > 0 {
 			s.t.Errorf("%d %s", n, c.what)
 		}
+	}
+}
+
+// checkNetwork compares the issuer's books with Jupiter's for live payments: every hold
+// the issuer keeps is an authorization Jupiter still holds, every capture Jupiter
+// recorded the network completed for the same amount and nothing else, refunds agree,
+// and no reversal or advice is still waiting to be acknowledged.
+func (s *sim) checkNetwork() {
+	ctx := s.t.Context()
+	jupiter := map[string]struct {
+		status           string
+		captured, refund int64
+	}{}
+	rows, err := s.pool.Query(ctx, `SELECT a.network_transaction_id, a.status, a.amount_captured,
+			coalesce((SELECT sum(amount) FROM payments.refunds r WHERE r.attempt_id = a.id AND r.status = 'succeeded'), 0)::bigint
+		FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+		WHERE i.livemode AND a.network_transaction_id <> ''`)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	for rows.Next() {
+		var nti, status string
+		var captured, refunded int64
+		if err := rows.Scan(&nti, &status, &captured, &refunded); err != nil {
+			s.t.Fatal(err)
+		}
+		jupiter[nti] = struct {
+			status           string
+			captured, refund int64
+		}{status, captured, refunded}
+	}
+	if err := rows.Err(); err != nil {
+		s.t.Fatal(err)
+	}
+	for _, h := range s.network.Holds() {
+		if j, ok := jupiter[h.NetworkTransactionID]; !ok || j.status != "authorized" {
+			s.t.Errorf("the issuer holds %d under %s, which Jupiter has as %q: a reversal left a hold behind", h.Amount, h.NetworkTransactionID, j.status)
+		}
+	}
+	completed := map[string]cardnetwork.Completion{}
+	for _, c := range s.network.Completions() {
+		completed[c.NetworkTransactionID] = c
+		j, ok := jupiter[c.NetworkTransactionID]
+		if !ok || j.status != "captured" || j.captured != c.Completed || j.refund != c.Refunded {
+			s.t.Errorf("the network completed %d and refunded %d under %s; Jupiter has it %q, captured %d, refunded %d",
+				c.Completed, c.Refunded, c.NetworkTransactionID, j.status, j.captured, j.refund)
+		}
+	}
+	for nti, j := range jupiter {
+		if j.status == "captured" && completed[nti].Completed != j.captured {
+			s.t.Errorf("Jupiter captured %d under %s without the network completing it", j.captured, nti)
+		}
+	}
+	var captured int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+		WHERE i.livemode AND a.status = 'captured' AND a.network_transaction_id = ''`).Scan(&captured); err != nil || captured > 0 {
+		s.t.Errorf("%d live payments captured without an approved authorization (%v)", captured, err)
+	}
+	var waiting int
+	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM acquirer.exchanges WHERE next_forward_at IS NOT NULL").Scan(&waiting); err != nil || waiting > 0 {
+		s.t.Errorf("%d reversals or advices never acknowledged (%v)", waiting, err)
 	}
 }

@@ -600,7 +600,7 @@ components:
       type: object
       required: [id, object, livemode, amount, currency, capture_method, status, payment_method, description,
                  amount_capturable, amount_received, amount_refunded, latest_attempt, last_payment_error,
-                 next_action, cancellation_reason, created]
+                 next_action, cancellation_reason, installments, setup_future_usage, created]
       properties:
         id: { type: string }
         object: { type: string, enum: [payment_intent] }
@@ -624,7 +624,22 @@ components:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/NextAction" }]
         cancellation_reason: { type: string, nullable: true }
+        installments:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/Installments" }]
+        setup_future_usage: { type: string, enum: [off_session], nullable: true }
         created: { type: integer, format: int64 }
+    Installments:
+      type: object
+      description: |
+        Parcelado: the payment is authorized once, for the whole amount, and the cardholder
+        pays it in count monthly installments. financed_by merchant is parcelado lojista,
+        without interest to the cardholder; issuer is parcelado emissor, with interest.
+      required: [count, financed_by]
+      additionalProperties: false
+      properties:
+        count: { type: integer, minimum: 2, maximum: 12 }
+        financed_by: { type: string, enum: [merchant, issuer] }
     PaymentError:
       type: object
       required: [code, message]
@@ -657,6 +672,14 @@ components:
         payment_method: { type: string }
         description: { type: string, maxLength: 1000 }
         confirm: { type: boolean }
+        installments: { $ref: "#/components/schemas/Installments" }
+        setup_future_usage:
+          type: string
+          enum: [off_session]
+          description: Store the card, with this customer-initiated payment, for later off_session ones.
+        off_session:
+          type: boolean
+          description: With confirm, a merchant-initiated payment, made without the cardholder on a card stored before.
     UpdatePaymentIntentRequest:
       type: object
       additionalProperties: false
@@ -664,11 +687,14 @@ components:
         amount: { type: integer, format: int64, minimum: 1 }
         payment_method: { type: string }
         description: { type: string, maxLength: 1000 }
+        installments: { $ref: "#/components/schemas/Installments" }
+        setup_future_usage: { type: string, enum: [off_session] }
     ConfirmPaymentIntentRequest:
       type: object
       additionalProperties: false
       properties:
         payment_method: { type: string }
+        off_session: { type: boolean }
     CapturePaymentIntentRequest:
       type: object
       additionalProperties: false

@@ -63,8 +63,29 @@ type Intent struct {
 	LastError          *PaymentError
 	NextAction         string
 	CancellationReason string
+	Installments       *Installments
+	SetupFutureUsage   string
 	CreatedAt          time.Time
 }
+
+// Financing says who pays for installments: the merchant, who receives each one as it
+// falls due (parcelado lojista, without interest to the cardholder), or the issuer, who
+// charges the cardholder interest (parcelado emissor).
+type Financing string
+
+const (
+	FinancedByMerchant Financing = "merchant"
+	FinancedByIssuer   Financing = "issuer"
+)
+
+type Installments struct {
+	Count      int
+	FinancedBy Financing
+}
+
+// SetupOffSession is the setup_future_usage that stores a card for merchant-initiated
+// payments.
+const SetupOffSession = "off_session"
 
 type RefundStatus string
 
@@ -92,9 +113,6 @@ type Config struct {
 	TestRail Rail
 	LiveRail Rail
 	Now      func() time.Time
-	// AuthorizationValidity is how long an uncaptured authorization lasts before it is
-	// voided. Phase 5 replaces it with the scheme rule table of ADR 0006.
-	AuthorizationValidity time.Duration
 	// ResolveAfter is how long an operation stays in flight before the resolver asks
 	// the rail what happened; GiveUpAfter is when an authorization still unknown is
 	// reversed and failed, so no attempt stays unknown for longer.
@@ -109,9 +127,6 @@ type Service struct {
 func New(cfg Config) *Service {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
-	}
-	if cfg.AuthorizationValidity == 0 {
-		cfg.AuthorizationValidity = 7 * 24 * time.Hour
 	}
 	if cfg.ResolveAfter == 0 {
 		cfg.ResolveAfter = time.Minute

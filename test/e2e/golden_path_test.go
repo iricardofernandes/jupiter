@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/id"
@@ -30,6 +31,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
 	"github.com/iricardofernandes/jupiter/pkg/webhook"
@@ -39,15 +41,16 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, acquirer.Migrate},
 		vaulttest.Template:           {vaulttest.Migrate},
 	}))
 }
 
-// The golden path, as far as phase 4 reaches: a customer's card goes from their browser
-// to the vault, the customer pays R$ 600.00 with it, the merchant captures it, and the
-// ledger and a signed webhook both say so. Later phases extend this test with
-// installments, receivables, split, settlement and payout.
+// The golden path, as far as phase 5 reaches: a customer's card goes from their browser
+// to the vault; the customer pays R$ 600.00 in six installments, authorized by the
+// issuer over ISO 8583; the merchant captures it; the ledger and a signed webhook say so;
+// and the network's clearing file for the day confirms it. Later phases extend this test
+// with receivables, split, settlement and payout.
 func TestGoldenPath(t *testing.T) {
 	ctx := t.Context()
 	pool := server.Pool(t)
@@ -61,11 +64,41 @@ func TestGoldenPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent, AllowPrivateNetworks: true})
+	// Live-mode webhooks go to https only; the receiver's client trusts its test certificate.
+	delivered := make(chan []byte, 20)
+	receiverSecret := make(chan string, 1)
+	receiver := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		secret := <-receiverSecret
+		receiverSecret <- secret
+		if err := webhook.Verify(body, r.Header.Get(webhook.SignatureHeader), secret, webhook.DefaultTolerance, time.Now()); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		delivered <- body
+	}))
+	defer receiver.Close()
+	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent, HTTPClient: receiver.Client()})
 	cardVault := vaulttest.Start(t, server.PoolFrom(t, vaulttest.Template), vaulttest.Options{})
+	network := cardnetwork.New(cardnetwork.Config{})
+	if err := network.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer network.Close()
+	networkFiles := httptest.NewServer(network.Handler())
+	defer networkFiles.Close()
+	connector, err := acquirer.New(acquirer.Config{Pool: pool, Addr: network.Addr(), ClearingURL: networkFiles.URL, Cards: cardVault.Client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := connector.Connect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = connector.Close() }()
 	l := ledger.New()
 	paymentService := payments.New(payments.Config{
-		Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client),
+		Ledger: l, Events: eventService, LiveRail: connector,
+		TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client),
 	})
 	merchants := merchant.New(nil)
 	jupiter := httptest.NewServer(api.New(api.Deps{
@@ -84,13 +117,13 @@ func TestGoldenPath(t *testing.T) {
 	go func() { workerDone <- jobs.Run(worker)(workerCtx) }()
 	defer func() { stopWorker(); <-workerDone }()
 
-	t.Log("1. a merchant signs up and receives its test keys")
+	t.Log("1. a merchant signs up and receives its live keys")
 	var secretKey, publishableKey string
 	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
 		_, keys, err := merchants.Create(ctx, tx, "Loja do Caminho Dourado", api.CurrentVersion)
 		for _, k := range keys {
 			switch {
-			case k.Livemode:
+			case !k.Livemode:
 			case k.Kind == merchant.Secret:
 				secretKey = k.Value
 			case k.Kind == merchant.Publishable:
@@ -105,19 +138,6 @@ func TestGoldenPath(t *testing.T) {
 	client := &apiClient{t: t, base: jupiter.URL, key: secretKey}
 
 	t.Log("2. it registers a webhook endpoint")
-	delivered := make(chan []byte, 20)
-	receiverSecret := make(chan string, 1)
-	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		secret := <-receiverSecret
-		receiverSecret <- secret
-		if err := webhook.Verify(body, r.Header.Get(webhook.SignatureHeader), secret, webhook.DefaultTolerance, time.Now()); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		delivered <- body
-	}))
-	defer receiver.Close()
 	var endpoint struct{ Secret string }
 	client.post("/v1/webhook_endpoints", map[string]any{"url": receiver.URL, "enabled_events": []string{"payment_intent.succeeded"}}, &endpoint)
 	receiverSecret <- endpoint.Secret
@@ -144,7 +164,7 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatalf("payment method = %+v", method)
 	}
 
-	t.Log("5. the customer pays R$ 600.00 with it; the issuer authorizes it")
+	t.Log("5. the customer pays R$ 600.00 in six installments; the issuer authorizes it over ISO 8583")
 	var intent struct {
 		ID               string `json:"id"`
 		Status           string `json:"status"`
@@ -154,11 +174,21 @@ func TestGoldenPath(t *testing.T) {
 	client.post("/v1/payment_intents", map[string]any{
 		"amount": 60000, "currency": "brl", "capture_method": "manual",
 		"payment_method": method.ID, "confirm": true,
+		"installments": map[string]any{"count": 6, "financed_by": "merchant"},
 	}, &intent)
 	if intent.Status != "requires_capture" || intent.AmountCapturable != 60000 {
 		t.Fatalf("after authorization: %+v", intent)
 	}
-	owner := payments.Owner{Merchant: merchantOf(t, merchants, pool, secretKey)}
+	owner := payments.Owner{Merchant: merchantOf(t, merchants, pool, secretKey), Livemode: true}
+	intentID, err := payments.IntentPrefix.Parse(intent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attempt, err := paymentService.LatestAttempt(ctx, pool, owner, intentID)
+	if err != nil || attempt.NetworkTransactionID == "" || attempt.Installments == nil || attempt.Installments.Count != 6 {
+		t.Fatalf("the authorization: %+v, %v", attempt, err)
+	}
+	t.Logf("   network transaction %s, 6 installments financed by the merchant", attempt.NetworkTransactionID)
 	if posted, held := balance(t, paymentService, pool, owner); posted != 0 || held != 60000 {
 		t.Fatalf("ledger after authorization: posted %d, held %d; want 0 and 60000", posted, held)
 	}
@@ -188,7 +218,21 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal("no webhook arrived")
 	}
 
-	t.Log("8. every invariant holds")
+	t.Log("8. the network closes the day; its clearing file confirms the capture")
+	today := time.Now().UTC()
+	if err := network.CloseDay(today); err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := connector.ImportClearing(ctx, today, paymentService)
+	if err != nil || cleared.Cleared != 1 || cleared.Exceptions != 0 {
+		t.Fatalf("clearing: %+v, %v", cleared, err)
+	}
+	if attempt, err = paymentService.LatestAttempt(ctx, pool, owner, intentID); err != nil || attempt.AmountCleared != 60000 {
+		t.Fatalf("after clearing: %+v, %v", attempt, err)
+	}
+	t.Log("   R$ 600.00 cleared")
+
+	t.Log("9. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}

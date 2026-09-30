@@ -57,9 +57,20 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	if err != nil {
 		return outcome{}, err
 	}
-	params := payments.CreateParams{Amount: amount, PaymentMethod: deref(body.PaymentMethod), Description: deref(body.Description)}
+	params := payments.CreateParams{
+		Amount: amount, PaymentMethod: deref(body.PaymentMethod), Description: deref(body.Description),
+		Installments: installmentsParam(body.Installments),
+	}
 	if body.CaptureMethod != nil {
 		params.CaptureMethod = payments.CaptureMethod(*body.CaptureMethod)
+	}
+	if body.SetupFutureUsage != nil {
+		params.SetupFutureUsage = string(*body.SetupFutureUsage)
+	}
+	offSession := body.OffSession != nil && *body.OffSession
+	confirm := body.Confirm != nil && *body.Confirm
+	if offSession && !confirm {
+		return outcome{}, invalidRequest("parameter_invalid", "off_session", "off_session applies only with confirm.")
 	}
 	owner := paymentsOwner(r.principal)
 	it, err := a.deps.Payments.Create(ctx, tx, owner, params)
@@ -67,10 +78,10 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 		return outcome{}, paymentsError(err, r.pathID)
 	}
 	r.state[stateIntent] = it.ID.String()
-	if body.Confirm == nil || !*body.Confirm {
+	if !confirm {
 		return respond(paymentIntentJSON(it))
 	}
-	if _, err := a.deps.Payments.StartConfirm(ctx, tx, owner, it.ID, ""); err != nil {
+	if _, err := a.deps.Payments.StartConfirm(ctx, tx, owner, it.ID, payments.ConfirmParams{OffSession: offSession}); err != nil {
 		return outcome{}, paymentsError(err, it.ID.String())
 	}
 	return proceed(pointAuthorizing)
@@ -85,7 +96,13 @@ func (a *API) updatePaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	if err := decode(r.body, &body, false); err != nil {
 		return outcome{}, err
 	}
-	params := payments.UpdateParams{PaymentMethod: body.PaymentMethod, Description: body.Description}
+	params := payments.UpdateParams{
+		PaymentMethod: body.PaymentMethod, Description: body.Description, Installments: installmentsParam(body.Installments),
+	}
+	if body.SetupFutureUsage != nil {
+		setup := string(*body.SetupFutureUsage)
+		params.SetupFutureUsage = &setup
+	}
 	if body.Amount != nil {
 		current, err := a.deps.Payments.Intent(ctx, tx, paymentsOwner(r.principal), intentID)
 		if err != nil {
@@ -113,7 +130,8 @@ func (a *API) confirmPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (
 	if err := decode(r.body, &body, true); err != nil {
 		return outcome{}, err
 	}
-	if _, err := a.deps.Payments.StartConfirm(ctx, tx, paymentsOwner(r.principal), intentID, deref(body.PaymentMethod)); err != nil {
+	confirm := payments.ConfirmParams{PaymentMethod: deref(body.PaymentMethod), OffSession: body.OffSession != nil && *body.OffSession}
+	if _, err := a.deps.Payments.StartConfirm(ctx, tx, paymentsOwner(r.principal), intentID, confirm); err != nil {
 		return outcome{}, paymentsError(err, r.pathID)
 	}
 	r.state[stateIntent] = intentID.String()
@@ -358,4 +376,11 @@ func paymentsError(err error, objectID string) error {
 		return notFound(resource, objectID)
 	}
 	return err
+}
+
+func installmentsParam(i *openapi.Installments) *payments.Installments {
+	if i == nil {
+		return nil
+	}
+	return &payments.Installments{Count: i.Count, FinancedBy: payments.Financing(i.FinancedBy)}
 }

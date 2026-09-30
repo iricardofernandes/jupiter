@@ -131,6 +131,21 @@ func (e CreatePaymentIntentRequestCaptureMethod) Valid() bool {
 	}
 }
 
+// Defines values for CreatePaymentIntentRequestSetupFutureUsage.
+const (
+	CreatePaymentIntentRequestSetupFutureUsageOffSession CreatePaymentIntentRequestSetupFutureUsage = "off_session"
+)
+
+// Valid indicates whether the value is a known member of the CreatePaymentIntentRequestSetupFutureUsage enum.
+func (e CreatePaymentIntentRequestSetupFutureUsage) Valid() bool {
+	switch e {
+	case CreatePaymentIntentRequestSetupFutureUsageOffSession:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreatePaymentMethodRequestType.
 const (
 	CreatePaymentMethodRequestTypeCard CreatePaymentMethodRequestType = "card"
@@ -245,6 +260,24 @@ func (e EventListObject) Valid() bool {
 	}
 }
 
+// Defines values for InstallmentsFinancedBy.
+const (
+	Issuer   InstallmentsFinancedBy = "issuer"
+	Merchant InstallmentsFinancedBy = "merchant"
+)
+
+// Valid indicates whether the value is a known member of the InstallmentsFinancedBy enum.
+func (e InstallmentsFinancedBy) Valid() bool {
+	switch e {
+	case Issuer:
+		return true
+	case Merchant:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListMetaObject.
 const (
 	ListMetaObjectList ListMetaObject = "list"
@@ -287,6 +320,21 @@ const (
 func (e PaymentIntentObject) Valid() bool {
 	switch e {
 	case PaymentIntentObjectPaymentIntent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentIntentSetupFutureUsage.
+const (
+	PaymentIntentSetupFutureUsageOffSession PaymentIntentSetupFutureUsage = "off_session"
+)
+
+// Valid indicates whether the value is a known member of the PaymentIntentSetupFutureUsage enum.
+func (e PaymentIntentSetupFutureUsage) Valid() bool {
+	switch e {
+	case PaymentIntentSetupFutureUsageOffSession:
 		return true
 	default:
 		return false
@@ -452,6 +500,21 @@ func (e RefundListObject) Valid() bool {
 	}
 }
 
+// Defines values for UpdatePaymentIntentRequestSetupFutureUsage.
+const (
+	UpdatePaymentIntentRequestSetupFutureUsageOffSession UpdatePaymentIntentRequestSetupFutureUsage = "off_session"
+)
+
+// Valid indicates whether the value is a known member of the UpdatePaymentIntentRequestSetupFutureUsage enum.
+func (e UpdatePaymentIntentRequestSetupFutureUsage) Valid() bool {
+	switch e {
+	case UpdatePaymentIntentRequestSetupFutureUsageOffSession:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateWebhookEndpointRequestStatus.
 const (
 	UpdateWebhookEndpointRequestStatusDisabled UpdateWebhookEndpointRequestStatus = "disabled"
@@ -583,6 +646,7 @@ type CompleteActionRequestOutcome string
 
 // ConfirmPaymentIntentRequest defines model for ConfirmPaymentIntentRequest.
 type ConfirmPaymentIntentRequest struct {
+	OffSession    *bool   `json:"off_session,omitempty"`
 	PaymentMethod *string `json:"payment_method,omitempty"`
 }
 
@@ -599,11 +663,25 @@ type CreatePaymentIntentRequest struct {
 	Confirm       *bool                                    `json:"confirm,omitempty"`
 	Currency      string                                   `json:"currency"`
 	Description   *string                                  `json:"description,omitempty"`
-	PaymentMethod *string                                  `json:"payment_method,omitempty"`
+
+	// Installments Parcelado: the payment is authorized once, for the whole amount, and the cardholder
+	// pays it in count monthly installments. financed_by merchant is parcelado lojista,
+	// without interest to the cardholder; issuer is parcelado emissor, with interest.
+	Installments *Installments `json:"installments,omitempty"`
+
+	// OffSession With confirm, a merchant-initiated payment, made without the cardholder on a card stored before.
+	OffSession    *bool   `json:"off_session,omitempty"`
+	PaymentMethod *string `json:"payment_method,omitempty"`
+
+	// SetupFutureUsage Store the card, with this customer-initiated payment, for later off_session ones.
+	SetupFutureUsage *CreatePaymentIntentRequestSetupFutureUsage `json:"setup_future_usage,omitempty"`
 }
 
 // CreatePaymentIntentRequestCaptureMethod defines model for CreatePaymentIntentRequest.CaptureMethod.
 type CreatePaymentIntentRequestCaptureMethod string
+
+// CreatePaymentIntentRequestSetupFutureUsage Store the card, with this customer-initiated payment, for later off_session ones.
+type CreatePaymentIntentRequestSetupFutureUsage string
 
 // CreatePaymentMethodRequest defines model for CreatePaymentMethodRequest.
 type CreatePaymentMethodRequest struct {
@@ -689,6 +767,17 @@ type EventList struct {
 // EventListObject defines model for EventList.Object.
 type EventListObject string
 
+// Installments Parcelado: the payment is authorized once, for the whole amount, and the cardholder
+// pays it in count monthly installments. financed_by merchant is parcelado lojista,
+// without interest to the cardholder; issuer is parcelado emissor, with interest.
+type Installments struct {
+	Count      int                    `json:"count"`
+	FinancedBy InstallmentsFinancedBy `json:"financed_by"`
+}
+
+// InstallmentsFinancedBy defines model for Installments.FinancedBy.
+type InstallmentsFinancedBy string
+
 // ListMeta defines model for ListMeta.
 type ListMeta struct {
 	HasMore bool           `json:"has_more"`
@@ -724,16 +813,18 @@ type PaymentIntent struct {
 	Created            int64                      `json:"created"`
 
 	// Currency Lower-case ISO 4217 code.
-	Currency         string              `json:"currency"`
-	Description      string              `json:"description"`
-	Id               string              `json:"id"`
-	LastPaymentError *PaymentError       `json:"last_payment_error"`
-	LatestAttempt    *string             `json:"latest_attempt"`
-	Livemode         bool                `json:"livemode"`
-	NextAction       *NextAction         `json:"next_action"`
-	Object           PaymentIntentObject `json:"object"`
-	PaymentMethod    *string             `json:"payment_method"`
-	Status           PaymentIntentStatus `json:"status"`
+	Currency         string                         `json:"currency"`
+	Description      string                         `json:"description"`
+	Id               string                         `json:"id"`
+	Installments     *Installments                  `json:"installments"`
+	LastPaymentError *PaymentError                  `json:"last_payment_error"`
+	LatestAttempt    *string                        `json:"latest_attempt"`
+	Livemode         bool                           `json:"livemode"`
+	NextAction       *NextAction                    `json:"next_action"`
+	Object           PaymentIntentObject            `json:"object"`
+	PaymentMethod    *string                        `json:"payment_method"`
+	SetupFutureUsage *PaymentIntentSetupFutureUsage `json:"setup_future_usage"`
+	Status           PaymentIntentStatus            `json:"status"`
 }
 
 // PaymentIntentCaptureMethod defines model for PaymentIntent.CaptureMethod.
@@ -741,6 +832,9 @@ type PaymentIntentCaptureMethod string
 
 // PaymentIntentObject defines model for PaymentIntent.Object.
 type PaymentIntentObject string
+
+// PaymentIntentSetupFutureUsage defines model for PaymentIntent.SetupFutureUsage.
+type PaymentIntentSetupFutureUsage string
 
 // PaymentIntentStatus defines model for PaymentIntent.Status.
 type PaymentIntentStatus string
@@ -842,10 +936,19 @@ type RollSecretRequest struct {
 
 // UpdatePaymentIntentRequest defines model for UpdatePaymentIntentRequest.
 type UpdatePaymentIntentRequest struct {
-	Amount        *int64  `json:"amount,omitempty"`
-	Description   *string `json:"description,omitempty"`
-	PaymentMethod *string `json:"payment_method,omitempty"`
+	Amount      *int64  `json:"amount,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Installments Parcelado: the payment is authorized once, for the whole amount, and the cardholder
+	// pays it in count monthly installments. financed_by merchant is parcelado lojista,
+	// without interest to the cardholder; issuer is parcelado emissor, with interest.
+	Installments     *Installments                               `json:"installments,omitempty"`
+	PaymentMethod    *string                                     `json:"payment_method,omitempty"`
+	SetupFutureUsage *UpdatePaymentIntentRequestSetupFutureUsage `json:"setup_future_usage,omitempty"`
 }
+
+// UpdatePaymentIntentRequestSetupFutureUsage defines model for UpdatePaymentIntentRequest.SetupFutureUsage.
+type UpdatePaymentIntentRequestSetupFutureUsage string
 
 // UpdateWebhookEndpointRequest defines model for UpdateWebhookEndpointRequest.
 type UpdateWebhookEndpointRequest struct {
@@ -2520,76 +2623,81 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"PGp5HY3nVaF941l/nY1GV+u5ulr9/wA=",
+	"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",
+	"j1peR+N5VWjfeNY/Z2PQ1Xqublf/PwA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

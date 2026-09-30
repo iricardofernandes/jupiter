@@ -13,6 +13,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/money"
 	"github.com/iricardofernandes/jupiter/internal/payments/db"
+	"github.com/iricardofernandes/jupiter/internal/payments/rules"
 	"github.com/iricardofernandes/jupiter/internal/platform/page"
 )
 
@@ -27,16 +28,27 @@ const (
 )
 
 type CreateParams struct {
-	Amount        money.Amount
-	CaptureMethod CaptureMethod
-	PaymentMethod string
-	Description   string
+	Amount           money.Amount
+	CaptureMethod    CaptureMethod
+	PaymentMethod    string
+	Description      string
+	Installments     *Installments
+	SetupFutureUsage string
 }
 
 type UpdateParams struct {
-	Amount        *money.Amount
-	PaymentMethod *string
-	Description   *string
+	Amount           *money.Amount
+	PaymentMethod    *string
+	Description      *string
+	Installments     *Installments
+	SetupFutureUsage *string
+}
+
+// ConfirmParams says how to authorize: OffSession for a merchant-initiated payment,
+// made without the cardholder, on a card an earlier payment stored.
+type ConfirmParams struct {
+	PaymentMethod string
+	OffSession    bool
 }
 
 const maxDescription = 1000
@@ -45,7 +57,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	if p.CaptureMethod == "" {
 		p.CaptureMethod = CaptureAutomatic
 	}
-	if err := validateIntent(p.Amount, p.CaptureMethod, p.Description); err != nil {
+	if err := validateIntent(p.Amount, p.CaptureMethod, p.Description, p.Installments, p.SetupFutureUsage); err != nil {
 		return Intent{}, err
 	}
 	if err := s.checkPaymentMethod(ctx, tx, owner, p.PaymentMethod); err != nil {
@@ -59,13 +71,15 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	row := db.PaymentsIntent{
 		ID: IntentPrefix.New().String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 		Amount: p.Amount.Minor(), Currency: p.Amount.Currency().Code(), CaptureMethod: string(p.CaptureMethod),
-		Status: string(status), PaymentMethod: p.PaymentMethod, Description: p.Description,
+		Status: string(status), PaymentMethod: p.PaymentMethod, Description: p.Description, SetupFutureUsage: p.SetupFutureUsage,
 	}
+	row.Installments, row.InstallmentsFinancedBy = installmentColumns(p.Installments)
 	q := db.New(tx)
 	if err := q.InsertIntent(ctx, db.InsertIntentParams{
 		ID: row.ID, MerchantID: row.MerchantID, Livemode: row.Livemode, Amount: row.Amount, Currency: row.Currency,
 		CaptureMethod: row.CaptureMethod, Status: row.Status, PaymentMethod: row.PaymentMethod,
-		Description: row.Description, CreatedAt: ts(now),
+		Description: row.Description, Installments: row.Installments, InstallmentsFinancedBy: row.InstallmentsFinancedBy,
+		SetupFutureUsage: row.SetupFutureUsage, CreatedAt: ts(now),
 	}); err != nil {
 		return Intent{}, fmt.Errorf("creating payment intent: %w", err)
 	}
@@ -76,8 +90,22 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	return intentFromRow(row)
 }
 
-func validateIntent(amount money.Amount, method CaptureMethod, description string) error {
+const maxInstallments = 12
+
+func validateIntent(amount money.Amount, method CaptureMethod, description string, installments *Installments, setup string) error {
+	if installments != nil {
+		switch {
+		case installments.Count < 2 || installments.Count > maxInstallments:
+			return fmt.Errorf("%w: installments[count] must be between 2 and %d", ErrInvalid, maxInstallments)
+		case installments.FinancedBy != FinancedByMerchant && installments.FinancedBy != FinancedByIssuer:
+			return fmt.Errorf("%w: installments[financed_by] must be merchant or issuer", ErrInvalid)
+		case amount.Currency() != money.BRL:
+			return fmt.Errorf("%w: installments are only for payments in BRL", ErrInvalid)
+		}
+	}
 	switch {
+	case setup != "" && setup != SetupOffSession:
+		return fmt.Errorf("%w: setup_future_usage must be off_session", ErrInvalid)
 	case !amount.IsPositive():
 		return fmt.Errorf("%w: amount must be a positive number of minor units", ErrInvalid)
 	case method != CaptureAutomatic && method != CaptureManual:
@@ -114,7 +142,13 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 	if p.Description != nil {
 		row.Description = *p.Description
 	}
-	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description); err != nil {
+	if p.Installments != nil {
+		row.Installments, row.InstallmentsFinancedBy = installmentColumns(p.Installments)
+	}
+	if p.SetupFutureUsage != nil {
+		row.SetupFutureUsage = *p.SetupFutureUsage
+	}
+	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description, installmentsOf(row), row.SetupFutureUsage); err != nil {
 		return Intent{}, err
 	}
 	if p.PaymentMethod != nil {
@@ -168,17 +202,17 @@ func (s *Service) Intents(ctx context.Context, q db.DBTX, owner Owner, r page.Re
 
 // StartConfirm records a new attempt and moves the intent to processing, before any
 // call to the rail: whatever happens next, the attempt exists to be resolved.
-func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, intentID id.ID, paymentMethod string) (Intent, error) {
+func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, intentID id.ID, p ConfirmParams) (Intent, error) {
 	q := db.New(tx)
 	row, err := lockIntent(ctx, q, owner, intentID)
 	if err != nil {
 		return Intent{}, err
 	}
-	if paymentMethod != "" {
-		if err := s.checkPaymentMethod(ctx, tx, owner, paymentMethod); err != nil {
+	if p.PaymentMethod != "" {
+		if err := s.checkPaymentMethod(ctx, tx, owner, p.PaymentMethod); err != nil {
 			return Intent{}, err
 		}
-		row.PaymentMethod = paymentMethod
+		row.PaymentMethod = p.PaymentMethod
 	}
 	status := Status(row.Status)
 	switch {
@@ -190,14 +224,23 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 	if _, err := s.rail(owner.Livemode); err != nil {
 		return Intent{}, err
 	}
+	if err := s.checkStoredCredential(ctx, tx, owner, row, p.OffSession); err != nil {
+		return Intent{}, err
+	}
 	number, err := q.NextAttemptNumber(ctx, row.ID)
 	if err != nil {
 		return Intent{}, err
 	}
+	initiator := "customer"
+	if p.OffSession {
+		initiator = "merchant"
+	}
 	attemptID := AttemptPrefix.New().String()
 	if err := q.InsertAttempt(ctx, db.InsertAttemptParams{
 		ID: attemptID, IntentID: row.ID, Number: number, PaymentMethod: row.PaymentMethod,
-		Amount: row.Amount, Status: string(attemptAuthorizing), CreatedAt: ts(s.cfg.Now().UTC()),
+		Amount: row.Amount, Status: string(attemptAuthorizing), Initiator: initiator,
+		StoresCredential: row.SetupFutureUsage == SetupOffSession, Installments: row.Installments,
+		InstallmentsFinancedBy: row.InstallmentsFinancedBy, CreatedAt: ts(s.cfg.Now().UTC()),
 	}); err != nil {
 		return Intent{}, fmt.Errorf("recording attempt: %w", err)
 	}
@@ -232,12 +275,24 @@ func (s *Service) authorizeOnRail(ctx context.Context, q db.DBTX, owner Owner, i
 	if err != nil {
 		return Result{}, err
 	}
+	first := ""
+	if attempt.Initiator == "merchant" {
+		if first, err = s.firstTransaction(ctx, q, owner, attempt.PaymentMethod); err != nil {
+			return Result{}, err
+		}
+	}
+	var installments *Installments
+	if attempt.Installments.Valid {
+		installments = &Installments{Count: int(attempt.Installments.Int32), FinancedBy: Financing(attempt.InstallmentsFinancedBy.String)}
+	}
 	amount, err := money.New(attempt.Amount, mustCurrency(intent.Currency))
 	if err != nil {
 		return Result{}, err
 	}
 	return rail.Authorize(ctx, AuthorizeRequest{
-		Key: attempt.ID, Amount: amount, PaymentMethod: attempt.PaymentMethod, Card: card, Authenticated: attempt.Authenticated,
+		Key: attempt.ID, Merchant: owner.Merchant.String(), Amount: amount, PaymentMethod: attempt.PaymentMethod, Card: card,
+		Authenticated: attempt.Authenticated, Installments: installments, MerchantInitiated: attempt.Initiator == "merchant",
+		FirstTransaction: first, StoresCredential: attempt.StoresCredential,
 	}), nil
 }
 
@@ -294,7 +349,15 @@ func (s *Service) authorized(ctx context.Context, tx pgx.Tx, row *db.PaymentsInt
 	if err != nil {
 		return StepDone, err
 	}
-	expires := s.cfg.Now().UTC().Add(s.cfg.AuthorizationValidity)
+	now := s.cfg.Now().UTC()
+	scheme, err := s.schemeOf(ctx, tx, owner, attempt.PaymentMethod)
+	if err != nil {
+		return StepDone, err
+	}
+	validity := rules.AuthorizationValidity(rules.Authorization{
+		Scheme: scheme, Presence: rules.CardNotPresent, Initiator: rules.Initiator(attempt.Initiator), Kind: rules.Final,
+	}, now)
+	expires := now.Add(validity.Duration)
 	// The ledger expires the hold a day after the authorization, as a backstop: the
 	// expiry job voids it on the rail and the ledger together before then.
 	hold, err := s.cfg.Ledger.Hold(ctx, tx, ledger.Hold{
@@ -305,6 +368,14 @@ func (s *Service) authorized(ctx context.Context, tx pgx.Tx, row *db.PaymentsInt
 		return StepDone, fmt.Errorf("placing ledger hold: %w", err)
 	}
 	attempt.Status, attempt.RailReference = string(attemptAuthorized), res.Reference
+	attempt.NetworkTransactionID = res.NetworkTransactionID
+	if attempt.StoresCredential && res.NetworkTransactionID != "" {
+		if err := db.New(tx).SetPaymentMethodNetworkTransaction(ctx, db.SetPaymentMethodNetworkTransactionParams{
+			ID: attempt.PaymentMethod, NetworkTransactionID: res.NetworkTransactionID,
+		}); err != nil {
+			return StepDone, err
+		}
+	}
 	attempt.LedgerHold = text(hold.ID.String())
 	attempt.AuthorizationExpiresAt = ts(expires)
 	attempt.UnknownSince = pgtype.Timestamptz{}
@@ -471,4 +542,18 @@ func mustCurrency(code string) money.Currency {
 		panic(fmt.Sprintf("payments: stored currency %q: %v", code, err))
 	}
 	return c
+}
+
+func installmentColumns(i *Installments) (pgtype.Int4, pgtype.Text) {
+	if i == nil {
+		return pgtype.Int4{}, pgtype.Text{}
+	}
+	return pgtype.Int4{Int32: int32(i.Count), Valid: true}, text(string(i.FinancedBy)) //nolint:gosec // validated to be at most 12
+}
+
+func installmentsOf(row db.PaymentsIntent) *Installments {
+	if !row.Installments.Valid {
+		return nil
+	}
+	return &Installments{Count: int(row.Installments.Int32), FinancedBy: Financing(row.InstallmentsFinancedBy.String)}
 }

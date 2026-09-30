@@ -42,6 +42,13 @@ func paymentIntentJSON(it payments.Intent) openapi.PaymentIntent {
 	if it.NextAction != "" {
 		out.NextAction = &openapi.NextAction{Type: it.NextAction}
 	}
+	if it.Installments != nil {
+		out.Installments = &openapi.Installments{Count: it.Installments.Count, FinancedBy: openapi.InstallmentsFinancedBy(it.Installments.FinancedBy)}
+	}
+	if it.SetupFutureUsage != "" {
+		setup := openapi.PaymentIntentSetupFutureUsage(it.SetupFutureUsage)
+		out.SetupFutureUsage = &setup
+	}
 	return out
 }
 

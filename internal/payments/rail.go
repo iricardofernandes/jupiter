@@ -26,16 +26,27 @@ type Result struct {
 	Outcome     Outcome
 	Reference   string
 	DeclineCode string
+	// NetworkTransactionID identifies an approved authorization across the network;
+	// merchant-initiated payments quote the one that stored the card.
+	NetworkTransactionID string
 }
 
 type AuthorizeRequest struct {
 	Key           string
+	Merchant      string
 	Amount        money.Amount
 	PaymentMethod string
 	// Card names the vault token behind a saved card. The rail detokenizes it for the
 	// one call that needs the number, so the number is never held anywhere else.
 	Card          *CardReference
 	Authenticated bool
+	Installments  *Installments
+	// MerchantInitiated marks a payment made without the cardholder, on a card stored by
+	// an earlier one; FirstTransaction is that earlier payment's network transaction id.
+	MerchantInitiated bool
+	FirstTransaction  string
+	// StoresCredential marks the customer-initiated payment that stores the card.
+	StoresCredential bool
 }
 
 type CardReference struct {

@@ -66,6 +66,7 @@ func TestRules(t *testing.T) {
 		{"internal/sim/pix/spi", "internal/sim/pix/dict", ""},
 		{"cmd/sim-pix", "internal/sim/pix", ""},
 		{"cmd/sim-pix", "internal/sim/bank", "simulator-isolation"},
+		{"cmd/sim-card-network", "internal/sim/cardnetwork", ""},
 		{"internal/sim/pix", "internal/payments", "simulator-isolation"},
 		{"internal/sim/pix", "internal/money", "simulator-isolation"},
 		{"internal/sim/pix", "internal/platform/service", ""},

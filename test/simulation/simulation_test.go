@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	mrand "math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
@@ -36,22 +38,26 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
+	"github.com/iricardofernandes/jupiter/pkg/cardnet"
 )
 
 var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, acquirer.Migrate},
 		vaulttest.Template:           {vaulttest.Migrate},
 	}))
 }
 
 // Phase 3 exit criterion: SIM_PAYMENTS seeded payments (10,000 in CI) with injected
 // faults end with zero invariant violations. SIM_SEED replays a run. Since phase 4 some
-// payments use cards saved in the vault, which fails now and then too.
+// payments use cards saved in the vault, which fails now and then too; since phase 5
+// some are live, over ISO 8583 to the card network simulator, which loses requests and
+// answers, answers late and answers twice.
 func TestSimulation(t *testing.T) {
 	seed := envUint("SIM_SEED", 0)
 	if seed == 0 {
@@ -107,8 +113,12 @@ func (c *clock) Advance(d time.Duration) {
 }
 
 type sim struct {
-	t        *testing.T
-	rng      *mrand.Rand
+	t    *testing.T
+	seed uint64
+	rng  *mrand.Rand
+	// mu guards what the network simulator's goroutines touch: the trace and the count
+	// of network faults.
+	mu       sync.Mutex
 	pool     *pgxpool.Pool
 	clock    *clock
 	ledger   *ledger.Ledger
@@ -116,6 +126,9 @@ type sim struct {
 	api      *api.API
 	handler  http.Handler
 	keys     []string
+	liveKeys []string
+	network  *cardnetwork.Network
+	acquirer *acquirer.Connector
 	scripts  []*script
 	trace    []byte
 	crash    bool
@@ -123,13 +136,13 @@ type sim struct {
 }
 
 type stats struct {
-	requests, crashes, duplicates, lostRequests, lostResponses, lostQueries, vaultFaults, resolverRuns, checks, expiryJumps int
-	outcomes                                                                                                                map[string]int
+	requests, crashes, duplicates, lostRequests, lostResponses, lostQueries, vaultFaults, networkFaults, resolverRuns, checks, expiryJumps, live int
+	outcomes                                                                                                                                     map[string]int
 }
 
 func (s stats) String() string {
-	return fmt.Sprintf("%d requests, %d crashed between phases, %d duplicates, rail lost %d requests, %d responses and %d queries, %d vault calls failed, %d background runs, %d jumps past authorization expiry, %d invariant checks, final statuses %v",
-		s.requests, s.crashes, s.duplicates, s.lostRequests, s.lostResponses, s.lostQueries, s.vaultFaults, s.resolverRuns, s.expiryJumps, s.checks, s.outcomes)
+	return fmt.Sprintf("%d requests, %d crashed between phases, %d duplicates, rail lost %d requests, %d responses and %d queries, %d vault calls failed, %d live payments with %d network faults, %d background runs, %d jumps past authorization expiry, %d invariant checks, final statuses %v",
+		s.requests, s.crashes, s.duplicates, s.lostRequests, s.lostResponses, s.lostQueries, s.vaultFaults, s.live, s.networkFaults, s.resolverRuns, s.expiryJumps, s.checks, s.outcomes)
 }
 
 func newSim(t *testing.T, seed uint64) *sim {
@@ -147,7 +160,7 @@ func newSim(t *testing.T, seed uint64) *sim {
 
 	s := &sim{
 		// Deliberately a seeded, reproducible generator: the seed is what replays a run.
-		t: t, rng: mrand.New(mrand.NewPCG(seed, seed^0x9e3779b97f4a7c15)), pool: pool, //nolint:gosec // reproducibility is the point
+		t: t, seed: seed, rng: mrand.New(mrand.NewPCG(seed, seed^0x9e3779b97f4a7c15)), pool: pool, //nolint:gosec // reproducibility is the point
 		clock: &clock{now: time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)},
 		stats: stats{outcomes: map[string]int{}},
 	}
@@ -174,8 +187,9 @@ func newSim(t *testing.T, seed uint64) *sim {
 	}
 	t.Cleanup(vaultPool.Close)
 	cards := &faultyVault{sim: s, inner: vaulttest.Start(t, vaultPool, vaulttest.Options{Now: s.clock.Now}).Client}
+	s.startNetwork(t, pool, cards)
 	s.payments = payments.New(payments.Config{
-		Ledger: s.ledger, Events: eventService, Now: s.clock.Now,
+		Ledger: s.ledger, Events: eventService, Now: s.clock.Now, LiveRail: s.acquirer,
 		TestRail: &faultyRail{sim: s, inner: payments.NewTestRail(pool, s.clock.Now, nil).WithCards(cards)},
 	})
 	merchants := merchant.New(s.clock.Now)
@@ -197,8 +211,11 @@ func newSim(t *testing.T, seed uint64) *sim {
 		err := postgres.InTx(t.Context(), pool, func(tx pgx.Tx) error {
 			_, keys, err := merchants.Create(t.Context(), tx, fmt.Sprint("merchant ", i), api.CurrentVersion)
 			for _, k := range keys {
-				if k.Value[:8] == "sk_test_" {
+				switch k.Value[:8] {
+				case "sk_test_":
 					s.keys = append(s.keys, k.Value)
+				case "sk_live_":
+					s.liveKeys = append(s.liveKeys, k.Value)
 				}
 			}
 			return err
@@ -211,6 +228,8 @@ func newSim(t *testing.T, seed uint64) *sim {
 }
 
 func (s *sim) record(format string, args ...any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.trace = fmt.Appendf(s.trace, format+"\n", args...)
 }
 
@@ -263,6 +282,56 @@ func (f *faultyRail) Query(ctx context.Context, key string) payments.Result {
 	res := f.inner.Query(ctx, key)
 	f.sim.record("rail query: %s", res.Outcome)
 	return res
+}
+
+// networkTimeout is the acquirer's: short, since every lost answer waits for it.
+const networkTimeout = 200 * time.Millisecond
+
+// startNetwork runs the card network simulator, which loses, delays and repeats
+// messages as the seed decides, and the acquirer connector live payments go through.
+func (s *sim) startNetwork(t *testing.T, pool *pgxpool.Pool, cards payments.CardSource) {
+	t.Helper()
+	s.network = cardnetwork.New(cardnetwork.Config{Now: s.clock.Now, LateAfter: 2 * networkTimeout, Faults: s.networkFault})
+	if err := s.network.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.network.Close)
+	connector, err := acquirer.New(acquirer.Config{Pool: pool, Addr: s.network.Addr(), Timeout: networkTimeout, Cards: cards, Now: s.clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := connector.Connect(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = connector.Close() })
+	s.acquirer = connector
+}
+
+// networkFault is drawn from the seed and the message, not from the run's generator:
+// the network's goroutines answer it, and its STANs come from a sequence the run
+// advances in its own order.
+func (s *sim) networkFault(m cardnet.Message) cardnetwork.Fault {
+	h := fnv.New64a()
+	_ = binary.Write(h, binary.LittleEndian, s.seed)
+	_, _ = h.Write([]byte(m.MTI + "/" + m.STAN))
+	fault := cardnetwork.NoFault
+	switch roll := h.Sum64() % 100; {
+	case roll < 2:
+		fault = cardnetwork.LoseRequest
+	case roll < 4:
+		fault = cardnetwork.LoseAnswer
+	case roll < 5:
+		fault = cardnetwork.AnswerLate
+	case roll < 6:
+		fault = cardnetwork.AnswerTwice
+	}
+	s.record("network %s: fault %d", m.MTI, fault)
+	if fault != cardnetwork.NoFault {
+		s.mu.Lock()
+		s.stats.networkFaults++
+		s.mu.Unlock()
+	}
+	return fault
 }
 
 // faultyVault fails calls to the vault as the seed decides: a request that never

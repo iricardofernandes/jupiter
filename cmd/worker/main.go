@@ -9,6 +9,7 @@ import (
 
 	"github.com/riverqueue/river"
 
+	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
@@ -31,6 +32,10 @@ const (
 	reaperInterval    = time.Hour
 	resolveInterval   = 15 * time.Second
 	expireAuthsEvery  = time.Minute
+	forwardEvery      = 5 * time.Second
+	forwardBatch      = 500
+	clearingEvery     = 15 * time.Minute
+	clearingDays      = 7
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -76,26 +81,32 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		pool.Close()
 		return service.App{}, err
 	}
+	network, err := acquirer.FromEnv(ctx, os.Getenv, pool, cards, logger)
+	if err != nil {
+		pool.Close()
+		return service.App{}, err
+	}
 	l := ledger.New()
-	paymentService := payments.New(payments.Config{
+	paymentsConfig := payments.Config{
 		Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
-	})
+	}
+	if network != nil {
+		paymentsConfig.LiveRail = network
+	}
+	paymentService := payments.New(paymentsConfig)
 	a := api.New(api.Deps{
 		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Vault: cards, Box: box, Logger: logger,
 	})
 
+	background := tasks(jobClient, l, pool, a, paymentService, network, logger)
 	return service.App{
-		Ready: pool.Ping,
-		Background: []func(context.Context) error{
-			jobs.Run(jobClient),
-			service.Every(logger, "ledger.apply_queued", applyInterval, applyQueued(l, pool)),
-			service.Every(logger, "ledger.expire_due", expiryInterval, expireDue(l, pool, logger)),
-			service.Every(logger, "ledger.check", checkInterval, check(l, pool, logger)),
-			service.Every(logger, "api.complete_abandoned", completerInterval, completeAbandoned(a, logger)),
-			service.Every(logger, "api.reap_idempotency_keys", reaperInterval, reap(a, logger)),
-			service.Every(logger, "payments.resolve", resolveInterval, resolve(paymentService, pool, logger)),
-			service.Every(logger, "payments.expire_authorizations", expireAuthsEvery, expireAuthorizations(paymentService, pool, logger)),
+		Ready:      pool.Ping,
+		Background: background,
+		Close: func() {
+			if network != nil {
+				_ = network.Close()
+			}
+			pool.Close()
 		},
-		Close: pool.Close,
 	}, nil
 }

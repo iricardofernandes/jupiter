@@ -177,7 +177,11 @@ func authorizationAnswer(op *db.PaymentsTestRail, first bool) Result {
 	case first && op.Status == railApproved && op.Amount%100 == magicResponseLost:
 		return Result{Outcome: Unknown}
 	}
-	return stored(op)
+	res := stored(op)
+	if res.Outcome == Approved {
+		res.NetworkTransactionID = op.Reference
+	}
+	return res
 }
 
 // Capture accepts one capture of an approved, unreversed authorization, for at most

@@ -88,8 +88,12 @@ func (s *Service) methodRow(ctx context.Context, q db.DBTX, owner Owner, methodI
 	return row, err
 }
 
-// checkPaymentMethod accepts a test payment method or a saved one of the owner's.
+// checkPaymentMethod accepts a saved payment method of the owner's, or in test mode a
+// test one.
 func (s *Service) checkPaymentMethod(ctx context.Context, q db.DBTX, owner Owner, pm string) error {
+	if knownPaymentMethod(pm) && owner.Livemode {
+		return fmt.Errorf("%w: %s is a test payment method, for test mode only", ErrInvalid, pm)
+	}
 	if pm == "" || knownPaymentMethod(pm) {
 		return nil
 	}
@@ -113,6 +117,56 @@ func (s *Service) cardFor(ctx context.Context, q db.DBTX, owner Owner, pm string
 		return nil, err
 	}
 	return &CardReference{Token: row.VaultToken, Owner: VaultOwner(owner)}, nil
+}
+
+// checkStoredCredential enforces the stored credential rules: a card is stored for
+// merchant-initiated payments by a customer-initiated one that says so, and a
+// merchant-initiated payment is made only on a card stored that way.
+func (s *Service) checkStoredCredential(ctx context.Context, q db.DBTX, owner Owner, row db.PaymentsIntent, offSession bool) error {
+	stores := row.SetupFutureUsage == SetupOffSession
+	switch {
+	case !offSession && !stores:
+		return nil
+	case offSession && stores:
+		return fmt.Errorf("%w: a payment cannot both store the card (setup_future_usage) and be made off_session", ErrInvalid)
+	case knownPaymentMethod(row.PaymentMethod):
+		return fmt.Errorf("%w: setup_future_usage and off_session need a saved payment method", ErrInvalid)
+	}
+	if !offSession {
+		return nil
+	}
+	first, err := s.firstTransaction(ctx, q, owner, row.PaymentMethod)
+	if err != nil {
+		return err
+	}
+	if first == "" {
+		return fmt.Errorf("%w: %s has not been set up for off-session payments: confirm a payment with it and setup_future_usage=off_session first", ErrInvalid, row.PaymentMethod)
+	}
+	return nil
+}
+
+// firstTransaction is the network transaction id of the payment that stored the card.
+func (s *Service) firstTransaction(ctx context.Context, q db.DBTX, owner Owner, pm string) (string, error) {
+	row, err := s.methodRow(ctx, q, owner, pm)
+	if err != nil {
+		return "", err
+	}
+	return row.NetworkTransactionID, nil
+}
+
+// schemeOf names the card scheme whose rules apply to a payment method.
+func (s *Service) schemeOf(ctx context.Context, q db.DBTX, owner Owner, pm string) (string, error) {
+	switch pm {
+	case TestCardMastercard:
+		return "mastercard", nil
+	case TestCardVisa, TestCardDeclined, TestCardInsufficientFunds, TestCardAuthenticationRequired:
+		return "visa", nil
+	}
+	row, err := s.methodRow(ctx, q, owner, pm)
+	if err != nil {
+		return "", err
+	}
+	return row.Brand, nil
 }
 
 func methodFromRow(row db.PaymentsPaymentMethod) (PaymentMethod, error) {

@@ -5,6 +5,7 @@ package api_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -329,7 +330,8 @@ func TestAnAuthorizationThatStaysUnknownIsReversed(t *testing.T) {
 func TestAnUncapturedAuthorizationExpires(t *testing.T) {
 	h := newHarness(t, api.CurrentVersion)
 	it := h.createIntent(map[string]any{"amount": 1000, "payment_method": payments.TestCardVisa, "capture_method": "manual", "confirm": true}, http.StatusOK)
-	h.clock.Advance(7*24*time.Hour + time.Minute)
+	// Visa's rule for a customer-initiated card-not-present authorization: ten days.
+	h.clock.Advance(10*24*time.Hour + time.Minute)
 	if n, err := h.payments.ExpireAuthorizations(t.Context(), h.pool); err != nil || n != 1 {
 		t.Fatalf("ExpireAuthorizations = %d, %v", n, err)
 	}
@@ -360,11 +362,21 @@ func TestADeclinedConfirmationIsReplayedVerbatim(t *testing.T) {
 	}
 }
 
-func TestLiveModeHasNoRailYet(t *testing.T) {
+func TestLiveModeWithoutARail(t *testing.T) {
 	h := newHarness(t, api.CurrentVersion)
+	live := h.keys["sk_live_"]
 	resp := h.expect(call{
-		method: "POST", path: "/v1/payment_intents", key: h.keys["sk_live_"],
+		method: "POST", path: "/v1/payment_intents", key: live,
 		body: map[string]any{"amount": 1000, "currency": "brl", "payment_method": payments.TestCardVisa, "confirm": true},
+	}, http.StatusBadRequest)
+	if !strings.Contains(string(resp.body), "for test mode only") {
+		t.Fatalf("a test payment method in live mode: %s", resp.body)
+	}
+	var pm openapi.PaymentMethod
+	h.expect(call{method: "POST", path: "/v1/payment_methods", key: live, body: cardBody("4242424242424242")}, http.StatusOK).decode(t, &pm)
+	resp = h.expect(call{
+		method: "POST", path: "/v1/payment_intents", key: live,
+		body: map[string]any{"amount": 1000, "currency": "brl", "payment_method": pm.Id, "confirm": true},
 	}, http.StatusBadRequest)
 	var e openapi.ErrorResponse
 	resp.decode(t, &e)
@@ -426,7 +438,7 @@ func TestACaptureResolvedAfterItsHoldLapsedIsPostedOnce(t *testing.T) {
 	it := h.createIntent(map[string]any{"amount": 5000, "payment_method": payments.TestCardVisa, "confirm": true}, http.StatusOK)
 	wantStatus(t, it, "processing")
 
-	h.clock.Advance(9 * 24 * time.Hour)
+	h.clock.Advance(12 * 24 * time.Hour)
 	if n, err := h.ledger.ExpireDue(t.Context(), h.pool, 100); err != nil || n != 1 {
 		t.Fatalf("ledger ExpireDue = %d, %v; want the hold expired", n, err)
 	}

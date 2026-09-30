@@ -54,3 +54,12 @@ sql:
         out: internal/vault/server/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/acquirer/migrations
+    queries: internal/acquirer/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/acquirer/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

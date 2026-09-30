@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
@@ -46,24 +47,38 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		return service.App{}, err
 	}
 	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent})
+	network, err := acquirer.FromEnv(ctx, os.Getenv, pool, cards, logger)
+	if err != nil {
+		pool.Close()
+		return service.App{}, err
+	}
 	a := api.New(api.Deps{
 		Pool:      pool,
 		Merchants: merchant.New(nil),
 		Events:    eventService,
-		Payments:  newPayments(pool, eventService, cards, logger),
+		Payments:  newPayments(pool, eventService, cards, network, logger),
 		Vault:     cards,
 		Box:       box,
 		Logger:    logger,
 	})
-	return service.App{Handler: a.Handler(), Ready: pool.Ping, Close: pool.Close}, nil
+	return service.App{Handler: a.Handler(), Ready: pool.Ping, Close: func() {
+		if network != nil {
+			_ = network.Close()
+		}
+		pool.Close()
+	}}, nil
 }
 
-// newPayments serves test mode with the test rail. Live mode has no rail until the card
-// network connector of phase 5.
-func newPayments(pool *pgxpool.Pool, eventService *events.Service, cards *vault.Client, logger *slog.Logger) *payments.Service {
-	return payments.New(payments.Config{
+// newPayments serves test mode with the test rail, and live mode with the card network
+// when one is configured.
+func newPayments(pool *pgxpool.Pool, eventService *events.Service, cards *vault.Client, network *acquirer.Connector, logger *slog.Logger) *payments.Service {
+	cfg := payments.Config{
 		Ledger:   ledger.New(),
 		Events:   eventService,
 		TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
-	})
+	}
+	if network != nil {
+		cfg.LiveRail = network
+	}
+	return payments.New(cfg)
 }

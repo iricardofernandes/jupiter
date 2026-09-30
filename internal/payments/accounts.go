@@ -132,7 +132,10 @@ func intentFromRow(row db.PaymentsIntent) (Intent, error) {
 		PaymentMethod: row.PaymentMethod, Description: row.Description,
 		AmountCapturable: amount(row.AmountCapturable), AmountReceived: amount(row.AmountReceived),
 		AmountRefunded: amount(row.AmountRefunded), NextAction: row.NextAction,
-		CancellationReason: row.CancellationReason, CreatedAt: row.CreatedAt.Time,
+		CancellationReason: row.CancellationReason, SetupFutureUsage: row.SetupFutureUsage, CreatedAt: row.CreatedAt.Time,
+	}
+	if row.Installments.Valid {
+		it.Installments = &Installments{Count: int(row.Installments.Int32), FinancedBy: Financing(row.InstallmentsFinancedBy.String)}
 	}
 	if row.LatestAttempt.Valid {
 		if it.LatestAttempt, err = AttemptPrefix.Parse(row.LatestAttempt.String); err != nil {
@@ -182,7 +185,8 @@ func saveIntent(ctx context.Context, q *db.Queries, row db.PaymentsIntent) error
 		Description: row.Description, AmountCapturable: row.AmountCapturable, AmountReceived: row.AmountReceived,
 		AmountRefunded: row.AmountRefunded, LatestAttempt: row.LatestAttempt, LastErrorCode: row.LastErrorCode,
 		LastDeclineCode: row.LastDeclineCode, LastErrorMessage: row.LastErrorMessage, NextAction: row.NextAction,
-		CancellationReason: row.CancellationReason, UpdatedAt: row.UpdatedAt,
+		CancellationReason: row.CancellationReason, Installments: row.Installments,
+		InstallmentsFinancedBy: row.InstallmentsFinancedBy, SetupFutureUsage: row.SetupFutureUsage, UpdatedAt: row.UpdatedAt,
 	})
 }
 
@@ -191,6 +195,7 @@ func saveAttempt(ctx context.Context, q *db.Queries, row db.PaymentsAttempt) err
 		ID: row.ID, Status: row.Status, Authenticated: row.Authenticated, RailReference: row.RailReference,
 		DeclineCode: row.DeclineCode, LedgerHold: row.LedgerHold, CaptureAmount: row.CaptureAmount,
 		AmountCaptured: row.AmountCaptured, AuthorizationExpiresAt: row.AuthorizationExpiresAt,
-		UnknownSince: row.UnknownSince, Resolutions: row.Resolutions, UpdatedAt: row.UpdatedAt,
+		UnknownSince: row.UnknownSince, Resolutions: row.Resolutions, NetworkTransactionID: row.NetworkTransactionID,
+		ClearedOn: row.ClearedOn, AmountCleared: row.AmountCleared, UpdatedAt: row.UpdatedAt,
 	})
 }

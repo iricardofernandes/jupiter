@@ -1,0 +1,18 @@
+# How long an authorization lasts before it must be captured or reversed.
+# One row per rule. A lookup considers the rows in effect on the day the payment was
+# authorized and takes the most specific: an exact scheme outranks an exact presence,
+# which outranks an exact initiator, then kind; "*" matches anything. Among equally
+# specific rows the latest wins, so a change to a rule is a new row with the same columns
+# and a later date.
+# verified: "cited" when a primary or reputable source was read (docs/research), "unverified"
+# otherwise. Stripe documents 7 days for card-not-present payments; Visa's own framework
+# says 10 for customer-initiated ones. Jupiter follows the scheme and records the conflict.
+scheme,presence,initiator,kind,effective_from,validity_hours,verified,source
+*,*,*,*,2000-01-01,168,unverified,"Common default of 7 days (Stripe documentation); used where no scheme rule applies"
+visa,*,*,*,2000-01-01,168,unverified,"7 days before the April 2024 framework, as commonly cited"
+visa,card_present,*,final,2024-04-13,120,cited,"Visa, Authorization framework will be updated to simplify time frames"
+visa,card_not_present,customer,final,2024-04-13,240,cited,"Visa, Authorization framework will be updated to simplify time frames"
+visa,card_not_present,merchant,final,2024-04-13,120,cited,"Visa, Authorization framework will be updated to simplify time frames"
+visa,card_not_present,customer,estimated,2024-04-13,720,cited,"Visa: 30 days for lodging, cruise and vehicle rental estimated authorizations; other merchants need the paid Extended Authorization Service"
+mastercard,*,*,final,2000-01-01,168,unverified,"7 days for final and undefined authorizations, as commonly cited"
+mastercard,*,*,estimated,2000-01-01,720,unverified,"30 days for pre-authorizations, as commonly cited"

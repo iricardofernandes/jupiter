@@ -6,9 +6,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/payments"
+	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
+	"github.com/iricardofernandes/jupiter/internal/platform/service"
 )
 
 func applyQueued(l *ledger.Ledger, pool *pgxpool.Pool) func(context.Context) error {
@@ -82,4 +85,46 @@ func expireAuthorizations(p *payments.Service, pool *pgxpool.Pool, logger *slog.
 		}
 		return err
 	}
+}
+
+func retryForwards(c *acquirer.Connector, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		n, err := c.RetryForwards(ctx, forwardBatch)
+		if n > 0 {
+			logger.InfoContext(ctx, "repeated reversals and advices to the card network", "count", n)
+		}
+		return err
+	}
+}
+
+func importClearing(c *acquirer.Connector, p *payments.Service, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		n, err := c.ImportRecentClearing(ctx, p, clearingDays)
+		if n > 0 {
+			logger.InfoContext(ctx, "imported clearing files", "days", n)
+		}
+		return err
+	}
+}
+
+// tasks are the worker's background loops; the card network's run only when one is
+// configured.
+func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.API, p *payments.Service, network *acquirer.Connector, logger *slog.Logger) []func(context.Context) error {
+	background := []func(context.Context) error{
+		jobs.Run(jobClient),
+		service.Every(logger, "ledger.apply_queued", applyInterval, applyQueued(l, pool)),
+		service.Every(logger, "ledger.expire_due", expiryInterval, expireDue(l, pool, logger)),
+		service.Every(logger, "ledger.check", checkInterval, check(l, pool, logger)),
+		service.Every(logger, "api.complete_abandoned", completerInterval, completeAbandoned(a, logger)),
+		service.Every(logger, "api.reap_idempotency_keys", reaperInterval, reap(a, logger)),
+		service.Every(logger, "payments.resolve", resolveInterval, resolve(p, pool, logger)),
+		service.Every(logger, "payments.expire_authorizations", expireAuthsEvery, expireAuthorizations(p, pool, logger)),
+	}
+	if network != nil {
+		background = append(background,
+			service.Every(logger, "acquirer.retry_forwards", forwardEvery, retryForwards(network, logger)),
+			service.Every(logger, "acquirer.import_clearing", clearingEvery, importClearing(network, p, logger)),
+		)
+	}
+	return background
 }
