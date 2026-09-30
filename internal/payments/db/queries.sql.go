@@ -933,7 +933,7 @@ LEFT JOIN payments.attempts a ON a.id = i.latest_attempt
 WHERE NOT CASE i.status
     WHEN 'requires_capture' THEN coalesce(a.status = 'authorized' AND i.amount_capturable = a.amount, false)
     WHEN 'succeeded' THEN coalesce(a.status = 'captured' AND i.amount_received = a.amount_captured, false)
-    WHEN 'processing' THEN coalesce(a.status IN ('authenticating', 'authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown'), false)
+    WHEN 'processing' THEN coalesce(a.status IN ('authenticating', 'authorizing', 'authorization_unknown', 'scheduled', 'capturing', 'capture_unknown', 'voiding', 'void_unknown'), false)
     WHEN 'requires_action' THEN coalesce(a.status = 'requires_action', false)
     WHEN 'canceled' THEN a.status IS NULL OR a.status IN ('voided', 'declined', 'failed')
     ELSE a.status IS NULL OR a.status IN ('declined', 'failed')

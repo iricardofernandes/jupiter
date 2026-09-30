@@ -62,6 +62,12 @@ linters:
       disable:
         - fieldalignment # readability of structs matters more than a few bytes
         - shadow # redeclaring err inside closures is idiomatic; it caught no bug in three phases
+    misspell:
+      # Names from Brazilian specifications, not English: Pix Automático, and the API
+      # Pix's periodicity ANUAL.
+      ignore-rules:
+        - automatico
+        - anual
     nestif:
       min-complexity: 4
     nolintlint:

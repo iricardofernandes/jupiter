@@ -21,6 +21,7 @@ tags:
   - name: Payment intents
   - name: Refunds
   - name: Payouts
+  - name: Subscriptions
   - name: Risk
   - name: Test helpers
   - name: API keys
@@ -292,6 +293,74 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Payout" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/subscriptions:
+    get:
+      operationId: listSubscriptions
+      tags: [Subscriptions]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+      responses:
+        "200":
+          description: A page of subscriptions, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubscriptionList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createSubscription
+      tags: [Subscriptions]
+      description: |
+        Charges a customer every interval by Pix Automático. The subscription is incomplete
+        until the customer authorizes it: by reading next_action.pix_display_qr_code.data
+        (authorization method qr_code), or by accepting the request their bank shows them
+        (payer_request). Each cycle then becomes a payment intent, which the customer's bank
+        debits on its due date.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSubscriptionRequest" }
+      responses:
+        "200":
+          description: The subscription.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subscription" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/subscriptions/{id}:
+    get:
+      operationId: getSubscription
+      tags: [Subscriptions]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The subscription.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subscription" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/subscriptions/{id}/cancel:
+    post:
+      operationId: cancelSubscription
+      tags: [Subscriptions]
+      description: |
+        Cancels the customer's authorization. Charges not yet due to be debited are canceled
+        with it; one due today or later in its retries goes on.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The subscription.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Subscription" }
         default: { $ref: "#/components/responses/Failure" }
   /v1/risk/decisions:
     get:
@@ -809,6 +878,7 @@ components:
         pix:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/PixOptions" }]
+        subscription: { type: string, nullable: true, description: "The subscription a pix_automatico payment charges." }
         created: { type: integer, format: int64 }
     PixOptions:
       type: object
@@ -974,6 +1044,7 @@ components:
             redirect_to_url: send the customer to redirect_to_url.url to complete 3-D Secure.
             use_test_authentication: in test mode, complete it with the test helper.
             pix_display_qr_code: show the customer pix_display_qr_code.data, as a QR code and as text to copy and paste.
+            awaiting_payer_authorization: the customer's bank is showing them a subscription to accept.
         redirect_to_url:
           type: object
           required: [url]
@@ -1128,6 +1199,91 @@ components:
             type: { type: string, enum: [pix] }
             pix_key: { type: string, maxLength: 77 }
         description: { type: string, maxLength: 140 }
+    Subscription:
+      type: object
+      required: [id, object, livemode, status, amount, currency, interval, start_date, end_date, description, customer,
+                 retries, authorization, next_action, canceled_by, cycles, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [subscription] }
+        livemode: { type: boolean }
+        status:
+          type: string
+          enum: [incomplete, active, past_due, rejected, canceled, ended]
+          description: |
+            incomplete: waiting for the customer's authorization. active: charging. past_due: the
+            latest cycle's charge failed. rejected: the customer refused it. canceled: by you or
+            the customer (canceled_by). ended: past its end_date.
+        amount: { type: integer, format: int64 }
+        currency: { type: string }
+        interval: { type: string, enum: [week, month, quarter, half_year, year] }
+        start_date: { type: string, format: date, description: The first cycle's due date. }
+        end_date: { type: string, format: date, nullable: true }
+        description: { type: string }
+        customer: { $ref: "#/components/schemas/SubscriptionCustomer" }
+        retries: { type: string, enum: [none, three_in_seven] }
+        authorization: { $ref: "#/components/schemas/SubscriptionAuthorization" }
+        next_action:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/NextAction" }]
+        canceled_by: { type: string, enum: [merchant, customer], nullable: true }
+        cycles:
+          type: array
+          items: { $ref: "#/components/schemas/SubscriptionCycle" }
+        created: { type: integer, format: int64 }
+    SubscriptionCustomer:
+      type: object
+      additionalProperties: false
+      required: [name, tax_id]
+      properties:
+        name: { type: string, maxLength: 140 }
+        tax_id: { type: string, description: "A CPF (11 digits) or a CNPJ (14 characters)." }
+    SubscriptionAuthorization:
+      type: object
+      additionalProperties: false
+      required: [method]
+      properties:
+        method: { type: string, enum: [qr_code, payer_request] }
+        payer_bank:
+          type: object
+          additionalProperties: false
+          required: [ispb, account]
+          description: The customer's account, where payer_request sends the request.
+          properties:
+            ispb: { type: string, pattern: '^[0-9A-Z]{8}$' }
+            branch: { type: string, pattern: '^[0-9]{1,4}$' }
+            account: { type: string, pattern: '^[0-9]{1,20}$' }
+    SubscriptionCycle:
+      type: object
+      required: [number, due_date, payment_intent, status]
+      properties:
+        number: { type: integer }
+        due_date: { type: string, format: date }
+        payment_intent: { type: string, nullable: true }
+        status: { type: string, enum: [pending, paid, failed, canceled] }
+    SubscriptionList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Subscription" }
+    CreateSubscriptionRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, currency, interval, start_date, description, customer, authorization]
+      properties:
+        amount: { type: integer, format: int64, minimum: 1 }
+        currency: { type: string, enum: [brl] }
+        interval: { type: string, enum: [week, month, quarter, half_year, year] }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        description: { type: string, maxLength: 35, description: "What the customer's bank shows them they are paying for." }
+        customer: { $ref: "#/components/schemas/SubscriptionCustomer" }
+        retries: { type: string, enum: [none, three_in_seven], description: "three_in_seven unless set." }
+        authorization: { $ref: "#/components/schemas/SubscriptionAuthorization" }
     CreateRefundRequest:
       type: object
       required: [payment_intent]

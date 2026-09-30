@@ -85,7 +85,7 @@ func (s *Service) refundOnRail(ctx context.Context, q db.DBTX, refund db.Payment
 		return Result{}, err
 	}
 	var rail Rail
-	if attempt.PaymentMethod != PaymentMethodPix {
+	if !isPix(attempt.PaymentMethod) {
 		if rail, err = s.rail(refund.Livemode); err != nil {
 			return Result{}, err
 		}
@@ -94,7 +94,7 @@ func (s *Service) refundOnRail(ctx context.Context, q db.DBTX, refund db.Payment
 	if err != nil {
 		return Result{}, err
 	}
-	if attempt.PaymentMethod == PaymentMethodPix {
+	if isPix(attempt.PaymentMethod) {
 		return s.returnPix(ctx, refund.Livemode, attempt.NetworkTransactionID, bankID(refund.ID), amount)
 	}
 	return rail.Refund(ctx, OperationRequest{
@@ -168,7 +168,7 @@ func (s *Service) refunded(ctx context.Context, tx pgx.Tx, refund *db.PaymentsRe
 	if err != nil {
 		return err
 	}
-	if attempt.PaymentMethod == PaymentMethodPix {
+	if isPix(attempt.PaymentMethod) {
 		pix, err := s.pixAccounts(ctx, tx, refund.Livemode, currency)
 		if err != nil {
 			return err

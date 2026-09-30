@@ -53,6 +53,8 @@ const (
 	TypePayoutCreated               = "payout.created"
 	TypePayoutPaid                  = "payout.paid"
 	TypePayoutFailed                = "payout.failed"
+	TypeSubscriptionCreated         = "subscription.created"
+	TypeSubscriptionUpdated         = "subscription.updated"
 )
 
 // Types lists every event type an endpoint can subscribe to, besides "*".
@@ -63,6 +65,7 @@ var Types = []string{
 	TypePaymentIntentCapturable, TypePaymentIntentSucceeded, TypePaymentIntentPaymentFailed,
 	TypePaymentIntentCanceled, TypeRefundCreated, TypeRefundUpdated,
 	TypePayoutCreated, TypePayoutPaid, TypePayoutFailed,
+	TypeSubscriptionCreated, TypeSubscriptionUpdated,
 }
 
 // Owner scopes every object to a merchant and a mode; test and live data never mix.

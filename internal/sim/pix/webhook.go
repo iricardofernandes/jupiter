@@ -67,13 +67,20 @@ func (s *Sim) webhookRoutes(mux *http.ServeMux) {
 func (s *Sim) notify(ctx context.Context, p *received) {
 	s.mu.Lock()
 	base, registered := s.clients[p.client].webhooks[p.key]
-	body, _ := json.Marshal(pixapi.WebhookPixBody{Pix: &[]pixapi.Pix{p.render()}})
+	body := pixapi.WebhookPixBody{Pix: &[]pixapi.Pix{p.render()}}
 	s.mu.Unlock()
 	if !registered {
 		return
 	}
-	d := Delivery{URL: base + "/pix", E2EID: p.e2eid}
-	if s.fault(Event{Kind: "webhook", Client: p.client, TxID: p.txid, E2EID: p.e2eid}).Drop {
+	s.post(ctx, Event{Kind: "webhook", Client: p.client, TxID: p.txid, E2EID: p.e2eid}, base+"/pix", p.e2eid, body)
+}
+
+// post delivers a notification, over mutual TLS, unless a fault drops it, and records
+// what happened.
+func (s *Sim) post(ctx context.Context, e Event, url, subject string, v any) {
+	body, _ := json.Marshal(v)
+	d := Delivery{URL: url, E2EID: subject}
+	if s.fault(e).Drop {
 		d.Dropped = true
 		s.record(d)
 		return

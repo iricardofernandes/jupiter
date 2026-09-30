@@ -190,8 +190,8 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 // applyUpdate sets the fields an update names; they are checked after.
 func applyUpdate(row *db.PaymentsIntent, p UpdateParams) {
 	if p.PaymentMethod != nil {
-		if *p.PaymentMethod != PaymentMethodPix && p.Pix == nil {
-			row.PixOptions = nil // paid otherwise now: the Pix options no longer apply
+		if *p.PaymentMethod != row.PaymentMethod && p.Pix == nil {
+			row.PixOptions = nil // paid otherwise now: the options of the old method no longer apply
 		}
 		row.PaymentMethod = *p.PaymentMethod
 	}
@@ -348,7 +348,7 @@ func (s *Service) Authorize(ctx context.Context, q db.DBTX, owner Owner, intentI
 }
 
 func (s *Service) authorizeOnRail(ctx context.Context, q db.DBTX, owner Owner, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (Result, error) {
-	if attempt.PaymentMethod == PaymentMethodPix {
+	if isPix(attempt.PaymentMethod) {
 		return s.chargePix(ctx, intent, attempt)
 	}
 	rail, err := s.rail(intent.Livemode)
@@ -398,7 +398,7 @@ func (s *Service) FinishAuthorization(ctx context.Context, tx pgx.Tx, owner Owne
 			err = s.recordOutcome(ctx, tx, attempt.ID, true)
 		}
 	case Declined:
-		if attempt.PaymentMethod == PaymentMethodPix {
+		if isPix(attempt.PaymentMethod) {
 			attempt.Status, attempt.DeclineCode = string(attemptDeclined), res.DeclineCode
 			err = s.fail(ctx, tx, &row, "payment_intent_payment_attempt_failed", res.DeclineCode, "The bank did not make the Pix charge.")
 			break
@@ -498,7 +498,7 @@ func (s *Service) CompleteAction(ctx context.Context, tx pgx.Tx, owner Owner, in
 	if Status(row.Status) != RequiresAction || !inStatus(attempt, attemptRequiresAction) {
 		return Intent{}, StepDone, fmt.Errorf("%w: the payment intent is not waiting for an action", ErrInvalidState)
 	}
-	if attempt.PaymentMethod == PaymentMethodPix {
+	if isPix(attempt.PaymentMethod) {
 		return Intent{}, StepDone, fmt.Errorf("%w: a Pix payment completes when its Pix arrives, not with the test helper", ErrInvalidState)
 	}
 	row.NextAction = ""
@@ -554,6 +554,9 @@ func (s *Service) checkRail(owner Owner, pm string, offSession bool) error {
 // checkPix applies Pix's rules to an intent paid, or to be paid, by Pix; Pix options on
 // an intent paid otherwise are refused.
 func (s *Service) checkPix(pm string, o *PixOptions, amount money.Amount, method CaptureMethod, installments *Installments, setup string) error {
+	if pm == PaymentMethodPixAutomatico || (o != nil && o.Recurring != nil) {
+		return fmt.Errorf("%w: a Pix Automático payment is charged by its subscription; to collect it now, use another payment method", ErrInvalid)
+	}
 	if pm != PaymentMethodPix {
 		if o != nil {
 			return fmt.Errorf("%w: pix options are for the payment method pix", ErrInvalid)

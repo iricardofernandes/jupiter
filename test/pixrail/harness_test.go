@@ -36,13 +36,14 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
+	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 )
 
 var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, subscriptions.Migrate},
 	}))
 }
 
@@ -79,6 +80,7 @@ type harness struct {
 	bank      *pixsim.Sim
 	connector *pix.Connector
 	payments  *payments.Service
+	subs      *subscriptions.Service
 	ledger    *ledger.Ledger
 	api       *httptest.Server
 	liveKey   string
@@ -141,7 +143,7 @@ func newHarness(t *testing.T) *harness {
 	h.bank.AddKey(pixsim.Entry{Key: sellerKey, ISPB: "30000003", Name: "Vendedor da Silva", TaxID: "98765432100"})
 
 	h.connector, err = pix.New(pix.Config{
-		BaseURL: bank.URL, ClientID: clientID, ClientSecret: secret, Key: jupiterKey,
+		BaseURL: bank.URL, ClientID: clientID, ClientSecret: secret, Key: jupiterKey, Account: clientID,
 		TLS:        mtls.ClientConfig(issue(pki.Client("spiffe://jupiter/pix")).TLS, pki.Pool()),
 		WebhookURL: webhooks.URL + "/pix/live", Livemode: true, Pool: h.pool, Now: h.clock.Now,
 	})
@@ -152,15 +154,16 @@ func newHarness(t *testing.T) *harness {
 		Ledger: h.ledger, Events: eventService, Now: h.clock.Now, LivePix: h.connector,
 		TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil),
 	})
+	h.subs = subscriptions.New(subscriptions.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveBank: h.connector, Now: h.clock.Now})
 	mux := http.NewServeMux()
-	mux.Handle("/pix/live/", http.StripPrefix("/pix/live", h.connector.Handler(h.payments)))
+	mux.Handle("/pix/live/", http.StripPrefix("/pix/live", h.connector.Handler(h.payments, h.subs)))
 	notifications = mux
 	if err := h.connector.RegisterWebhook(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
 	merchants := merchant.New(h.clock.Now)
-	a := api.New(api.Deps{Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Box: box, Now: h.clock.Now})
+	a := api.New(api.Deps{Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Subscriptions: h.subs, Box: box, Now: h.clock.Now})
 	h.api = httptest.NewServer(a.Handler())
 	t.Cleanup(h.api.Close)
 	err = postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {

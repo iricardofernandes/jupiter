@@ -15,6 +15,7 @@ var objectPaths = map[string]string{
 	"payment_intent":   "/v1/payment_intents/",
 	"refund":           "/v1/refunds/",
 	"payout":           "/v1/payouts/",
+	"subscription":     "/v1/subscriptions/",
 }
 
 func optional(s string) *string {
@@ -53,6 +54,10 @@ func paymentIntentJSON(it payments.Intent) openapi.PaymentIntent {
 		}
 	}
 	out.Pix = pixOptionsJSON(it.Pix)
+	if it.Pix != nil && it.Pix.Recurring != nil {
+		out.Pix = nil
+		out.Subscription = optional(it.Pix.Recurring.Subscription)
+	}
 	out.RequestThreeDSecure = openapi.PaymentIntentRequestThreeDSecure(it.RequestThreeDSecure)
 	if out.RequestThreeDSecure == "" {
 		out.RequestThreeDSecure = "automatic"

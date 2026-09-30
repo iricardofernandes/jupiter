@@ -32,7 +32,16 @@ func (s *Service) resolvePix(ctx context.Context, pool *pgxpool.Pool, owner Owne
 	if err != nil {
 		return false, err
 	}
-	due := opts != nil && opts.Due != nil
+	if opts != nil && opts.Recurring != nil {
+		return s.resolveRecurring(ctx, pool, owner, intentID, intent, attempt, rail, opts.Recurring)
+	}
+	return s.resolveCharge(ctx, pool, owner, intentID, intent, attempt, rail, opts != nil && opts.Due != nil)
+}
+
+// resolveCharge drives an attempt on an immediate or due-date charge.
+func (s *Service) resolveCharge(ctx context.Context, pool *pgxpool.Pool, owner Owner, intentID id.ID, intent db.PaymentsIntent,
+	attempt db.PaymentsAttempt, rail PixRail, due bool,
+) (bool, error) {
 	switch attemptStatus(attempt.Status) {
 	case attemptAuthorizing, attemptAuthorizationUnknown:
 		charge, err := rail.Charge(ctx, PixTxID(attempt.ID), due)
@@ -71,6 +80,41 @@ func (s *Service) resolvePix(ctx context.Context, pool *pgxpool.Pool, owner Owne
 	default:
 		return false, nil
 	}
+}
+
+// resolveRecurring reads back a recurring charge whose creation went unanswered, makes it
+// if the bank never got it, and gives up on it after GiveUpAfter: once canceled, or never
+// made, nobody is debited.
+func (s *Service) resolveRecurring(ctx context.Context, pool *pgxpool.Pool, owner Owner, intentID id.ID, intent db.PaymentsIntent,
+	attempt db.PaymentsAttempt, rail PixRail, r *PixRecurring,
+) (bool, error) {
+	if !inStatus(attempt, attemptAuthorizing, attemptAuthorizationUnknown) {
+		return false, nil
+	}
+	charge, err := rail.RecurringCharge(ctx, PixTxID(attempt.ID))
+	res := recurringChargeResult(charge, err)
+	if errors.Is(err, ErrPixNotFound) {
+		if res, err = s.chargeRecurring(ctx, rail, intent, attempt, r); err != nil {
+			return false, err
+		}
+	}
+	if res.Outcome == Unknown && s.overdue(attempt) {
+		canceled, err := rail.CancelRecurringCharge(ctx, PixTxID(attempt.ID))
+		if err != nil && !errors.Is(err, ErrPixNotFound) {
+			return false, postgres.InTx(ctx, pool, func(tx pgx.Tx) error { return s.countResolution(ctx, db.New(tx), attempt.ID) })
+		}
+		if err == nil && canceled.Status != RecurringCanceled {
+			res = recurringChargeResult(canceled, nil) // too late to cancel: it stands
+		} else {
+			return true, s.failPixAttempt(ctx, pool, owner, intentID, attempt.ID, attemptAuthorizing, "pix_charge_unresolved",
+				"payment_intent_payment_attempt_failed", "The bank did not confirm the Pix Automático charge in time.")
+		}
+	}
+	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		_, _, err := s.FinishAuthorization(ctx, tx, owner, intentID, res)
+		return err
+	})
+	return definitive(res), err
 }
 
 // abandonPixCharge gives up on a charge whose creation stayed unanswered past

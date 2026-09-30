@@ -182,13 +182,13 @@ func (e CreatePaymentMethodRequestType) Valid() bool {
 
 // Defines values for CreatePayoutRequestCurrency.
 const (
-	Brl CreatePayoutRequestCurrency = "brl"
+	CreatePayoutRequestCurrencyBrl CreatePayoutRequestCurrency = "brl"
 )
 
 // Valid indicates whether the value is a known member of the CreatePayoutRequestCurrency enum.
 func (e CreatePayoutRequestCurrency) Valid() bool {
 	switch e {
-	case Brl:
+	case CreatePayoutRequestCurrencyBrl:
 		return true
 	default:
 		return false
@@ -288,6 +288,66 @@ func (e CreateRiskRuleRequestAction) Valid() bool {
 	case CreateRiskRuleRequestActionRequest3ds:
 		return true
 	case CreateRiskRuleRequestActionReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateSubscriptionRequestCurrency.
+const (
+	CreateSubscriptionRequestCurrencyBrl CreateSubscriptionRequestCurrency = "brl"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestCurrency enum.
+func (e CreateSubscriptionRequestCurrency) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestCurrencyBrl:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateSubscriptionRequestInterval.
+const (
+	CreateSubscriptionRequestIntervalHalfYear CreateSubscriptionRequestInterval = "half_year"
+	CreateSubscriptionRequestIntervalMonth    CreateSubscriptionRequestInterval = "month"
+	CreateSubscriptionRequestIntervalQuarter  CreateSubscriptionRequestInterval = "quarter"
+	CreateSubscriptionRequestIntervalWeek     CreateSubscriptionRequestInterval = "week"
+	CreateSubscriptionRequestIntervalYear     CreateSubscriptionRequestInterval = "year"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestInterval enum.
+func (e CreateSubscriptionRequestInterval) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestIntervalHalfYear:
+		return true
+	case CreateSubscriptionRequestIntervalMonth:
+		return true
+	case CreateSubscriptionRequestIntervalQuarter:
+		return true
+	case CreateSubscriptionRequestIntervalWeek:
+		return true
+	case CreateSubscriptionRequestIntervalYear:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateSubscriptionRequestRetries.
+const (
+	CreateSubscriptionRequestRetriesNone         CreateSubscriptionRequestRetries = "none"
+	CreateSubscriptionRequestRetriesThreeInSeven CreateSubscriptionRequestRetries = "three_in_seven"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestRetries enum.
+func (e CreateSubscriptionRequestRetries) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestRetriesNone:
+		return true
+	case CreateSubscriptionRequestRetriesThreeInSeven:
 		return true
 	default:
 		return false
@@ -398,16 +458,16 @@ func (e FiredRuleAction) Valid() bool {
 
 // Defines values for InstallmentsFinancedBy.
 const (
-	Issuer   InstallmentsFinancedBy = "issuer"
-	Merchant InstallmentsFinancedBy = "merchant"
+	InstallmentsFinancedByIssuer   InstallmentsFinancedBy = "issuer"
+	InstallmentsFinancedByMerchant InstallmentsFinancedBy = "merchant"
 )
 
 // Valid indicates whether the value is a known member of the InstallmentsFinancedBy enum.
 func (e InstallmentsFinancedBy) Valid() bool {
 	switch e {
-	case Issuer:
+	case InstallmentsFinancedByIssuer:
 		return true
-	case Merchant:
+	case InstallmentsFinancedByMerchant:
 		return true
 	default:
 		return false
@@ -921,6 +981,171 @@ func (e RiskRulePageObject) Valid() bool {
 	}
 }
 
+// Defines values for SubscriptionCanceledBy.
+const (
+	SubscriptionCanceledByCustomer SubscriptionCanceledBy = "customer"
+	SubscriptionCanceledByMerchant SubscriptionCanceledBy = "merchant"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionCanceledBy enum.
+func (e SubscriptionCanceledBy) Valid() bool {
+	switch e {
+	case SubscriptionCanceledByCustomer:
+		return true
+	case SubscriptionCanceledByMerchant:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionInterval.
+const (
+	SubscriptionIntervalHalfYear SubscriptionInterval = "half_year"
+	SubscriptionIntervalMonth    SubscriptionInterval = "month"
+	SubscriptionIntervalQuarter  SubscriptionInterval = "quarter"
+	SubscriptionIntervalWeek     SubscriptionInterval = "week"
+	SubscriptionIntervalYear     SubscriptionInterval = "year"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionInterval enum.
+func (e SubscriptionInterval) Valid() bool {
+	switch e {
+	case SubscriptionIntervalHalfYear:
+		return true
+	case SubscriptionIntervalMonth:
+		return true
+	case SubscriptionIntervalQuarter:
+		return true
+	case SubscriptionIntervalWeek:
+		return true
+	case SubscriptionIntervalYear:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionObject.
+const (
+	SubscriptionObjectSubscription SubscriptionObject = "subscription"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionObject enum.
+func (e SubscriptionObject) Valid() bool {
+	switch e {
+	case SubscriptionObjectSubscription:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionRetries.
+const (
+	SubscriptionRetriesNone         SubscriptionRetries = "none"
+	SubscriptionRetriesThreeInSeven SubscriptionRetries = "three_in_seven"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionRetries enum.
+func (e SubscriptionRetries) Valid() bool {
+	switch e {
+	case SubscriptionRetriesNone:
+		return true
+	case SubscriptionRetriesThreeInSeven:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionStatus.
+const (
+	SubscriptionStatusActive     SubscriptionStatus = "active"
+	SubscriptionStatusCanceled   SubscriptionStatus = "canceled"
+	SubscriptionStatusEnded      SubscriptionStatus = "ended"
+	SubscriptionStatusIncomplete SubscriptionStatus = "incomplete"
+	SubscriptionStatusPastDue    SubscriptionStatus = "past_due"
+	SubscriptionStatusRejected   SubscriptionStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionStatus enum.
+func (e SubscriptionStatus) Valid() bool {
+	switch e {
+	case SubscriptionStatusActive:
+		return true
+	case SubscriptionStatusCanceled:
+		return true
+	case SubscriptionStatusEnded:
+		return true
+	case SubscriptionStatusIncomplete:
+		return true
+	case SubscriptionStatusPastDue:
+		return true
+	case SubscriptionStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionAuthorizationMethod.
+const (
+	PayerRequest SubscriptionAuthorizationMethod = "payer_request"
+	QrCode       SubscriptionAuthorizationMethod = "qr_code"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionAuthorizationMethod enum.
+func (e SubscriptionAuthorizationMethod) Valid() bool {
+	switch e {
+	case PayerRequest:
+		return true
+	case QrCode:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionCycleStatus.
+const (
+	SubscriptionCycleStatusCanceled SubscriptionCycleStatus = "canceled"
+	SubscriptionCycleStatusFailed   SubscriptionCycleStatus = "failed"
+	SubscriptionCycleStatusPaid     SubscriptionCycleStatus = "paid"
+	SubscriptionCycleStatusPending  SubscriptionCycleStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionCycleStatus enum.
+func (e SubscriptionCycleStatus) Valid() bool {
+	switch e {
+	case SubscriptionCycleStatusCanceled:
+		return true
+	case SubscriptionCycleStatusFailed:
+		return true
+	case SubscriptionCycleStatusPaid:
+		return true
+	case SubscriptionCycleStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionListObject.
+const (
+	SubscriptionListObjectList SubscriptionListObject = "list"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionListObject enum.
+func (e SubscriptionListObject) Valid() bool {
+	switch e {
+	case SubscriptionListObjectList:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdatePaymentIntentRequestRequestThreeDSecure.
 const (
 	UpdatePaymentIntentRequestRequestThreeDSecureAny       UpdatePaymentIntentRequestRequestThreeDSecure = "any"
@@ -1233,6 +1458,32 @@ type CreateRiskRuleRequest struct {
 // CreateRiskRuleRequestAction defines model for CreateRiskRuleRequest.Action.
 type CreateRiskRuleRequestAction string
 
+// CreateSubscriptionRequest defines model for CreateSubscriptionRequest.
+type CreateSubscriptionRequest struct {
+	Amount        int64                             `json:"amount"`
+	Authorization SubscriptionAuthorization         `json:"authorization"`
+	Currency      CreateSubscriptionRequestCurrency `json:"currency"`
+	Customer      SubscriptionCustomer              `json:"customer"`
+
+	// Description What the customer's bank shows them they are paying for.
+	Description string                            `json:"description"`
+	EndDate     *openapi_types.Date               `json:"end_date,omitempty"`
+	Interval    CreateSubscriptionRequestInterval `json:"interval"`
+
+	// Retries three_in_seven unless set.
+	Retries   *CreateSubscriptionRequestRetries `json:"retries,omitempty"`
+	StartDate openapi_types.Date                `json:"start_date"`
+}
+
+// CreateSubscriptionRequestCurrency defines model for CreateSubscriptionRequest.Currency.
+type CreateSubscriptionRequestCurrency string
+
+// CreateSubscriptionRequestInterval defines model for CreateSubscriptionRequest.Interval.
+type CreateSubscriptionRequestInterval string
+
+// CreateSubscriptionRequestRetries three_in_seven unless set.
+type CreateSubscriptionRequestRetries string
+
 // CreateWebhookEndpointRequest defines model for CreateWebhookEndpointRequest.
 type CreateWebhookEndpointRequest struct {
 	Description   *string  `json:"description,omitempty"`
@@ -1345,6 +1596,7 @@ type NextAction struct {
 	// Type redirect_to_url: send the customer to redirect_to_url.url to complete 3-D Secure.
 	// use_test_authentication: in test mode, complete it with the test helper.
 	// pix_display_qr_code: show the customer pix_display_qr_code.data, as a QR code and as text to copy and paste.
+	// awaiting_payer_authorization: the customer's bank is showing them a subscription to accept.
 	Type string `json:"type"`
 }
 
@@ -1382,6 +1634,9 @@ type PaymentIntent struct {
 	RiskDecision        *RiskDecisionRef                 `json:"risk_decision"`
 	SetupFutureUsage    *PaymentIntentSetupFutureUsage   `json:"setup_future_usage"`
 	Status              PaymentIntentStatus              `json:"status"`
+
+	// Subscription The subscription a pix_automatico payment charges.
+	Subscription *string `json:"subscription,omitempty"`
 }
 
 // PaymentIntentCaptureMethod defines model for PaymentIntent.CaptureMethod.
@@ -1682,6 +1937,95 @@ type RollSecretRequest struct {
 	ExpireCurrentIn *int `json:"expire_current_in,omitempty"`
 }
 
+// Subscription defines model for Subscription.
+type Subscription struct {
+	Amount        int64                     `json:"amount"`
+	Authorization SubscriptionAuthorization `json:"authorization"`
+	CanceledBy    *SubscriptionCanceledBy   `json:"canceled_by"`
+	Created       int64                     `json:"created"`
+	Currency      string                    `json:"currency"`
+	Customer      SubscriptionCustomer      `json:"customer"`
+	Cycles        []SubscriptionCycle       `json:"cycles"`
+	Description   string                    `json:"description"`
+	EndDate       *openapi_types.Date       `json:"end_date"`
+	Id            string                    `json:"id"`
+	Interval      SubscriptionInterval      `json:"interval"`
+	Livemode      bool                      `json:"livemode"`
+	NextAction    *NextAction               `json:"next_action"`
+	Object        SubscriptionObject        `json:"object"`
+	Retries       SubscriptionRetries       `json:"retries"`
+
+	// StartDate The first cycle's due date.
+	StartDate openapi_types.Date `json:"start_date"`
+
+	// Status incomplete: waiting for the customer's authorization. active: charging. past_due: the
+	// latest cycle's charge failed. rejected: the customer refused it. canceled: by you or
+	// the customer (canceled_by). ended: past its end_date.
+	Status SubscriptionStatus `json:"status"`
+}
+
+// SubscriptionCanceledBy defines model for Subscription.CanceledBy.
+type SubscriptionCanceledBy string
+
+// SubscriptionInterval defines model for Subscription.Interval.
+type SubscriptionInterval string
+
+// SubscriptionObject defines model for Subscription.Object.
+type SubscriptionObject string
+
+// SubscriptionRetries defines model for Subscription.Retries.
+type SubscriptionRetries string
+
+// SubscriptionStatus incomplete: waiting for the customer's authorization. active: charging. past_due: the
+// latest cycle's charge failed. rejected: the customer refused it. canceled: by you or
+// the customer (canceled_by). ended: past its end_date.
+type SubscriptionStatus string
+
+// SubscriptionAuthorization defines model for SubscriptionAuthorization.
+type SubscriptionAuthorization struct {
+	Method SubscriptionAuthorizationMethod `json:"method"`
+
+	// PayerBank The customer's account, where payer_request sends the request.
+	PayerBank *struct {
+		Account string  `json:"account"`
+		Branch  *string `json:"branch,omitempty"`
+		Ispb    string  `json:"ispb"`
+	} `json:"payer_bank,omitempty"`
+}
+
+// SubscriptionAuthorizationMethod defines model for SubscriptionAuthorization.Method.
+type SubscriptionAuthorizationMethod string
+
+// SubscriptionCustomer defines model for SubscriptionCustomer.
+type SubscriptionCustomer struct {
+	Name string `json:"name"`
+
+	// TaxId A CPF (11 digits) or a CNPJ (14 characters).
+	TaxId string `json:"tax_id"`
+}
+
+// SubscriptionCycle defines model for SubscriptionCycle.
+type SubscriptionCycle struct {
+	DueDate       openapi_types.Date      `json:"due_date"`
+	Number        int                     `json:"number"`
+	PaymentIntent *string                 `json:"payment_intent"`
+	Status        SubscriptionCycleStatus `json:"status"`
+}
+
+// SubscriptionCycleStatus defines model for SubscriptionCycle.Status.
+type SubscriptionCycleStatus string
+
+// SubscriptionList defines model for SubscriptionList.
+type SubscriptionList struct {
+	Data    []Subscription         `json:"data"`
+	HasMore bool                   `json:"has_more"`
+	Object  SubscriptionListObject `json:"object"`
+	Url     string                 `json:"url"`
+}
+
+// SubscriptionListObject defines model for SubscriptionList.Object.
+type SubscriptionListObject string
+
 // UpdatePaymentIntentRequest defines model for UpdatePaymentIntentRequest.
 type UpdatePaymentIntentRequest struct {
 	Amount      *int64  `json:"amount,omitempty"`
@@ -1923,6 +2267,27 @@ type CreateRiskRuleParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
+// ListSubscriptionsParams defines parameters for ListSubscriptions.
+type ListSubscriptionsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartingAfter An object id; the page starts with the next older object.
+	StartingAfter *StartingAfter `form:"starting_after,omitempty" json:"starting_after,omitempty"`
+
+	// EndingBefore An object id; the page ends with the next newer object.
+	EndingBefore *EndingBefore `form:"ending_before,omitempty" json:"ending_before,omitempty"`
+}
+
+// CreateSubscriptionParams defines parameters for CreateSubscription.
+type CreateSubscriptionParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CancelSubscriptionParams defines parameters for CancelSubscription.
+type CancelSubscriptionParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // CompletePaymentIntentActionParams defines parameters for CompletePaymentIntentAction.
 type CompletePaymentIntentActionParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
@@ -1989,6 +2354,9 @@ type CreateRiskListItemJSONRequestBody = CreateRiskListItemRequest
 
 // CreateRiskRuleJSONRequestBody defines body for CreateRiskRule for application/json ContentType.
 type CreateRiskRuleJSONRequestBody = CreateRiskRuleRequest
+
+// CreateSubscriptionJSONRequestBody defines body for CreateSubscription for application/json ContentType.
+type CreateSubscriptionJSONRequestBody = CreateSubscriptionRequest
 
 // CompletePaymentIntentActionJSONRequestBody defines body for CompletePaymentIntentAction for application/json ContentType.
 type CompletePaymentIntentActionJSONRequestBody = CompleteActionRequest
@@ -2094,6 +2462,18 @@ type ServerInterface interface {
 
 	// (DELETE /v1/risk/rules/{id})
 	DeleteRiskRule(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (GET /v1/subscriptions)
+	ListSubscriptions(w http.ResponseWriter, r *http.Request, params ListSubscriptionsParams)
+
+	// (POST /v1/subscriptions)
+	CreateSubscription(w http.ResponseWriter, r *http.Request, params CreateSubscriptionParams)
+
+	// (GET /v1/subscriptions/{id})
+	GetSubscription(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (POST /v1/subscriptions/{id}/cancel)
+	CancelSubscription(w http.ResponseWriter, r *http.Request, id ID, params CancelSubscriptionParams)
 
 	// (POST /v1/test_helpers/payment_intents/{id}/complete_action)
 	CompletePaymentIntentAction(w http.ResponseWriter, r *http.Request, id ID, params CompletePaymentIntentActionParams)
@@ -3410,6 +3790,182 @@ func (siw *ServerInterfaceWrapper) DeleteRiskRule(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ListSubscriptions operation middleware
+func (siw *ServerInterfaceWrapper) ListSubscriptions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSubscriptionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "starting_after" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "starting_after", r.URL.Query(), &params.StartingAfter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "starting_after"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "starting_after", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "ending_before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "ending_before", r.URL.Query(), &params.EndingBefore, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ending_before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ending_before", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSubscriptions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubscription(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateSubscriptionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSubscription(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSubscription operation middleware
+func (siw *ServerInterfaceWrapper) GetSubscription(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSubscription(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CancelSubscription(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CancelSubscriptionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelSubscription(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CompletePaymentIntentAction operation middleware
 func (siw *ServerInterfaceWrapper) CompletePaymentIntentAction(w http.ResponseWriter, r *http.Request) {
 
@@ -3847,6 +4403,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/payouts", wrapper.ListPayouts)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payouts", wrapper.CreatePayout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/payouts/{id}", wrapper.GetPayout)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/subscriptions", wrapper.ListSubscriptions)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/subscriptions", wrapper.CreateSubscription)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/subscriptions/{id}", wrapper.GetSubscription)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/subscriptions/{id}/cancel", wrapper.CancelSubscription)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/decisions", wrapper.ListRiskDecisions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/decisions/{id}", wrapper.GetRiskDecision)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/rules", wrapper.ListRiskRules)
@@ -3878,116 +4438,131 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

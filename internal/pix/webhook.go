@@ -32,10 +32,12 @@ const (
 	reconcileMaxPages = 500
 )
 
-// Handler takes the bank's notifications, posted to {WebhookURL}/pix. It must be served
-// over mutual TLS that admits only the bank's client certificate.
-func (c *Connector) Handler(p *payments.Service) http.Handler {
+// Handler takes the bank's notifications, posted to {WebhookURL}/pix, and those of Pix
+// Automático, to {WebhookURL}/rec and /cobr, which sync, if not nil, is told of. It must
+// be served over mutual TLS that admits only the bank's client certificate.
+func (c *Connector) Handler(p *payments.Service, sync RecurrenceSync) http.Handler {
 	mux := http.NewServeMux()
+	c.recurrenceRoutes(mux, sync)
 	mux.HandleFunc("POST /pix", func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 {
 			http.Error(w, "a client certificate is required", http.StatusUnauthorized)
@@ -80,12 +82,18 @@ func (c *Connector) receive(ctx context.Context, p *payments.Service, e2eID stri
 	return p.ReceivePix(ctx, c.cfg.Pool, c.cfg.Livemode, payment)
 }
 
-// RegisterWebhook tells the bank where to notify Jupiter of Pix to its key.
+// RegisterWebhook tells the bank where to notify Jupiter: of Pix to its key, and of
+// recurrences and recurring charges.
 func (c *Connector) RegisterWebhook(ctx context.Context) error {
 	if c.cfg.WebhookURL == "" {
 		return nil
 	}
-	return c.call(ctx, "PUT", "/webhook/"+url.PathEscape(c.cfg.Key), pixapi.WebhookSolicitado{WebhookUrl: c.cfg.WebhookURL}, nil)
+	body := pixapi.WebhookSolicitado{WebhookUrl: c.cfg.WebhookURL}
+	return errors.Join(
+		c.call(ctx, "PUT", "/webhook/"+url.PathEscape(c.cfg.Key), body, nil),
+		c.call(ctx, "PUT", "/webhookrec", body, nil),
+		c.call(ctx, "PUT", "/webhookcobr", body, nil),
+	)
 }
 
 // Reconcile reads from the bank every Pix received in the last reconcileWindow, and
@@ -95,7 +103,7 @@ func (c *Connector) Reconcile(ctx context.Context, p *payments.Service) (int, er
 	now := c.cfg.Now().UTC()
 	start := now.Add(-reconcileWindow)
 	read := 0
-	for page := 0; page < reconcileMaxPages; page++ {
+	for page := range reconcileMaxPages {
 		q := url.Values{
 			"inicio": {start.Format(time.RFC3339)}, "fim": {now.Add(time.Second).Format(time.RFC3339)},
 			"paginacao.paginaAtual": {strconv.Itoa(page)}, "paginacao.itensPorPagina": {strconv.Itoa(reconcilePageSize)},

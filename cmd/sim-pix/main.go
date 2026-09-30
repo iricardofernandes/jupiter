@@ -19,7 +19,10 @@ import (
 	"github.com/iricardofernandes/jupiter/pkg/pixapi"
 )
 
-const readHeaderTimeout = 5 * time.Second
+const (
+	readHeaderTimeout = 5 * time.Second
+	tickEvery         = 10 * time.Second
+)
 
 // The Pix simulator (a bank with the API Pix, the SPI, DICT and payers), for tests and
 // local development only.
@@ -64,12 +67,29 @@ func main() {
 			adminAddr = "127.0.0.1:8587"
 		}
 		return service.App{
-			Handler:    sim.Handler(),
-			TLS:        pix.ServerTLS(serverTLS.Certificates[0], serverTLS.ClientCAs),
-			Background: []func(context.Context) error{func(ctx context.Context) error { return serveAdmin(ctx, adminAddr, sim, logger) }},
-			Close:      sim.Close,
+			Handler: sim.Handler(),
+			TLS:     pix.ServerTLS(serverTLS.Certificates[0], serverTLS.ClientCAs),
+			Background: []func(context.Context) error{
+				func(ctx context.Context) error { return serveAdmin(ctx, adminAddr, sim, logger) },
+				func(ctx context.Context) error { return tick(ctx, sim) },
+			},
+			Close: sim.Close,
 		}, nil
 	})
+}
+
+// tick lets Pix Automático's days pass: charges are scheduled, debited and expired.
+func tick(ctx context.Context, sim *pix.Sim) error {
+	t := time.NewTicker(tickEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+			sim.Tick(ctx)
+		}
+	}
 }
 
 func serveAdmin(ctx context.Context, addr string, sim *pix.Sim, logger *slog.Logger) error {

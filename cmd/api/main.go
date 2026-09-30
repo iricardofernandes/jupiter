@@ -60,9 +60,10 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	}
 	r.configure(&paymentsConfig)
 	paymentService := payments.New(paymentsConfig)
+	subscriptionService := r.subscriptions(pool, paymentService, eventService, logger)
 	a := api.New(api.Deps{
 		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Risk: riskEngine,
-		Vault: cards, Box: box, Logger: logger,
+		Subscriptions: subscriptionService, Vault: cards, Box: box, Logger: logger,
 	})
 	// The public address also serves the 3DS server's pages and results, and the card
 	// network's token events.
@@ -75,7 +76,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	if r.network != nil {
 		mux.Handle("/network/", r.network.Handler(paymentService))
 	}
-	webhooks, err := pixWebhooks(ctx, paymentService, r.livePix, r.testPix, logger)
+	webhooks, err := pixWebhooks(ctx, paymentService, subscriptionService, r.livePix, r.testPix, logger)
 	if err != nil {
 		r.close()
 		pool.Close()
@@ -92,7 +93,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 // certificate, whose identity is JUPITER_PIX_WEBHOOK_IDENTITY): live mode's under
 // /pix/live, test mode's under /pix/test. It registers each connector's webhook with the
 // bank; a registration that fails is logged, and reconciliation covers for it.
-func pixWebhooks(ctx context.Context, p *payments.Service, live, test *pix.Connector, logger *slog.Logger) ([]func(context.Context) error, error) {
+func pixWebhooks(ctx context.Context, p *payments.Service, subs pix.RecurrenceSync, live, test *pix.Connector, logger *slog.Logger) ([]func(context.Context) error, error) {
 	addr := os.Getenv("JUPITER_PIX_WEBHOOK_ADDR")
 	if addr == "" || (live == nil && test == nil) {
 		return nil, nil
@@ -112,7 +113,7 @@ func pixWebhooks(ctx context.Context, p *payments.Service, live, test *pix.Conne
 		if c == nil {
 			continue
 		}
-		mux.Handle(prefix+"/", http.StripPrefix(prefix, c.Handler(p)))
+		mux.Handle(prefix+"/", http.StripPrefix(prefix, c.Handler(p, subs)))
 		if err := c.RegisterWebhook(ctx); err != nil {
 			logger.WarnContext(ctx, "registering the Pix webhook", "path", prefix, "error", err)
 		}

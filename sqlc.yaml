@@ -81,3 +81,12 @@ sql:
         out: internal/authentication/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/subscriptions/migrations
+    queries: internal/subscriptions/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/subscriptions/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

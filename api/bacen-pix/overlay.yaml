@@ -1,0 +1,156 @@
+# Jupiter's changes to the API Pix for code generation only. The specification itself
+# (openapi.yaml) is the official one, unchanged. oapi-codegen drops the fields of a
+# oneOf nested in an allOf, so the payer and receiver lose their CPF, CNPJ and name, a
+# discount its dates, a recurrence's end its reason, and a recurrence request its
+# addressee; these actions spell those objects out as plain objects with every field
+# optional, which is what the generated Go types need to carry them.
+overlay: 1.0.0
+info:
+  title: API Pix for oapi-codegen
+  version: 1.0.0
+actions:
+  - target: $.components.schemas.DadosDevedor.properties.devedor
+    remove: true
+  - target: $.components.schemas.DadosDevedor.properties
+    update:
+      devedor:
+        $ref: "#/components/schemas/Pessoa"
+  - target: $.components.schemas.DadosRecebedor.properties.recebedor
+    remove: true
+  - target: $.components.schemas.DadosRecebedor.properties
+    update:
+      recebedor:
+        $ref: "#/components/schemas/Pessoa"
+  - target: $.components.schemas.CobVValor.properties.desconto
+    remove: true
+  - target: $.components.schemas.CobVValor.properties
+    update:
+      desconto:
+        type: object
+        required: [modalidade]
+        properties:
+          modalidade: { type: integer, format: int32, minimum: 1, maximum: 6 }
+          valorPerc: { type: string, pattern: "\\d{1,10}\\.\\d{2}" }
+          descontoDataFixa:
+            type: array
+            minItems: 1
+            maxItems: 3
+            items:
+              type: object
+              required: [data, valorPerc]
+              properties:
+                data: { type: string, format: date }
+                valorPerc: { type: string, pattern: "\\d{1,10}\\.\\d{2}" }
+  - target: $.components.schemas.RecBase.properties.vinculo.properties.devedor
+    remove: true
+  - target: $.components.schemas.RecBase.properties.vinculo.properties
+    update:
+      devedor:
+        $ref: "#/components/schemas/Pessoa"
+  - target: $.components.schemas.RecCompleta.allOf[2].properties.recebedor
+    remove: true
+  - target: $.components.schemas.RecCompleta.allOf[2].properties
+    update:
+      recebedor:
+        $ref: "#/components/schemas/RecebedorRecorrencia"
+  - target: $.components.schemas.RecCompletaPesquisada.allOf[2].properties.recebedor
+    remove: true
+  - target: $.components.schemas.RecCompletaPesquisada.allOf[2].properties
+    update:
+      recebedor:
+        $ref: "#/components/schemas/RecebedorRecorrencia"
+  - target: $.components.schemas.RecGerada.allOf[2].properties.recebedor
+    remove: true
+  - target: $.components.schemas.RecGerada.allOf[2].properties
+    update:
+      recebedor:
+        $ref: "#/components/schemas/RecebedorRecorrencia"
+  - target: $.components.schemas.RecPayload.allOf[2].properties.recebedor
+    remove: true
+  - target: $.components.schemas.RecPayload.allOf[2].properties
+    update:
+      recebedor:
+        $ref: "#/components/schemas/RecebedorRecorrencia"
+  - target: $.components.schemas.RecEncerramento.properties.encerramento
+    remove: true
+  - target: $.components.schemas.RecEncerramento.properties
+    update:
+      encerramento:
+        $ref: "#/components/schemas/Encerramento"
+  - target: $.components.schemas.CobRAtualizacao.properties.encerramento
+    remove: true
+  - target: $.components.schemas.CobRAtualizacao.properties
+    update:
+      encerramento:
+        $ref: "#/components/schemas/Encerramento"
+  - target: $.components.schemas.RecAtivacao.properties.ativacao.properties.dadosJornada
+    remove: true
+  - target: $.components.schemas.RecAtivacao.properties.ativacao.properties
+    update:
+      dadosJornada:
+        $ref: "#/components/schemas/DadosJornada"
+  - target: $.components.schemas.RecAtivacaoSolicitada.properties.ativacao.properties.dadosJornada
+    remove: true
+  - target: $.components.schemas.RecAtivacaoSolicitada.properties.ativacao.properties
+    update:
+      dadosJornada:
+        $ref: "#/components/schemas/DadosJornada"
+  - target: $.components.schemas.SolicRecBase.properties.destinatario
+    remove: true
+  - target: $.components.schemas.SolicRecBase.properties
+    update:
+      destinatario:
+        $ref: "#/components/schemas/Destinatario"
+  - target: $.components.schemas
+    update:
+      RecebedorRecorrencia:
+        type: object
+        description: The receiver of a recurrence, and its agreement with its PSP.
+        properties:
+          cnpj: { type: string }
+          nome: { type: string, maxLength: 140 }
+          convenio: { type: string, maxLength: 60 }
+          ispbParticipante: { type: string }
+      Encerramento:
+        type: object
+        description: Why a recurrence or a recurring charge ended, rejected or canceled.
+        properties:
+          rejeicao:
+            type: object
+            properties:
+              codigo: { type: string }
+              descricao: { type: string, maxLength: 400 }
+          cancelamento:
+            type: object
+            properties:
+              solicitante: { type: string, enum: [PSP_PAGADOR, USUARIO_PAGADOR, PSP_RECEBEDOR, USUARIO_RECEBEDOR] }
+              codigo: { type: string }
+              descricao: { type: string, maxLength: 400 }
+      DadosJornada:
+        type: object
+        properties:
+          txid: { type: string }
+      Destinatario:
+        type: object
+        description: The payer a recurrence request goes to, by account.
+        required: [conta, ispbParticipante]
+        properties:
+          conta: { type: string, maxLength: 20 }
+          ispbParticipante: { type: string }
+          agencia: { type: string, maxLength: 4 }
+          cpf: { type: string }
+          cnpj: { type: string }
+  - target: $.components.schemas
+    update:
+      Pessoa:
+        type: object
+        description: A person (cpf) or a company (cnpj), with a name and optional address.
+        properties:
+          cpf: { type: string }
+          cnpj: { type: string }
+          nome: { type: string, maxLength: 200 }
+          email: { type: string }
+          logradouro: { type: string }
+          cidade: { type: string }
+          uf: { type: string }
+          cep: { type: string }

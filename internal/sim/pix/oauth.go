@@ -30,6 +30,9 @@ type token struct {
 var allScopes = []string{
 	pixapi.ScopeCobWrite, pixapi.ScopeCobRead, pixapi.ScopeCobVWrite, pixapi.ScopeCobVRead,
 	pixapi.ScopePixWrite, pixapi.ScopePixRead, pixapi.ScopeWebhookWrite, pixapi.ScopeWebhookRead,
+	pixapi.ScopeRecWrite, pixapi.ScopeRecRead, pixapi.ScopeSolicRecWrite, pixapi.ScopeSolicRecRead,
+	pixapi.ScopeCobRWrite, pixapi.ScopeCobRRead, pixapi.ScopeWebhookRecWrite, pixapi.ScopeWebhookRecRead,
+	pixapi.ScopeWebhookCobRWrite, pixapi.ScopeWebhookCobRRead, pixapi.ScopePayloadLocationRecWrite, pixapi.ScopePayloadLocationRecRead,
 }
 
 // thumbprint is the certificate's x5t#S256: the base64url SHA-256 of its DER encoding.

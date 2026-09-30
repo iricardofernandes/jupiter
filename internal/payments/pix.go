@@ -50,6 +50,15 @@ type PixRail interface {
 	Transfer(ctx context.Context, r PixTransferRequest) (PixTransfer, error)
 	// TransferStatus reads a transfer; it wraps ErrPixNotFound for one never sent.
 	TransferStatus(ctx context.Context, id string) (PixTransfer, error)
+	// CreateRecurringCharge creates the recurring charge (cobr) named TxID under a
+	// recurrence; asked again, it answers with the charge already made.
+	CreateRecurringCharge(ctx context.Context, r RecurringChargeRequest) (RecurringCharge, error)
+	// RecurringCharge reads one; it wraps ErrPixNotFound for one the bank does not have.
+	RecurringCharge(ctx context.Context, txid string) (RecurringCharge, error)
+	// CancelRecurringCharge cancels one not yet due; one past that is returned as it is.
+	CancelRecurringCharge(ctx context.Context, txid string) (RecurringCharge, error)
+	// RetryRecurringCharge asks for another attempt, on date (YYYY-MM-DD).
+	RetryRecurringCharge(ctx context.Context, txid, date string) (RecurringCharge, error)
 }
 
 var (
@@ -78,6 +87,8 @@ type PixCharge struct {
 	Status    string
 	CopyPaste string
 	ExpiresAt time.Time
+	// Recurring marks a Pix Automático charge (cobr), which has no code to show.
+	Recurring bool
 	// Payments are the endToEndIds of the Pix that paid the charge.
 	Payments []string
 }
@@ -137,6 +148,8 @@ const (
 type PixOptions struct {
 	ExpiresAfterSeconds int64   `json:"expires_after_seconds,omitempty"`
 	Due                 *PixDue `json:"due,omitempty"`
+	// Recurring is set, by subscriptions only, for a Pix Automático payment.
+	Recurring *PixRecurring `json:"recurring,omitempty"`
 }
 
 // PixDue is a charge with a due date (cobv). Percentages are in hundredths of a percent
@@ -293,6 +306,12 @@ func (s *Service) chargePix(ctx context.Context, intent db.PaymentsIntent, attem
 	if err != nil {
 		return Result{}, err
 	}
+	if attempt.PaymentMethod == PaymentMethodPixAutomatico {
+		if opts == nil || opts.Recurring == nil {
+			return Result{}, fmt.Errorf("payments: %s is a Pix Automático payment without its recurrence", intent.ID)
+		}
+		return s.chargeRecurring(ctx, rail, intent, attempt, opts.Recurring)
+	}
 	amount, err := money.New(attempt.Amount, mustCurrency(intent.Currency))
 	if err != nil {
 		return Result{}, err
@@ -325,6 +344,9 @@ func pixChargeResult(charge PixCharge, err error) Result {
 
 // awaitPix records the charge and shows its BR Code to the customer.
 func (s *Service) awaitPix(ctx context.Context, tx pgx.Tx, row *db.PaymentsIntent, attempt *db.PaymentsAttempt, charge PixCharge) error {
+	if charge.Recurring {
+		return s.awaitRecurring(ctx, tx, row, attempt, charge)
+	}
 	opts, err := pixOptionsOf(*row)
 	if err != nil {
 		return err
@@ -463,7 +485,7 @@ func (s *Service) attemptOfCharge(ctx context.Context, q *db.Queries, livemode b
 		return "", err
 	}
 	intent, err := q.GetIntentByID(ctx, attempt.IntentID)
-	if err != nil || intent.Livemode != livemode || attempt.PaymentMethod != PaymentMethodPix {
+	if err != nil || intent.Livemode != livemode || !isPix(attempt.PaymentMethod) {
 		return "", err
 	}
 	return attempt.ID, nil
@@ -484,7 +506,7 @@ func (s *Service) waitingAttempt(ctx context.Context, q *db.Queries, attemptID s
 	if err != nil {
 		return db.PaymentsIntent{}, db.PaymentsAttempt{}, "", err
 	}
-	waiting := inStatus(attempt, attemptRequiresAction, attemptAuthorizing, attemptAuthorizationUnknown, attemptVoiding, attemptVoidUnknown)
+	waiting := inStatus(attempt, attemptRequiresAction, attemptScheduled, attemptAuthorizing, attemptAuthorizationUnknown, attemptVoiding, attemptVoidUnknown)
 	switch {
 	case !waiting || intent.LatestAttempt.String != attempt.ID || (Status(intent.Status) != RequiresAction && Status(intent.Status) != Processing):
 		return intent, attempt, "the payment intent is " + intent.Status, nil

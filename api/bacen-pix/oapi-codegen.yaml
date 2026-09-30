@@ -1,0 +1,9 @@
+package: pixapi
+output: pkg/pixapi/pixapi.gen.go
+generate:
+  models: true
+output-options:
+  include-tags: [Cob, CobV, Pix, Webhook, PayloadLocation, CobPayload, Rec, RecPayload, SolicRec, CobR, PayloadLocationRec, WebhookRec, WebhookCobR]
+  overlay:
+    path: api/bacen-pix/overlay.yaml
+    strict: true

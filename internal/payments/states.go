@@ -54,6 +54,7 @@ const (
 	attemptAuthorizing          attemptStatus = "authorizing"
 	attemptAuthorizationUnknown attemptStatus = "authorization_unknown"
 	attemptRequiresAction       attemptStatus = "requires_action"
+	attemptScheduled            attemptStatus = "scheduled"
 	attemptAuthorized           attemptStatus = "authorized"
 	attemptDeclined             attemptStatus = "declined"
 	attemptFailed               attemptStatus = "failed"

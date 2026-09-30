@@ -40,6 +40,10 @@ type Client struct {
 	Name  string
 	TaxID string
 	Keys  []string
+	// Branch and Account are the client's account, where Pix Automático is paid (it
+	// uses no keys); the client's id and 0001 unless set.
+	Branch  string
+	Account string
 	// Balance is what the account holds to start with, in centavos: what pays for
 	// returns and transfers before any Pix arrives.
 	Balance int64
@@ -107,14 +111,26 @@ type Sim struct {
 	transfers map[string]*transfer // by client + "/" + idEnvio
 	// closedPayers are payers whose accounts were closed: returns to them fail.
 	closedPayers map[string]bool
-	delivered    []Delivery
-	background   sync.WaitGroup
+	// payerFunds are the balances of payers whose funds are limited, by tax id; a payer
+	// not here always has enough.
+	payerFunds map[string]int64
+	recs       map[string]*recurrence // by idRec
+	recLocs    map[int64]*recLocation
+	recTokens  map[string]*recLocation
+	nextRecLoc int64
+	solicRecs  map[string]*solicRec
+	cobrs      map[string]*recurringCharge // by client + "/" + txid
+	delivered  []Delivery
+	background sync.WaitGroup
 }
 
 type account struct {
 	Client
 	balance  int64
 	webhooks map[string]string // key -> URL
+	// recWebhook and cobrWebhook receive the notifications of Pix Automático.
+	recWebhook  string
+	cobrWebhook string
 }
 
 func New(cfg Config) (*Sim, error) {
@@ -145,11 +161,19 @@ func New(cfg Config) (*Sim, error) {
 		clients:  map[string]*account{}, tokens: map[string]token{}, dict: map[string]Entry{},
 		charges: map[string]*charge{}, locations: map[string]*charge{}, pix: map[string]*received{},
 		transfers: map[string]*transfer{}, closedPayers: map[string]bool{},
+		payerFunds: map[string]int64{}, recs: map[string]*recurrence{}, recLocs: map[int64]*recLocation{},
+		recTokens: map[string]*recLocation{}, solicRecs: map[string]*solicRec{}, cobrs: map[string]*recurringCharge{},
 	}
 	for _, c := range cfg.Clients {
+		if c.Branch == "" {
+			c.Branch = "0001"
+		}
+		if c.Account == "" {
+			c.Account = c.ID
+		}
 		s.clients[c.ID] = &account{Client: c, balance: c.Balance, webhooks: map[string]string{}}
 		for _, k := range c.Keys {
-			s.dict[k] = Entry{Key: k, ISPB: cfg.ISPB, Branch: "0001", Account: c.ID, Name: c.Name, TaxID: c.TaxID}
+			s.dict[k] = Entry{Key: k, ISPB: cfg.ISPB, Branch: c.Branch, Account: c.ID, Name: c.Name, TaxID: c.TaxID}
 		}
 	}
 	return s, nil
@@ -201,6 +225,8 @@ func (s *Sim) Handler() http.Handler {
 	s.pixRoutes(mux)
 	s.webhookRoutes(mux)
 	s.transferRoutes(mux)
+	s.recurrenceRoutes(mux)
+	s.recurringChargeRoutes(mux)
 	s.locationRoutes(mux)
 	return mux
 }

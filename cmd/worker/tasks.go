@@ -111,7 +111,7 @@ func importClearing(c *acquirer.Connector, p *payments.Service, logger *slog.Log
 // tasks are the worker's background loops; the card network's run only when one is
 // configured.
 func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.API, p *payments.Service, network *acquirer.Connector,
-	pixRails []*pix.Connector, logger *slog.Logger,
+	pixRails []*pix.Connector, logger *slog.Logger, more ...func(context.Context) error,
 ) []func(context.Context) error {
 	background := []func(context.Context) error{
 		jobs.Run(jobClient),
@@ -145,7 +145,7 @@ func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.
 			service.Every(logger, "acquirer.provision_network_tokens", tokensEvery, provisionTokens(network, p, logger)),
 		)
 	}
-	return background
+	return append(background, more...)
 }
 
 // counted runs f and logs how many things it moved.

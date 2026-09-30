@@ -219,11 +219,11 @@ func returnOf(d pixapi.Devolucao) (payments.PixReturn, error) {
 	}
 	r := payments.PixReturn{ID: d.Id, Amount: amount, Status: payments.PixReturnProcessing}
 	switch d.Status {
-	case pixapi.DEVOLVIDO:
+	case pixapi.DevolucaoStatusDEVOLVIDO:
 		r.Status = payments.PixReturnReturned
-	case pixapi.NAOREALIZADO:
+	case pixapi.DevolucaoStatusNAOREALIZADO:
 		r.Status = payments.PixReturnFailed
-	case pixapi.EMPROCESSAMENTO:
+	case pixapi.DevolucaoStatusEMPROCESSAMENTO:
 	}
 	if d.Motivo != nil {
 		r.Reason = *d.Motivo

@@ -2,6 +2,7 @@
 /bin/
 /jupiterctl
 /api
+!/api/
 /worker
 /vault
 /loadgen

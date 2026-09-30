@@ -173,6 +173,717 @@ func (e CobPayloadValorRetirada1TrocoModalidadeAgente) Valid() bool {
 	}
 }
 
+// Defines values for CobRAtualizacaoAtualizacaoStatus.
+const (
+	CobRAtualizacaoAtualizacaoStatusATIVA     CobRAtualizacaoAtualizacaoStatus = "ATIVA"
+	CobRAtualizacaoAtualizacaoStatusCANCELADA CobRAtualizacaoAtualizacaoStatus = "CANCELADA"
+	CobRAtualizacaoAtualizacaoStatusCONCLUIDA CobRAtualizacaoAtualizacaoStatus = "CONCLUIDA"
+	CobRAtualizacaoAtualizacaoStatusCRIADA    CobRAtualizacaoAtualizacaoStatus = "CRIADA"
+	CobRAtualizacaoAtualizacaoStatusEXPIRADA  CobRAtualizacaoAtualizacaoStatus = "EXPIRADA"
+	CobRAtualizacaoAtualizacaoStatusREJEITADA CobRAtualizacaoAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRAtualizacaoAtualizacaoStatus enum.
+func (e CobRAtualizacaoAtualizacaoStatus) Valid() bool {
+	switch e {
+	case CobRAtualizacaoAtualizacaoStatusATIVA:
+		return true
+	case CobRAtualizacaoAtualizacaoStatusCANCELADA:
+		return true
+	case CobRAtualizacaoAtualizacaoStatusCONCLUIDA:
+		return true
+	case CobRAtualizacaoAtualizacaoStatusCRIADA:
+		return true
+	case CobRAtualizacaoAtualizacaoStatusEXPIRADA:
+		return true
+	case CobRAtualizacaoAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRCompletaAtualizacaoStatus.
+const (
+	CobRCompletaAtualizacaoStatusATIVA     CobRCompletaAtualizacaoStatus = "ATIVA"
+	CobRCompletaAtualizacaoStatusCANCELADA CobRCompletaAtualizacaoStatus = "CANCELADA"
+	CobRCompletaAtualizacaoStatusCONCLUIDA CobRCompletaAtualizacaoStatus = "CONCLUIDA"
+	CobRCompletaAtualizacaoStatusCRIADA    CobRCompletaAtualizacaoStatus = "CRIADA"
+	CobRCompletaAtualizacaoStatusEXPIRADA  CobRCompletaAtualizacaoStatus = "EXPIRADA"
+	CobRCompletaAtualizacaoStatusREJEITADA CobRCompletaAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRCompletaAtualizacaoStatus enum.
+func (e CobRCompletaAtualizacaoStatus) Valid() bool {
+	switch e {
+	case CobRCompletaAtualizacaoStatusATIVA:
+		return true
+	case CobRCompletaAtualizacaoStatusCANCELADA:
+		return true
+	case CobRCompletaAtualizacaoStatusCONCLUIDA:
+		return true
+	case CobRCompletaAtualizacaoStatusCRIADA:
+		return true
+	case CobRCompletaAtualizacaoStatusEXPIRADA:
+		return true
+	case CobRCompletaAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRCompletaPoliticaRetentativa.
+const (
+	CobRCompletaPoliticaRetentativaNAOPERMITE  CobRCompletaPoliticaRetentativa = "NAO_PERMITE"
+	CobRCompletaPoliticaRetentativaPERMITE3R7D CobRCompletaPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the CobRCompletaPoliticaRetentativa enum.
+func (e CobRCompletaPoliticaRetentativa) Valid() bool {
+	switch e {
+	case CobRCompletaPoliticaRetentativaNAOPERMITE:
+		return true
+	case CobRCompletaPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRCompletaStatus.
+const (
+	CobRCompletaStatusATIVA     CobRCompletaStatus = "ATIVA"
+	CobRCompletaStatusCANCELADA CobRCompletaStatus = "CANCELADA"
+	CobRCompletaStatusCONCLUIDA CobRCompletaStatus = "CONCLUIDA"
+	CobRCompletaStatusCRIADA    CobRCompletaStatus = "CRIADA"
+	CobRCompletaStatusEXPIRADA  CobRCompletaStatus = "EXPIRADA"
+	CobRCompletaStatusREJEITADA CobRCompletaStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRCompletaStatus enum.
+func (e CobRCompletaStatus) Valid() bool {
+	switch e {
+	case CobRCompletaStatusATIVA:
+		return true
+	case CobRCompletaStatusCANCELADA:
+		return true
+	case CobRCompletaStatusCONCLUIDA:
+		return true
+	case CobRCompletaStatusCRIADA:
+		return true
+	case CobRCompletaStatusEXPIRADA:
+		return true
+	case CobRCompletaStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRCompletaTentativasAtualizacaoStatus.
+const (
+	CobRCompletaTentativasAtualizacaoStatusAGENDADA   CobRCompletaTentativasAtualizacaoStatus = "AGENDADA"
+	CobRCompletaTentativasAtualizacaoStatusCANCELADA  CobRCompletaTentativasAtualizacaoStatus = "CANCELADA"
+	CobRCompletaTentativasAtualizacaoStatusEXPIRADA   CobRCompletaTentativasAtualizacaoStatus = "EXPIRADA"
+	CobRCompletaTentativasAtualizacaoStatusPAGA       CobRCompletaTentativasAtualizacaoStatus = "PAGA"
+	CobRCompletaTentativasAtualizacaoStatusREJEITADA  CobRCompletaTentativasAtualizacaoStatus = "REJEITADA"
+	CobRCompletaTentativasAtualizacaoStatusSOLICITADA CobRCompletaTentativasAtualizacaoStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRCompletaTentativasAtualizacaoStatus enum.
+func (e CobRCompletaTentativasAtualizacaoStatus) Valid() bool {
+	switch e {
+	case CobRCompletaTentativasAtualizacaoStatusAGENDADA:
+		return true
+	case CobRCompletaTentativasAtualizacaoStatusCANCELADA:
+		return true
+	case CobRCompletaTentativasAtualizacaoStatusEXPIRADA:
+		return true
+	case CobRCompletaTentativasAtualizacaoStatusPAGA:
+		return true
+	case CobRCompletaTentativasAtualizacaoStatusREJEITADA:
+		return true
+	case CobRCompletaTentativasAtualizacaoStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRCompletaTentativasRejeicaoCodigo.
+const (
+	CobRCompletaTentativasRejeicaoCodigoAB10 CobRCompletaTentativasRejeicaoCodigo = "AB10"
+	CobRCompletaTentativasRejeicaoCodigoAC05 CobRCompletaTentativasRejeicaoCodigo = "AC05"
+	CobRCompletaTentativasRejeicaoCodigoAC06 CobRCompletaTentativasRejeicaoCodigo = "AC06"
+	CobRCompletaTentativasRejeicaoCodigoAM02 CobRCompletaTentativasRejeicaoCodigo = "AM02"
+	CobRCompletaTentativasRejeicaoCodigoAM09 CobRCompletaTentativasRejeicaoCodigo = "AM09"
+	CobRCompletaTentativasRejeicaoCodigoDENC CobRCompletaTentativasRejeicaoCodigo = "DENC"
+	CobRCompletaTentativasRejeicaoCodigoDS27 CobRCompletaTentativasRejeicaoCodigo = "DS27"
+	CobRCompletaTentativasRejeicaoCodigoDTED CobRCompletaTentativasRejeicaoCodigo = "DTED"
+	CobRCompletaTentativasRejeicaoCodigoDTNT CobRCompletaTentativasRejeicaoCodigo = "DTNT"
+	CobRCompletaTentativasRejeicaoCodigoFBRD CobRCompletaTentativasRejeicaoCodigo = "FBRD"
+	CobRCompletaTentativasRejeicaoCodigoIRNT CobRCompletaTentativasRejeicaoCodigo = "IRNT"
+	CobRCompletaTentativasRejeicaoCodigoMIDI CobRCompletaTentativasRejeicaoCodigo = "MIDI"
+	CobRCompletaTentativasRejeicaoCodigoMSUC CobRCompletaTentativasRejeicaoCodigo = "MSUC"
+	CobRCompletaTentativasRejeicaoCodigoNIEC CobRCompletaTentativasRejeicaoCodigo = "NIEC"
+	CobRCompletaTentativasRejeicaoCodigoNIPA CobRCompletaTentativasRejeicaoCodigo = "NIPA"
+	CobRCompletaTentativasRejeicaoCodigoNITX CobRCompletaTentativasRejeicaoCodigo = "NITX"
+	CobRCompletaTentativasRejeicaoCodigoQUNT CobRCompletaTentativasRejeicaoCodigo = "QUNT"
+	CobRCompletaTentativasRejeicaoCodigoRC09 CobRCompletaTentativasRejeicaoCodigo = "RC09"
+	CobRCompletaTentativasRejeicaoCodigoUDEI CobRCompletaTentativasRejeicaoCodigo = "UDEI"
+)
+
+// Valid indicates whether the value is a known member of the CobRCompletaTentativasRejeicaoCodigo enum.
+func (e CobRCompletaTentativasRejeicaoCodigo) Valid() bool {
+	switch e {
+	case CobRCompletaTentativasRejeicaoCodigoAB10:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoAC05:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoAC06:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoAM02:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoAM09:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoDENC:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoDS27:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoDTED:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoDTNT:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoFBRD:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoIRNT:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoMIDI:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoMSUC:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoNIEC:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoNIPA:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoNITX:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoQUNT:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoRC09:
+		return true
+	case CobRCompletaTentativasRejeicaoCodigoUDEI:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRCompletaTentativasStatus.
+const (
+	CobRCompletaTentativasStatusAGENDADA   CobRCompletaTentativasStatus = "AGENDADA"
+	CobRCompletaTentativasStatusCANCELADA  CobRCompletaTentativasStatus = "CANCELADA"
+	CobRCompletaTentativasStatusEXPIRADA   CobRCompletaTentativasStatus = "EXPIRADA"
+	CobRCompletaTentativasStatusPAGA       CobRCompletaTentativasStatus = "PAGA"
+	CobRCompletaTentativasStatusREJEITADA  CobRCompletaTentativasStatus = "REJEITADA"
+	CobRCompletaTentativasStatusSOLICITADA CobRCompletaTentativasStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRCompletaTentativasStatus enum.
+func (e CobRCompletaTentativasStatus) Valid() bool {
+	switch e {
+	case CobRCompletaTentativasStatusAGENDADA:
+		return true
+	case CobRCompletaTentativasStatusCANCELADA:
+		return true
+	case CobRCompletaTentativasStatusEXPIRADA:
+		return true
+	case CobRCompletaTentativasStatusPAGA:
+		return true
+	case CobRCompletaTentativasStatusREJEITADA:
+		return true
+	case CobRCompletaTentativasStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRCompletaTentativasTipo.
+const (
+	CobRCompletaTentativasTipoAGND CobRCompletaTentativasTipo = "AGND"
+	CobRCompletaTentativasTipoNTAG CobRCompletaTentativasTipo = "NTAG"
+	CobRCompletaTentativasTipoRIFL CobRCompletaTentativasTipo = "RIFL"
+)
+
+// Valid indicates whether the value is a known member of the CobRCompletaTentativasTipo enum.
+func (e CobRCompletaTentativasTipo) Valid() bool {
+	switch e {
+	case CobRCompletaTentativasTipoAGND:
+		return true
+	case CobRCompletaTentativasTipoNTAG:
+		return true
+	case CobRCompletaTentativasTipoRIFL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRConfiguracaoPoliticaRetentativa.
+const (
+	CobRConfiguracaoPoliticaRetentativaNAOPERMITE  CobRConfiguracaoPoliticaRetentativa = "NAO_PERMITE"
+	CobRConfiguracaoPoliticaRetentativaPERMITE3R7D CobRConfiguracaoPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the CobRConfiguracaoPoliticaRetentativa enum.
+func (e CobRConfiguracaoPoliticaRetentativa) Valid() bool {
+	switch e {
+	case CobRConfiguracaoPoliticaRetentativaNAOPERMITE:
+		return true
+	case CobRConfiguracaoPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRGeradaStatus.
+const (
+	CobRGeradaStatusATIVA     CobRGeradaStatus = "ATIVA"
+	CobRGeradaStatusCANCELADA CobRGeradaStatus = "CANCELADA"
+	CobRGeradaStatusCONCLUIDA CobRGeradaStatus = "CONCLUIDA"
+	CobRGeradaStatusCRIADA    CobRGeradaStatus = "CRIADA"
+	CobRGeradaStatusEXPIRADA  CobRGeradaStatus = "EXPIRADA"
+	CobRGeradaStatusREJEITADA CobRGeradaStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRGeradaStatus enum.
+func (e CobRGeradaStatus) Valid() bool {
+	switch e {
+	case CobRGeradaStatusATIVA:
+		return true
+	case CobRGeradaStatusCANCELADA:
+		return true
+	case CobRGeradaStatusCONCLUIDA:
+		return true
+	case CobRGeradaStatusCRIADA:
+		return true
+	case CobRGeradaStatusEXPIRADA:
+		return true
+	case CobRGeradaStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRNotificationAtualizacaoStatus.
+const (
+	CobRNotificationAtualizacaoStatusATIVA     CobRNotificationAtualizacaoStatus = "ATIVA"
+	CobRNotificationAtualizacaoStatusCANCELADA CobRNotificationAtualizacaoStatus = "CANCELADA"
+	CobRNotificationAtualizacaoStatusCONCLUIDA CobRNotificationAtualizacaoStatus = "CONCLUIDA"
+	CobRNotificationAtualizacaoStatusCRIADA    CobRNotificationAtualizacaoStatus = "CRIADA"
+	CobRNotificationAtualizacaoStatusEXPIRADA  CobRNotificationAtualizacaoStatus = "EXPIRADA"
+	CobRNotificationAtualizacaoStatusREJEITADA CobRNotificationAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRNotificationAtualizacaoStatus enum.
+func (e CobRNotificationAtualizacaoStatus) Valid() bool {
+	switch e {
+	case CobRNotificationAtualizacaoStatusATIVA:
+		return true
+	case CobRNotificationAtualizacaoStatusCANCELADA:
+		return true
+	case CobRNotificationAtualizacaoStatusCONCLUIDA:
+		return true
+	case CobRNotificationAtualizacaoStatusCRIADA:
+		return true
+	case CobRNotificationAtualizacaoStatusEXPIRADA:
+		return true
+	case CobRNotificationAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRNotificationStatus.
+const (
+	CobRNotificationStatusATIVA     CobRNotificationStatus = "ATIVA"
+	CobRNotificationStatusCANCELADA CobRNotificationStatus = "CANCELADA"
+	CobRNotificationStatusCONCLUIDA CobRNotificationStatus = "CONCLUIDA"
+	CobRNotificationStatusCRIADA    CobRNotificationStatus = "CRIADA"
+	CobRNotificationStatusEXPIRADA  CobRNotificationStatus = "EXPIRADA"
+	CobRNotificationStatusREJEITADA CobRNotificationStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRNotificationStatus enum.
+func (e CobRNotificationStatus) Valid() bool {
+	switch e {
+	case CobRNotificationStatusATIVA:
+		return true
+	case CobRNotificationStatusCANCELADA:
+		return true
+	case CobRNotificationStatusCONCLUIDA:
+		return true
+	case CobRNotificationStatusCRIADA:
+		return true
+	case CobRNotificationStatusEXPIRADA:
+		return true
+	case CobRNotificationStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRNotificationTentativasAtualizacaoStatus.
+const (
+	CobRNotificationTentativasAtualizacaoStatusAGENDADA   CobRNotificationTentativasAtualizacaoStatus = "AGENDADA"
+	CobRNotificationTentativasAtualizacaoStatusCANCELADA  CobRNotificationTentativasAtualizacaoStatus = "CANCELADA"
+	CobRNotificationTentativasAtualizacaoStatusEXPIRADA   CobRNotificationTentativasAtualizacaoStatus = "EXPIRADA"
+	CobRNotificationTentativasAtualizacaoStatusPAGA       CobRNotificationTentativasAtualizacaoStatus = "PAGA"
+	CobRNotificationTentativasAtualizacaoStatusREJEITADA  CobRNotificationTentativasAtualizacaoStatus = "REJEITADA"
+	CobRNotificationTentativasAtualizacaoStatusSOLICITADA CobRNotificationTentativasAtualizacaoStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRNotificationTentativasAtualizacaoStatus enum.
+func (e CobRNotificationTentativasAtualizacaoStatus) Valid() bool {
+	switch e {
+	case CobRNotificationTentativasAtualizacaoStatusAGENDADA:
+		return true
+	case CobRNotificationTentativasAtualizacaoStatusCANCELADA:
+		return true
+	case CobRNotificationTentativasAtualizacaoStatusEXPIRADA:
+		return true
+	case CobRNotificationTentativasAtualizacaoStatusPAGA:
+		return true
+	case CobRNotificationTentativasAtualizacaoStatusREJEITADA:
+		return true
+	case CobRNotificationTentativasAtualizacaoStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRNotificationTentativasRejeicaoCodigo.
+const (
+	CobRNotificationTentativasRejeicaoCodigoAB10 CobRNotificationTentativasRejeicaoCodigo = "AB10"
+	CobRNotificationTentativasRejeicaoCodigoAC05 CobRNotificationTentativasRejeicaoCodigo = "AC05"
+	CobRNotificationTentativasRejeicaoCodigoAC06 CobRNotificationTentativasRejeicaoCodigo = "AC06"
+	CobRNotificationTentativasRejeicaoCodigoAM02 CobRNotificationTentativasRejeicaoCodigo = "AM02"
+	CobRNotificationTentativasRejeicaoCodigoAM09 CobRNotificationTentativasRejeicaoCodigo = "AM09"
+	CobRNotificationTentativasRejeicaoCodigoDENC CobRNotificationTentativasRejeicaoCodigo = "DENC"
+	CobRNotificationTentativasRejeicaoCodigoDS27 CobRNotificationTentativasRejeicaoCodigo = "DS27"
+	CobRNotificationTentativasRejeicaoCodigoDTED CobRNotificationTentativasRejeicaoCodigo = "DTED"
+	CobRNotificationTentativasRejeicaoCodigoDTNT CobRNotificationTentativasRejeicaoCodigo = "DTNT"
+	CobRNotificationTentativasRejeicaoCodigoFBRD CobRNotificationTentativasRejeicaoCodigo = "FBRD"
+	CobRNotificationTentativasRejeicaoCodigoIRNT CobRNotificationTentativasRejeicaoCodigo = "IRNT"
+	CobRNotificationTentativasRejeicaoCodigoMIDI CobRNotificationTentativasRejeicaoCodigo = "MIDI"
+	CobRNotificationTentativasRejeicaoCodigoMSUC CobRNotificationTentativasRejeicaoCodigo = "MSUC"
+	CobRNotificationTentativasRejeicaoCodigoNIEC CobRNotificationTentativasRejeicaoCodigo = "NIEC"
+	CobRNotificationTentativasRejeicaoCodigoNIPA CobRNotificationTentativasRejeicaoCodigo = "NIPA"
+	CobRNotificationTentativasRejeicaoCodigoNITX CobRNotificationTentativasRejeicaoCodigo = "NITX"
+	CobRNotificationTentativasRejeicaoCodigoQUNT CobRNotificationTentativasRejeicaoCodigo = "QUNT"
+	CobRNotificationTentativasRejeicaoCodigoRC09 CobRNotificationTentativasRejeicaoCodigo = "RC09"
+	CobRNotificationTentativasRejeicaoCodigoUDEI CobRNotificationTentativasRejeicaoCodigo = "UDEI"
+)
+
+// Valid indicates whether the value is a known member of the CobRNotificationTentativasRejeicaoCodigo enum.
+func (e CobRNotificationTentativasRejeicaoCodigo) Valid() bool {
+	switch e {
+	case CobRNotificationTentativasRejeicaoCodigoAB10:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoAC05:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoAC06:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoAM02:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoAM09:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoDENC:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoDS27:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoDTED:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoDTNT:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoFBRD:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoIRNT:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoMIDI:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoMSUC:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoNIEC:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoNIPA:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoNITX:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoQUNT:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoRC09:
+		return true
+	case CobRNotificationTentativasRejeicaoCodigoUDEI:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRNotificationTentativasStatus.
+const (
+	CobRNotificationTentativasStatusAGENDADA   CobRNotificationTentativasStatus = "AGENDADA"
+	CobRNotificationTentativasStatusCANCELADA  CobRNotificationTentativasStatus = "CANCELADA"
+	CobRNotificationTentativasStatusEXPIRADA   CobRNotificationTentativasStatus = "EXPIRADA"
+	CobRNotificationTentativasStatusPAGA       CobRNotificationTentativasStatus = "PAGA"
+	CobRNotificationTentativasStatusREJEITADA  CobRNotificationTentativasStatus = "REJEITADA"
+	CobRNotificationTentativasStatusSOLICITADA CobRNotificationTentativasStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRNotificationTentativasStatus enum.
+func (e CobRNotificationTentativasStatus) Valid() bool {
+	switch e {
+	case CobRNotificationTentativasStatusAGENDADA:
+		return true
+	case CobRNotificationTentativasStatusCANCELADA:
+		return true
+	case CobRNotificationTentativasStatusEXPIRADA:
+		return true
+	case CobRNotificationTentativasStatusPAGA:
+		return true
+	case CobRNotificationTentativasStatusREJEITADA:
+		return true
+	case CobRNotificationTentativasStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRNotificationTentativasTipo.
+const (
+	CobRNotificationTentativasTipoAGND CobRNotificationTentativasTipo = "AGND"
+	CobRNotificationTentativasTipoNTAG CobRNotificationTentativasTipo = "NTAG"
+	CobRNotificationTentativasTipoRIFL CobRNotificationTentativasTipo = "RIFL"
+)
+
+// Valid indicates whether the value is a known member of the CobRNotificationTentativasTipo enum.
+func (e CobRNotificationTentativasTipo) Valid() bool {
+	switch e {
+	case CobRNotificationTentativasTipoAGND:
+		return true
+	case CobRNotificationTentativasTipoNTAG:
+		return true
+	case CobRNotificationTentativasTipoRIFL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRStatusStatus.
+const (
+	CobRStatusStatusATIVA     CobRStatusStatus = "ATIVA"
+	CobRStatusStatusCANCELADA CobRStatusStatus = "CANCELADA"
+	CobRStatusStatusCONCLUIDA CobRStatusStatus = "CONCLUIDA"
+	CobRStatusStatusCRIADA    CobRStatusStatus = "CRIADA"
+	CobRStatusStatusEXPIRADA  CobRStatusStatus = "EXPIRADA"
+	CobRStatusStatusREJEITADA CobRStatusStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRStatusStatus enum.
+func (e CobRStatusStatus) Valid() bool {
+	switch e {
+	case CobRStatusStatusATIVA:
+		return true
+	case CobRStatusStatusCANCELADA:
+		return true
+	case CobRStatusStatusCONCLUIDA:
+		return true
+	case CobRStatusStatusCRIADA:
+		return true
+	case CobRStatusStatusEXPIRADA:
+		return true
+	case CobRStatusStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRStatusRevisadaStatus.
+const (
+	CobRStatusRevisadaStatusCANCELADA CobRStatusRevisadaStatus = "CANCELADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRStatusRevisadaStatus enum.
+func (e CobRStatusRevisadaStatus) Valid() bool {
+	switch e {
+	case CobRStatusRevisadaStatusCANCELADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRTentativasTentativasAtualizacaoStatus.
+const (
+	CobRTentativasTentativasAtualizacaoStatusAGENDADA   CobRTentativasTentativasAtualizacaoStatus = "AGENDADA"
+	CobRTentativasTentativasAtualizacaoStatusCANCELADA  CobRTentativasTentativasAtualizacaoStatus = "CANCELADA"
+	CobRTentativasTentativasAtualizacaoStatusEXPIRADA   CobRTentativasTentativasAtualizacaoStatus = "EXPIRADA"
+	CobRTentativasTentativasAtualizacaoStatusPAGA       CobRTentativasTentativasAtualizacaoStatus = "PAGA"
+	CobRTentativasTentativasAtualizacaoStatusREJEITADA  CobRTentativasTentativasAtualizacaoStatus = "REJEITADA"
+	CobRTentativasTentativasAtualizacaoStatusSOLICITADA CobRTentativasTentativasAtualizacaoStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRTentativasTentativasAtualizacaoStatus enum.
+func (e CobRTentativasTentativasAtualizacaoStatus) Valid() bool {
+	switch e {
+	case CobRTentativasTentativasAtualizacaoStatusAGENDADA:
+		return true
+	case CobRTentativasTentativasAtualizacaoStatusCANCELADA:
+		return true
+	case CobRTentativasTentativasAtualizacaoStatusEXPIRADA:
+		return true
+	case CobRTentativasTentativasAtualizacaoStatusPAGA:
+		return true
+	case CobRTentativasTentativasAtualizacaoStatusREJEITADA:
+		return true
+	case CobRTentativasTentativasAtualizacaoStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRTentativasTentativasRejeicaoCodigo.
+const (
+	CobRTentativasTentativasRejeicaoCodigoAB10 CobRTentativasTentativasRejeicaoCodigo = "AB10"
+	CobRTentativasTentativasRejeicaoCodigoAC05 CobRTentativasTentativasRejeicaoCodigo = "AC05"
+	CobRTentativasTentativasRejeicaoCodigoAC06 CobRTentativasTentativasRejeicaoCodigo = "AC06"
+	CobRTentativasTentativasRejeicaoCodigoAM02 CobRTentativasTentativasRejeicaoCodigo = "AM02"
+	CobRTentativasTentativasRejeicaoCodigoAM09 CobRTentativasTentativasRejeicaoCodigo = "AM09"
+	CobRTentativasTentativasRejeicaoCodigoDENC CobRTentativasTentativasRejeicaoCodigo = "DENC"
+	CobRTentativasTentativasRejeicaoCodigoDS27 CobRTentativasTentativasRejeicaoCodigo = "DS27"
+	CobRTentativasTentativasRejeicaoCodigoDTED CobRTentativasTentativasRejeicaoCodigo = "DTED"
+	CobRTentativasTentativasRejeicaoCodigoDTNT CobRTentativasTentativasRejeicaoCodigo = "DTNT"
+	CobRTentativasTentativasRejeicaoCodigoFBRD CobRTentativasTentativasRejeicaoCodigo = "FBRD"
+	CobRTentativasTentativasRejeicaoCodigoIRNT CobRTentativasTentativasRejeicaoCodigo = "IRNT"
+	CobRTentativasTentativasRejeicaoCodigoMIDI CobRTentativasTentativasRejeicaoCodigo = "MIDI"
+	CobRTentativasTentativasRejeicaoCodigoMSUC CobRTentativasTentativasRejeicaoCodigo = "MSUC"
+	CobRTentativasTentativasRejeicaoCodigoNIEC CobRTentativasTentativasRejeicaoCodigo = "NIEC"
+	CobRTentativasTentativasRejeicaoCodigoNIPA CobRTentativasTentativasRejeicaoCodigo = "NIPA"
+	CobRTentativasTentativasRejeicaoCodigoNITX CobRTentativasTentativasRejeicaoCodigo = "NITX"
+	CobRTentativasTentativasRejeicaoCodigoQUNT CobRTentativasTentativasRejeicaoCodigo = "QUNT"
+	CobRTentativasTentativasRejeicaoCodigoRC09 CobRTentativasTentativasRejeicaoCodigo = "RC09"
+	CobRTentativasTentativasRejeicaoCodigoUDEI CobRTentativasTentativasRejeicaoCodigo = "UDEI"
+)
+
+// Valid indicates whether the value is a known member of the CobRTentativasTentativasRejeicaoCodigo enum.
+func (e CobRTentativasTentativasRejeicaoCodigo) Valid() bool {
+	switch e {
+	case CobRTentativasTentativasRejeicaoCodigoAB10:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoAC05:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoAC06:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoAM02:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoAM09:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoDENC:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoDS27:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoDTED:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoDTNT:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoFBRD:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoIRNT:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoMIDI:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoMSUC:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoNIEC:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoNIPA:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoNITX:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoQUNT:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoRC09:
+		return true
+	case CobRTentativasTentativasRejeicaoCodigoUDEI:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRTentativasTentativasStatus.
+const (
+	CobRTentativasTentativasStatusAGENDADA   CobRTentativasTentativasStatus = "AGENDADA"
+	CobRTentativasTentativasStatusCANCELADA  CobRTentativasTentativasStatus = "CANCELADA"
+	CobRTentativasTentativasStatusEXPIRADA   CobRTentativasTentativasStatus = "EXPIRADA"
+	CobRTentativasTentativasStatusPAGA       CobRTentativasTentativasStatus = "PAGA"
+	CobRTentativasTentativasStatusREJEITADA  CobRTentativasTentativasStatus = "REJEITADA"
+	CobRTentativasTentativasStatusSOLICITADA CobRTentativasTentativasStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the CobRTentativasTentativasStatus enum.
+func (e CobRTentativasTentativasStatus) Valid() bool {
+	switch e {
+	case CobRTentativasTentativasStatusAGENDADA:
+		return true
+	case CobRTentativasTentativasStatusCANCELADA:
+		return true
+	case CobRTentativasTentativasStatusEXPIRADA:
+		return true
+	case CobRTentativasTentativasStatusPAGA:
+		return true
+	case CobRTentativasTentativasStatusREJEITADA:
+		return true
+	case CobRTentativasTentativasStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CobRTentativasTentativasTipo.
+const (
+	CobRTentativasTentativasTipoAGND CobRTentativasTentativasTipo = "AGND"
+	CobRTentativasTentativasTipoNTAG CobRTentativasTentativasTipo = "NTAG"
+	CobRTentativasTentativasTipoRIFL CobRTentativasTentativasTipo = "RIFL"
+)
+
+// Valid indicates whether the value is a known member of the CobRTentativasTentativasTipo enum.
+func (e CobRTentativasTentativasTipo) Valid() bool {
+	switch e {
+	case CobRTentativasTentativasTipoAGND:
+		return true
+	case CobRTentativasTentativasTipoNTAG:
+		return true
+	case CobRTentativasTentativasTipoRIFL:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CobRevisadaStatus.
 const (
 	CobRevisadaStatusREMOVIDAPELOUSUARIORECEBEDOR CobRevisadaStatus = "REMOVIDA_PELO_USUARIO_RECEBEDOR"
@@ -449,21 +1160,42 @@ func (e CobsVConsultadasCobsLocTipoCob) Valid() bool {
 	}
 }
 
+// Defines values for DadosBancariosRecebedorTipoConta.
+const (
+	CORRENTE  DadosBancariosRecebedorTipoConta = "CORRENTE"
+	PAGAMENTO DadosBancariosRecebedorTipoConta = "PAGAMENTO"
+	POUPANCA  DadosBancariosRecebedorTipoConta = "POUPANCA"
+)
+
+// Valid indicates whether the value is a known member of the DadosBancariosRecebedorTipoConta enum.
+func (e DadosBancariosRecebedorTipoConta) Valid() bool {
+	switch e {
+	case CORRENTE:
+		return true
+	case PAGAMENTO:
+		return true
+	case POUPANCA:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DevolucaoStatus.
 const (
-	DEVOLVIDO       DevolucaoStatus = "DEVOLVIDO"
-	EMPROCESSAMENTO DevolucaoStatus = "EM_PROCESSAMENTO"
-	NAOREALIZADO    DevolucaoStatus = "NAO_REALIZADO"
+	DevolucaoStatusDEVOLVIDO       DevolucaoStatus = "DEVOLVIDO"
+	DevolucaoStatusEMPROCESSAMENTO DevolucaoStatus = "EM_PROCESSAMENTO"
+	DevolucaoStatusNAOREALIZADO    DevolucaoStatus = "NAO_REALIZADO"
 )
 
 // Valid indicates whether the value is a known member of the DevolucaoStatus enum.
 func (e DevolucaoStatus) Valid() bool {
 	switch e {
-	case DEVOLVIDO:
+	case DevolucaoStatusDEVOLVIDO:
 		return true
-	case EMPROCESSAMENTO:
+	case DevolucaoStatusEMPROCESSAMENTO:
 		return true
-	case NAOREALIZADO:
+	case DevolucaoStatusNAOREALIZADO:
 		return true
 	default:
 		return false
@@ -497,6 +1229,48 @@ func (e DevolucaoNatureza) Valid() bool {
 	}
 }
 
+// Defines values for DevolucaoNaturezaPixAutomatico.
+const (
+	DevolucaoNaturezaPixAutomaticoMEDFRAUDE        DevolucaoNaturezaPixAutomatico = "MED_FRAUDE"
+	DevolucaoNaturezaPixAutomaticoMEDPIXAUTOMATICO DevolucaoNaturezaPixAutomatico = "MED_PIX_AUTOMATICO"
+	DevolucaoNaturezaPixAutomaticoORIGINAL         DevolucaoNaturezaPixAutomatico = "ORIGINAL"
+)
+
+// Valid indicates whether the value is a known member of the DevolucaoNaturezaPixAutomatico enum.
+func (e DevolucaoNaturezaPixAutomatico) Valid() bool {
+	switch e {
+	case DevolucaoNaturezaPixAutomaticoMEDFRAUDE:
+		return true
+	case DevolucaoNaturezaPixAutomaticoMEDPIXAUTOMATICO:
+		return true
+	case DevolucaoNaturezaPixAutomaticoORIGINAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DevolucaoPixAutomaticoStatus.
+const (
+	DevolucaoPixAutomaticoStatusDEVOLVIDO       DevolucaoPixAutomaticoStatus = "DEVOLVIDO"
+	DevolucaoPixAutomaticoStatusEMPROCESSAMENTO DevolucaoPixAutomaticoStatus = "EM_PROCESSAMENTO"
+	DevolucaoPixAutomaticoStatusNAOREALIZADO    DevolucaoPixAutomaticoStatus = "NAO_REALIZADO"
+)
+
+// Valid indicates whether the value is a known member of the DevolucaoPixAutomaticoStatus enum.
+func (e DevolucaoPixAutomaticoStatus) Valid() bool {
+	switch e {
+	case DevolucaoPixAutomaticoStatusDEVOLVIDO:
+		return true
+	case DevolucaoPixAutomaticoStatusEMPROCESSAMENTO:
+		return true
+	case DevolucaoPixAutomaticoStatusNAOREALIZADO:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DevolucaoSolicitadaNatureza.
 const (
 	DevolucaoSolicitadaNaturezaORIGINAL DevolucaoSolicitadaNatureza = "ORIGINAL"
@@ -509,6 +1283,30 @@ func (e DevolucaoSolicitadaNatureza) Valid() bool {
 	case DevolucaoSolicitadaNaturezaORIGINAL:
 		return true
 	case DevolucaoSolicitadaNaturezaRETIRADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EncerramentoCancelamentoSolicitante.
+const (
+	PSPPAGADOR       EncerramentoCancelamentoSolicitante = "PSP_PAGADOR"
+	PSPRECEBEDOR     EncerramentoCancelamentoSolicitante = "PSP_RECEBEDOR"
+	USUARIOPAGADOR   EncerramentoCancelamentoSolicitante = "USUARIO_PAGADOR"
+	USUARIORECEBEDOR EncerramentoCancelamentoSolicitante = "USUARIO_RECEBEDOR"
+)
+
+// Valid indicates whether the value is a known member of the EncerramentoCancelamentoSolicitante enum.
+func (e EncerramentoCancelamentoSolicitante) Valid() bool {
+	switch e {
+	case PSPPAGADOR:
+		return true
+	case PSPRECEBEDOR:
+		return true
+	case USUARIOPAGADOR:
+		return true
+	case USUARIORECEBEDOR:
 		return true
 	default:
 		return false
@@ -629,6 +1427,1131 @@ func (e PixValorTrocoTrocoModalidadeAgente) Valid() bool {
 	}
 }
 
+// Defines values for RecAtivacaoAtivacaoTipoJornada.
+const (
+	RecAtivacaoAtivacaoTipoJornadaAGUARDANDODEFINICAO RecAtivacaoAtivacaoTipoJornada = "AGUARDANDO_DEFINICAO"
+	RecAtivacaoAtivacaoTipoJornadaJORNADA1            RecAtivacaoAtivacaoTipoJornada = "JORNADA_1"
+	RecAtivacaoAtivacaoTipoJornadaJORNADA2            RecAtivacaoAtivacaoTipoJornada = "JORNADA_2"
+	RecAtivacaoAtivacaoTipoJornadaJORNADA3            RecAtivacaoAtivacaoTipoJornada = "JORNADA_3"
+	RecAtivacaoAtivacaoTipoJornadaJORNADA4            RecAtivacaoAtivacaoTipoJornada = "JORNADA_4"
+)
+
+// Valid indicates whether the value is a known member of the RecAtivacaoAtivacaoTipoJornada enum.
+func (e RecAtivacaoAtivacaoTipoJornada) Valid() bool {
+	switch e {
+	case RecAtivacaoAtivacaoTipoJornadaAGUARDANDODEFINICAO:
+		return true
+	case RecAtivacaoAtivacaoTipoJornadaJORNADA1:
+		return true
+	case RecAtivacaoAtivacaoTipoJornadaJORNADA2:
+		return true
+	case RecAtivacaoAtivacaoTipoJornadaJORNADA3:
+		return true
+	case RecAtivacaoAtivacaoTipoJornadaJORNADA4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecAtualizacaoAtualizacaoStatus.
+const (
+	RecAtualizacaoAtualizacaoStatusAPROVADA  RecAtualizacaoAtualizacaoStatus = "APROVADA"
+	RecAtualizacaoAtualizacaoStatusCANCELADA RecAtualizacaoAtualizacaoStatus = "CANCELADA"
+	RecAtualizacaoAtualizacaoStatusCRIADA    RecAtualizacaoAtualizacaoStatus = "CRIADA"
+	RecAtualizacaoAtualizacaoStatusEXPIRADA  RecAtualizacaoAtualizacaoStatus = "EXPIRADA"
+	RecAtualizacaoAtualizacaoStatusREJEITADA RecAtualizacaoAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecAtualizacaoAtualizacaoStatus enum.
+func (e RecAtualizacaoAtualizacaoStatus) Valid() bool {
+	switch e {
+	case RecAtualizacaoAtualizacaoStatusAPROVADA:
+		return true
+	case RecAtualizacaoAtualizacaoStatusCANCELADA:
+		return true
+	case RecAtualizacaoAtualizacaoStatusCRIADA:
+		return true
+	case RecAtualizacaoAtualizacaoStatusEXPIRADA:
+		return true
+	case RecAtualizacaoAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecBaseCalendarioPeriodicidade.
+const (
+	RecBaseCalendarioPeriodicidadeANUAL      RecBaseCalendarioPeriodicidade = "ANUAL"
+	RecBaseCalendarioPeriodicidadeMENSAL     RecBaseCalendarioPeriodicidade = "MENSAL"
+	RecBaseCalendarioPeriodicidadeSEMANAL    RecBaseCalendarioPeriodicidade = "SEMANAL"
+	RecBaseCalendarioPeriodicidadeSEMESTRAL  RecBaseCalendarioPeriodicidade = "SEMESTRAL"
+	RecBaseCalendarioPeriodicidadeTRIMESTRAL RecBaseCalendarioPeriodicidade = "TRIMESTRAL"
+)
+
+// Valid indicates whether the value is a known member of the RecBaseCalendarioPeriodicidade enum.
+func (e RecBaseCalendarioPeriodicidade) Valid() bool {
+	switch e {
+	case RecBaseCalendarioPeriodicidadeANUAL:
+		return true
+	case RecBaseCalendarioPeriodicidadeMENSAL:
+		return true
+	case RecBaseCalendarioPeriodicidadeSEMANAL:
+		return true
+	case RecBaseCalendarioPeriodicidadeSEMESTRAL:
+		return true
+	case RecBaseCalendarioPeriodicidadeTRIMESTRAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaAtivacaoTipoJornada.
+const (
+	RecCompletaAtivacaoTipoJornadaAGUARDANDODEFINICAO RecCompletaAtivacaoTipoJornada = "AGUARDANDO_DEFINICAO"
+	RecCompletaAtivacaoTipoJornadaJORNADA1            RecCompletaAtivacaoTipoJornada = "JORNADA_1"
+	RecCompletaAtivacaoTipoJornadaJORNADA2            RecCompletaAtivacaoTipoJornada = "JORNADA_2"
+	RecCompletaAtivacaoTipoJornadaJORNADA3            RecCompletaAtivacaoTipoJornada = "JORNADA_3"
+	RecCompletaAtivacaoTipoJornadaJORNADA4            RecCompletaAtivacaoTipoJornada = "JORNADA_4"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaAtivacaoTipoJornada enum.
+func (e RecCompletaAtivacaoTipoJornada) Valid() bool {
+	switch e {
+	case RecCompletaAtivacaoTipoJornadaAGUARDANDODEFINICAO:
+		return true
+	case RecCompletaAtivacaoTipoJornadaJORNADA1:
+		return true
+	case RecCompletaAtivacaoTipoJornadaJORNADA2:
+		return true
+	case RecCompletaAtivacaoTipoJornadaJORNADA3:
+		return true
+	case RecCompletaAtivacaoTipoJornadaJORNADA4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaAtualizacaoStatus.
+const (
+	RecCompletaAtualizacaoStatusAPROVADA  RecCompletaAtualizacaoStatus = "APROVADA"
+	RecCompletaAtualizacaoStatusCANCELADA RecCompletaAtualizacaoStatus = "CANCELADA"
+	RecCompletaAtualizacaoStatusCRIADA    RecCompletaAtualizacaoStatus = "CRIADA"
+	RecCompletaAtualizacaoStatusEXPIRADA  RecCompletaAtualizacaoStatus = "EXPIRADA"
+	RecCompletaAtualizacaoStatusREJEITADA RecCompletaAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaAtualizacaoStatus enum.
+func (e RecCompletaAtualizacaoStatus) Valid() bool {
+	switch e {
+	case RecCompletaAtualizacaoStatusAPROVADA:
+		return true
+	case RecCompletaAtualizacaoStatusCANCELADA:
+		return true
+	case RecCompletaAtualizacaoStatusCRIADA:
+		return true
+	case RecCompletaAtualizacaoStatusEXPIRADA:
+		return true
+	case RecCompletaAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaCalendarioPeriodicidade.
+const (
+	RecCompletaCalendarioPeriodicidadeANUAL      RecCompletaCalendarioPeriodicidade = "ANUAL"
+	RecCompletaCalendarioPeriodicidadeMENSAL     RecCompletaCalendarioPeriodicidade = "MENSAL"
+	RecCompletaCalendarioPeriodicidadeSEMANAL    RecCompletaCalendarioPeriodicidade = "SEMANAL"
+	RecCompletaCalendarioPeriodicidadeSEMESTRAL  RecCompletaCalendarioPeriodicidade = "SEMESTRAL"
+	RecCompletaCalendarioPeriodicidadeTRIMESTRAL RecCompletaCalendarioPeriodicidade = "TRIMESTRAL"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaCalendarioPeriodicidade enum.
+func (e RecCompletaCalendarioPeriodicidade) Valid() bool {
+	switch e {
+	case RecCompletaCalendarioPeriodicidadeANUAL:
+		return true
+	case RecCompletaCalendarioPeriodicidadeMENSAL:
+		return true
+	case RecCompletaCalendarioPeriodicidadeSEMANAL:
+		return true
+	case RecCompletaCalendarioPeriodicidadeSEMESTRAL:
+		return true
+	case RecCompletaCalendarioPeriodicidadeTRIMESTRAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaDadosQRJornada.
+const (
+	RecCompletaDadosQRJornadaJORNADA2 RecCompletaDadosQRJornada = "JORNADA_2"
+	RecCompletaDadosQRJornadaJORNADA3 RecCompletaDadosQRJornada = "JORNADA_3"
+	RecCompletaDadosQRJornadaJORNADA4 RecCompletaDadosQRJornada = "JORNADA_4"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaDadosQRJornada enum.
+func (e RecCompletaDadosQRJornada) Valid() bool {
+	switch e {
+	case RecCompletaDadosQRJornadaJORNADA2:
+		return true
+	case RecCompletaDadosQRJornadaJORNADA3:
+		return true
+	case RecCompletaDadosQRJornadaJORNADA4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaPoliticaRetentativa.
+const (
+	RecCompletaPoliticaRetentativaNAOPERMITE  RecCompletaPoliticaRetentativa = "NAO_PERMITE"
+	RecCompletaPoliticaRetentativaPERMITE3R7D RecCompletaPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaPoliticaRetentativa enum.
+func (e RecCompletaPoliticaRetentativa) Valid() bool {
+	switch e {
+	case RecCompletaPoliticaRetentativaNAOPERMITE:
+		return true
+	case RecCompletaPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaStatus.
+const (
+	RecCompletaStatusAPROVADA  RecCompletaStatus = "APROVADA"
+	RecCompletaStatusCANCELADA RecCompletaStatus = "CANCELADA"
+	RecCompletaStatusCRIADA    RecCompletaStatus = "CRIADA"
+	RecCompletaStatusEXPIRADA  RecCompletaStatus = "EXPIRADA"
+	RecCompletaStatusREJEITADA RecCompletaStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaStatus enum.
+func (e RecCompletaStatus) Valid() bool {
+	switch e {
+	case RecCompletaStatusAPROVADA:
+		return true
+	case RecCompletaStatusCANCELADA:
+		return true
+	case RecCompletaStatusCRIADA:
+		return true
+	case RecCompletaStatusEXPIRADA:
+		return true
+	case RecCompletaStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaPesquisadaAtivacaoTipoJornada.
+const (
+	RecCompletaPesquisadaAtivacaoTipoJornadaAGUARDANDODEFINICAO RecCompletaPesquisadaAtivacaoTipoJornada = "AGUARDANDO_DEFINICAO"
+	RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA1            RecCompletaPesquisadaAtivacaoTipoJornada = "JORNADA_1"
+	RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA2            RecCompletaPesquisadaAtivacaoTipoJornada = "JORNADA_2"
+	RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA3            RecCompletaPesquisadaAtivacaoTipoJornada = "JORNADA_3"
+	RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA4            RecCompletaPesquisadaAtivacaoTipoJornada = "JORNADA_4"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaPesquisadaAtivacaoTipoJornada enum.
+func (e RecCompletaPesquisadaAtivacaoTipoJornada) Valid() bool {
+	switch e {
+	case RecCompletaPesquisadaAtivacaoTipoJornadaAGUARDANDODEFINICAO:
+		return true
+	case RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA1:
+		return true
+	case RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA2:
+		return true
+	case RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA3:
+		return true
+	case RecCompletaPesquisadaAtivacaoTipoJornadaJORNADA4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaPesquisadaAtualizacaoStatus.
+const (
+	RecCompletaPesquisadaAtualizacaoStatusAPROVADA  RecCompletaPesquisadaAtualizacaoStatus = "APROVADA"
+	RecCompletaPesquisadaAtualizacaoStatusCANCELADA RecCompletaPesquisadaAtualizacaoStatus = "CANCELADA"
+	RecCompletaPesquisadaAtualizacaoStatusCRIADA    RecCompletaPesquisadaAtualizacaoStatus = "CRIADA"
+	RecCompletaPesquisadaAtualizacaoStatusEXPIRADA  RecCompletaPesquisadaAtualizacaoStatus = "EXPIRADA"
+	RecCompletaPesquisadaAtualizacaoStatusREJEITADA RecCompletaPesquisadaAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaPesquisadaAtualizacaoStatus enum.
+func (e RecCompletaPesquisadaAtualizacaoStatus) Valid() bool {
+	switch e {
+	case RecCompletaPesquisadaAtualizacaoStatusAPROVADA:
+		return true
+	case RecCompletaPesquisadaAtualizacaoStatusCANCELADA:
+		return true
+	case RecCompletaPesquisadaAtualizacaoStatusCRIADA:
+		return true
+	case RecCompletaPesquisadaAtualizacaoStatusEXPIRADA:
+		return true
+	case RecCompletaPesquisadaAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaPesquisadaCalendarioPeriodicidade.
+const (
+	RecCompletaPesquisadaCalendarioPeriodicidadeANUAL      RecCompletaPesquisadaCalendarioPeriodicidade = "ANUAL"
+	RecCompletaPesquisadaCalendarioPeriodicidadeMENSAL     RecCompletaPesquisadaCalendarioPeriodicidade = "MENSAL"
+	RecCompletaPesquisadaCalendarioPeriodicidadeSEMANAL    RecCompletaPesquisadaCalendarioPeriodicidade = "SEMANAL"
+	RecCompletaPesquisadaCalendarioPeriodicidadeSEMESTRAL  RecCompletaPesquisadaCalendarioPeriodicidade = "SEMESTRAL"
+	RecCompletaPesquisadaCalendarioPeriodicidadeTRIMESTRAL RecCompletaPesquisadaCalendarioPeriodicidade = "TRIMESTRAL"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaPesquisadaCalendarioPeriodicidade enum.
+func (e RecCompletaPesquisadaCalendarioPeriodicidade) Valid() bool {
+	switch e {
+	case RecCompletaPesquisadaCalendarioPeriodicidadeANUAL:
+		return true
+	case RecCompletaPesquisadaCalendarioPeriodicidadeMENSAL:
+		return true
+	case RecCompletaPesquisadaCalendarioPeriodicidadeSEMANAL:
+		return true
+	case RecCompletaPesquisadaCalendarioPeriodicidadeSEMESTRAL:
+		return true
+	case RecCompletaPesquisadaCalendarioPeriodicidadeTRIMESTRAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaPesquisadaPoliticaRetentativa.
+const (
+	RecCompletaPesquisadaPoliticaRetentativaNAOPERMITE  RecCompletaPesquisadaPoliticaRetentativa = "NAO_PERMITE"
+	RecCompletaPesquisadaPoliticaRetentativaPERMITE3R7D RecCompletaPesquisadaPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaPesquisadaPoliticaRetentativa enum.
+func (e RecCompletaPesquisadaPoliticaRetentativa) Valid() bool {
+	switch e {
+	case RecCompletaPesquisadaPoliticaRetentativaNAOPERMITE:
+		return true
+	case RecCompletaPesquisadaPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecCompletaPesquisadaStatus.
+const (
+	RecCompletaPesquisadaStatusAPROVADA  RecCompletaPesquisadaStatus = "APROVADA"
+	RecCompletaPesquisadaStatusCANCELADA RecCompletaPesquisadaStatus = "CANCELADA"
+	RecCompletaPesquisadaStatusCRIADA    RecCompletaPesquisadaStatus = "CRIADA"
+	RecCompletaPesquisadaStatusEXPIRADA  RecCompletaPesquisadaStatus = "EXPIRADA"
+	RecCompletaPesquisadaStatusREJEITADA RecCompletaPesquisadaStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecCompletaPesquisadaStatus enum.
+func (e RecCompletaPesquisadaStatus) Valid() bool {
+	switch e {
+	case RecCompletaPesquisadaStatusAPROVADA:
+		return true
+	case RecCompletaPesquisadaStatusCANCELADA:
+		return true
+	case RecCompletaPesquisadaStatusCRIADA:
+		return true
+	case RecCompletaPesquisadaStatusEXPIRADA:
+		return true
+	case RecCompletaPesquisadaStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecConfiguracaoPoliticaRetentativa.
+const (
+	RecConfiguracaoPoliticaRetentativaNAOPERMITE  RecConfiguracaoPoliticaRetentativa = "NAO_PERMITE"
+	RecConfiguracaoPoliticaRetentativaPERMITE3R7D RecConfiguracaoPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the RecConfiguracaoPoliticaRetentativa enum.
+func (e RecConfiguracaoPoliticaRetentativa) Valid() bool {
+	switch e {
+	case RecConfiguracaoPoliticaRetentativaNAOPERMITE:
+		return true
+	case RecConfiguracaoPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecGeradaAtivacaoTipoJornada.
+const (
+	RecGeradaAtivacaoTipoJornadaAGUARDANDODEFINICAO RecGeradaAtivacaoTipoJornada = "AGUARDANDO_DEFINICAO"
+	RecGeradaAtivacaoTipoJornadaJORNADA1            RecGeradaAtivacaoTipoJornada = "JORNADA_1"
+	RecGeradaAtivacaoTipoJornadaJORNADA2            RecGeradaAtivacaoTipoJornada = "JORNADA_2"
+	RecGeradaAtivacaoTipoJornadaJORNADA3            RecGeradaAtivacaoTipoJornada = "JORNADA_3"
+	RecGeradaAtivacaoTipoJornadaJORNADA4            RecGeradaAtivacaoTipoJornada = "JORNADA_4"
+)
+
+// Valid indicates whether the value is a known member of the RecGeradaAtivacaoTipoJornada enum.
+func (e RecGeradaAtivacaoTipoJornada) Valid() bool {
+	switch e {
+	case RecGeradaAtivacaoTipoJornadaAGUARDANDODEFINICAO:
+		return true
+	case RecGeradaAtivacaoTipoJornadaJORNADA1:
+		return true
+	case RecGeradaAtivacaoTipoJornadaJORNADA2:
+		return true
+	case RecGeradaAtivacaoTipoJornadaJORNADA3:
+		return true
+	case RecGeradaAtivacaoTipoJornadaJORNADA4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecGeradaAtualizacaoStatus.
+const (
+	RecGeradaAtualizacaoStatusAPROVADA  RecGeradaAtualizacaoStatus = "APROVADA"
+	RecGeradaAtualizacaoStatusCANCELADA RecGeradaAtualizacaoStatus = "CANCELADA"
+	RecGeradaAtualizacaoStatusCRIADA    RecGeradaAtualizacaoStatus = "CRIADA"
+	RecGeradaAtualizacaoStatusEXPIRADA  RecGeradaAtualizacaoStatus = "EXPIRADA"
+	RecGeradaAtualizacaoStatusREJEITADA RecGeradaAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecGeradaAtualizacaoStatus enum.
+func (e RecGeradaAtualizacaoStatus) Valid() bool {
+	switch e {
+	case RecGeradaAtualizacaoStatusAPROVADA:
+		return true
+	case RecGeradaAtualizacaoStatusCANCELADA:
+		return true
+	case RecGeradaAtualizacaoStatusCRIADA:
+		return true
+	case RecGeradaAtualizacaoStatusEXPIRADA:
+		return true
+	case RecGeradaAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecGeradaCalendarioPeriodicidade.
+const (
+	RecGeradaCalendarioPeriodicidadeANUAL      RecGeradaCalendarioPeriodicidade = "ANUAL"
+	RecGeradaCalendarioPeriodicidadeMENSAL     RecGeradaCalendarioPeriodicidade = "MENSAL"
+	RecGeradaCalendarioPeriodicidadeSEMANAL    RecGeradaCalendarioPeriodicidade = "SEMANAL"
+	RecGeradaCalendarioPeriodicidadeSEMESTRAL  RecGeradaCalendarioPeriodicidade = "SEMESTRAL"
+	RecGeradaCalendarioPeriodicidadeTRIMESTRAL RecGeradaCalendarioPeriodicidade = "TRIMESTRAL"
+)
+
+// Valid indicates whether the value is a known member of the RecGeradaCalendarioPeriodicidade enum.
+func (e RecGeradaCalendarioPeriodicidade) Valid() bool {
+	switch e {
+	case RecGeradaCalendarioPeriodicidadeANUAL:
+		return true
+	case RecGeradaCalendarioPeriodicidadeMENSAL:
+		return true
+	case RecGeradaCalendarioPeriodicidadeSEMANAL:
+		return true
+	case RecGeradaCalendarioPeriodicidadeSEMESTRAL:
+		return true
+	case RecGeradaCalendarioPeriodicidadeTRIMESTRAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecGeradaStatus.
+const (
+	RecGeradaStatusAPROVADA  RecGeradaStatus = "APROVADA"
+	RecGeradaStatusCANCELADA RecGeradaStatus = "CANCELADA"
+	RecGeradaStatusCRIADA    RecGeradaStatus = "CRIADA"
+	RecGeradaStatusEXPIRADA  RecGeradaStatus = "EXPIRADA"
+	RecGeradaStatusREJEITADA RecGeradaStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecGeradaStatus enum.
+func (e RecGeradaStatus) Valid() bool {
+	switch e {
+	case RecGeradaStatusAPROVADA:
+		return true
+	case RecGeradaStatusCANCELADA:
+		return true
+	case RecGeradaStatusCRIADA:
+		return true
+	case RecGeradaStatusEXPIRADA:
+		return true
+	case RecGeradaStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecNotificationAtivacaoTipoJornada.
+const (
+	RecNotificationAtivacaoTipoJornadaAGUARDANDODEFINICAO RecNotificationAtivacaoTipoJornada = "AGUARDANDO_DEFINICAO"
+	RecNotificationAtivacaoTipoJornadaJORNADA1            RecNotificationAtivacaoTipoJornada = "JORNADA_1"
+	RecNotificationAtivacaoTipoJornadaJORNADA2            RecNotificationAtivacaoTipoJornada = "JORNADA_2"
+	RecNotificationAtivacaoTipoJornadaJORNADA3            RecNotificationAtivacaoTipoJornada = "JORNADA_3"
+	RecNotificationAtivacaoTipoJornadaJORNADA4            RecNotificationAtivacaoTipoJornada = "JORNADA_4"
+)
+
+// Valid indicates whether the value is a known member of the RecNotificationAtivacaoTipoJornada enum.
+func (e RecNotificationAtivacaoTipoJornada) Valid() bool {
+	switch e {
+	case RecNotificationAtivacaoTipoJornadaAGUARDANDODEFINICAO:
+		return true
+	case RecNotificationAtivacaoTipoJornadaJORNADA1:
+		return true
+	case RecNotificationAtivacaoTipoJornadaJORNADA2:
+		return true
+	case RecNotificationAtivacaoTipoJornadaJORNADA3:
+		return true
+	case RecNotificationAtivacaoTipoJornadaJORNADA4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecNotificationAtualizacaoStatus.
+const (
+	RecNotificationAtualizacaoStatusAPROVADA  RecNotificationAtualizacaoStatus = "APROVADA"
+	RecNotificationAtualizacaoStatusCANCELADA RecNotificationAtualizacaoStatus = "CANCELADA"
+	RecNotificationAtualizacaoStatusCRIADA    RecNotificationAtualizacaoStatus = "CRIADA"
+	RecNotificationAtualizacaoStatusEXPIRADA  RecNotificationAtualizacaoStatus = "EXPIRADA"
+	RecNotificationAtualizacaoStatusREJEITADA RecNotificationAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecNotificationAtualizacaoStatus enum.
+func (e RecNotificationAtualizacaoStatus) Valid() bool {
+	switch e {
+	case RecNotificationAtualizacaoStatusAPROVADA:
+		return true
+	case RecNotificationAtualizacaoStatusCANCELADA:
+		return true
+	case RecNotificationAtualizacaoStatusCRIADA:
+		return true
+	case RecNotificationAtualizacaoStatusEXPIRADA:
+		return true
+	case RecNotificationAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecNotificationStatus.
+const (
+	RecNotificationStatusAPROVADA  RecNotificationStatus = "APROVADA"
+	RecNotificationStatusCANCELADA RecNotificationStatus = "CANCELADA"
+	RecNotificationStatusCRIADA    RecNotificationStatus = "CRIADA"
+	RecNotificationStatusEXPIRADA  RecNotificationStatus = "EXPIRADA"
+	RecNotificationStatusREJEITADA RecNotificationStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecNotificationStatus enum.
+func (e RecNotificationStatus) Valid() bool {
+	switch e {
+	case RecNotificationStatusAPROVADA:
+		return true
+	case RecNotificationStatusCANCELADA:
+		return true
+	case RecNotificationStatusCRIADA:
+		return true
+	case RecNotificationStatusEXPIRADA:
+		return true
+	case RecNotificationStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecPayloadAtualizacaoStatus.
+const (
+	RecPayloadAtualizacaoStatusAPROVADA  RecPayloadAtualizacaoStatus = "APROVADA"
+	RecPayloadAtualizacaoStatusCANCELADA RecPayloadAtualizacaoStatus = "CANCELADA"
+	RecPayloadAtualizacaoStatusCRIADA    RecPayloadAtualizacaoStatus = "CRIADA"
+	RecPayloadAtualizacaoStatusEXPIRADA  RecPayloadAtualizacaoStatus = "EXPIRADA"
+	RecPayloadAtualizacaoStatusREJEITADA RecPayloadAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecPayloadAtualizacaoStatus enum.
+func (e RecPayloadAtualizacaoStatus) Valid() bool {
+	switch e {
+	case RecPayloadAtualizacaoStatusAPROVADA:
+		return true
+	case RecPayloadAtualizacaoStatusCANCELADA:
+		return true
+	case RecPayloadAtualizacaoStatusCRIADA:
+		return true
+	case RecPayloadAtualizacaoStatusEXPIRADA:
+		return true
+	case RecPayloadAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecPayloadCalendarioPeriodicidade.
+const (
+	RecPayloadCalendarioPeriodicidadeANUAL      RecPayloadCalendarioPeriodicidade = "ANUAL"
+	RecPayloadCalendarioPeriodicidadeMENSAL     RecPayloadCalendarioPeriodicidade = "MENSAL"
+	RecPayloadCalendarioPeriodicidadeSEMANAL    RecPayloadCalendarioPeriodicidade = "SEMANAL"
+	RecPayloadCalendarioPeriodicidadeSEMESTRAL  RecPayloadCalendarioPeriodicidade = "SEMESTRAL"
+	RecPayloadCalendarioPeriodicidadeTRIMESTRAL RecPayloadCalendarioPeriodicidade = "TRIMESTRAL"
+)
+
+// Valid indicates whether the value is a known member of the RecPayloadCalendarioPeriodicidade enum.
+func (e RecPayloadCalendarioPeriodicidade) Valid() bool {
+	switch e {
+	case RecPayloadCalendarioPeriodicidadeANUAL:
+		return true
+	case RecPayloadCalendarioPeriodicidadeMENSAL:
+		return true
+	case RecPayloadCalendarioPeriodicidadeSEMANAL:
+		return true
+	case RecPayloadCalendarioPeriodicidadeSEMESTRAL:
+		return true
+	case RecPayloadCalendarioPeriodicidadeTRIMESTRAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecPayloadPoliticaRetentativa.
+const (
+	RecPayloadPoliticaRetentativaNAOPERMITE  RecPayloadPoliticaRetentativa = "NAO_PERMITE"
+	RecPayloadPoliticaRetentativaPERMITE3R7D RecPayloadPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the RecPayloadPoliticaRetentativa enum.
+func (e RecPayloadPoliticaRetentativa) Valid() bool {
+	switch e {
+	case RecPayloadPoliticaRetentativaNAOPERMITE:
+		return true
+	case RecPayloadPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecRevisadaStatus.
+const (
+	RecRevisadaStatusCANCELADA RecRevisadaStatus = "CANCELADA"
+)
+
+// Valid indicates whether the value is a known member of the RecRevisadaStatus enum.
+func (e RecRevisadaStatus) Valid() bool {
+	switch e {
+	case RecRevisadaStatusCANCELADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecSolicitadaCalendarioPeriodicidade.
+const (
+	RecSolicitadaCalendarioPeriodicidadeANUAL      RecSolicitadaCalendarioPeriodicidade = "ANUAL"
+	RecSolicitadaCalendarioPeriodicidadeMENSAL     RecSolicitadaCalendarioPeriodicidade = "MENSAL"
+	RecSolicitadaCalendarioPeriodicidadeSEMANAL    RecSolicitadaCalendarioPeriodicidade = "SEMANAL"
+	RecSolicitadaCalendarioPeriodicidadeSEMESTRAL  RecSolicitadaCalendarioPeriodicidade = "SEMESTRAL"
+	RecSolicitadaCalendarioPeriodicidadeTRIMESTRAL RecSolicitadaCalendarioPeriodicidade = "TRIMESTRAL"
+)
+
+// Valid indicates whether the value is a known member of the RecSolicitadaCalendarioPeriodicidade enum.
+func (e RecSolicitadaCalendarioPeriodicidade) Valid() bool {
+	switch e {
+	case RecSolicitadaCalendarioPeriodicidadeANUAL:
+		return true
+	case RecSolicitadaCalendarioPeriodicidadeMENSAL:
+		return true
+	case RecSolicitadaCalendarioPeriodicidadeSEMANAL:
+		return true
+	case RecSolicitadaCalendarioPeriodicidadeSEMESTRAL:
+		return true
+	case RecSolicitadaCalendarioPeriodicidadeTRIMESTRAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecSolicitadaPoliticaRetentativa.
+const (
+	RecSolicitadaPoliticaRetentativaNAOPERMITE  RecSolicitadaPoliticaRetentativa = "NAO_PERMITE"
+	RecSolicitadaPoliticaRetentativaPERMITE3R7D RecSolicitadaPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the RecSolicitadaPoliticaRetentativa enum.
+func (e RecSolicitadaPoliticaRetentativa) Valid() bool {
+	switch e {
+	case RecSolicitadaPoliticaRetentativaNAOPERMITE:
+		return true
+	case RecSolicitadaPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecStatusStatus.
+const (
+	RecStatusStatusAPROVADA  RecStatusStatus = "APROVADA"
+	RecStatusStatusCANCELADA RecStatusStatus = "CANCELADA"
+	RecStatusStatusCRIADA    RecStatusStatus = "CRIADA"
+	RecStatusStatusEXPIRADA  RecStatusStatus = "EXPIRADA"
+	RecStatusStatusREJEITADA RecStatusStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the RecStatusStatus enum.
+func (e RecStatusStatus) Valid() bool {
+	switch e {
+	case RecStatusStatusAPROVADA:
+		return true
+	case RecStatusStatusCANCELADA:
+		return true
+	case RecStatusStatusCRIADA:
+		return true
+	case RecStatusStatusEXPIRADA:
+		return true
+	case RecStatusStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SolicRecAtualizacaoAtualizacaoStatus.
+const (
+	SolicRecAtualizacaoAtualizacaoStatusACEITA    SolicRecAtualizacaoAtualizacaoStatus = "ACEITA"
+	SolicRecAtualizacaoAtualizacaoStatusCANCELADA SolicRecAtualizacaoAtualizacaoStatus = "CANCELADA"
+	SolicRecAtualizacaoAtualizacaoStatusCRIADA    SolicRecAtualizacaoAtualizacaoStatus = "CRIADA"
+	SolicRecAtualizacaoAtualizacaoStatusENVIADA   SolicRecAtualizacaoAtualizacaoStatus = "ENVIADA"
+	SolicRecAtualizacaoAtualizacaoStatusEXPIRADA  SolicRecAtualizacaoAtualizacaoStatus = "EXPIRADA"
+	SolicRecAtualizacaoAtualizacaoStatusRECEBIDA  SolicRecAtualizacaoAtualizacaoStatus = "RECEBIDA"
+	SolicRecAtualizacaoAtualizacaoStatusREJEITADA SolicRecAtualizacaoAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the SolicRecAtualizacaoAtualizacaoStatus enum.
+func (e SolicRecAtualizacaoAtualizacaoStatus) Valid() bool {
+	switch e {
+	case SolicRecAtualizacaoAtualizacaoStatusACEITA:
+		return true
+	case SolicRecAtualizacaoAtualizacaoStatusCANCELADA:
+		return true
+	case SolicRecAtualizacaoAtualizacaoStatusCRIADA:
+		return true
+	case SolicRecAtualizacaoAtualizacaoStatusENVIADA:
+		return true
+	case SolicRecAtualizacaoAtualizacaoStatusEXPIRADA:
+		return true
+	case SolicRecAtualizacaoAtualizacaoStatusRECEBIDA:
+		return true
+	case SolicRecAtualizacaoAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SolicRecCompletaAtualizacaoStatus.
+const (
+	SolicRecCompletaAtualizacaoStatusACEITA    SolicRecCompletaAtualizacaoStatus = "ACEITA"
+	SolicRecCompletaAtualizacaoStatusCANCELADA SolicRecCompletaAtualizacaoStatus = "CANCELADA"
+	SolicRecCompletaAtualizacaoStatusCRIADA    SolicRecCompletaAtualizacaoStatus = "CRIADA"
+	SolicRecCompletaAtualizacaoStatusENVIADA   SolicRecCompletaAtualizacaoStatus = "ENVIADA"
+	SolicRecCompletaAtualizacaoStatusEXPIRADA  SolicRecCompletaAtualizacaoStatus = "EXPIRADA"
+	SolicRecCompletaAtualizacaoStatusRECEBIDA  SolicRecCompletaAtualizacaoStatus = "RECEBIDA"
+	SolicRecCompletaAtualizacaoStatusREJEITADA SolicRecCompletaAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the SolicRecCompletaAtualizacaoStatus enum.
+func (e SolicRecCompletaAtualizacaoStatus) Valid() bool {
+	switch e {
+	case SolicRecCompletaAtualizacaoStatusACEITA:
+		return true
+	case SolicRecCompletaAtualizacaoStatusCANCELADA:
+		return true
+	case SolicRecCompletaAtualizacaoStatusCRIADA:
+		return true
+	case SolicRecCompletaAtualizacaoStatusENVIADA:
+		return true
+	case SolicRecCompletaAtualizacaoStatusEXPIRADA:
+		return true
+	case SolicRecCompletaAtualizacaoStatusRECEBIDA:
+		return true
+	case SolicRecCompletaAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SolicRecCompletaEncerramentoRejeicaoMotivo.
+const (
+	SolicRecCompletaEncerramentoRejeicaoMotivoDADOSBANCARIOSINVALIDOS SolicRecCompletaEncerramentoRejeicaoMotivo = "DADOS_BANCARIOS_INVALIDOS"
+)
+
+// Valid indicates whether the value is a known member of the SolicRecCompletaEncerramentoRejeicaoMotivo enum.
+func (e SolicRecCompletaEncerramentoRejeicaoMotivo) Valid() bool {
+	switch e {
+	case SolicRecCompletaEncerramentoRejeicaoMotivoDADOSBANCARIOSINVALIDOS:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SolicRecCompletaStatus.
+const (
+	SolicRecCompletaStatusACEITA    SolicRecCompletaStatus = "ACEITA"
+	SolicRecCompletaStatusCANCELADA SolicRecCompletaStatus = "CANCELADA"
+	SolicRecCompletaStatusCRIADA    SolicRecCompletaStatus = "CRIADA"
+	SolicRecCompletaStatusENVIADA   SolicRecCompletaStatus = "ENVIADA"
+	SolicRecCompletaStatusEXPIRADA  SolicRecCompletaStatus = "EXPIRADA"
+	SolicRecCompletaStatusRECEBIDA  SolicRecCompletaStatus = "RECEBIDA"
+	SolicRecCompletaStatusREJEITADA SolicRecCompletaStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the SolicRecCompletaStatus enum.
+func (e SolicRecCompletaStatus) Valid() bool {
+	switch e {
+	case SolicRecCompletaStatusACEITA:
+		return true
+	case SolicRecCompletaStatusCANCELADA:
+		return true
+	case SolicRecCompletaStatusCRIADA:
+		return true
+	case SolicRecCompletaStatusENVIADA:
+		return true
+	case SolicRecCompletaStatusEXPIRADA:
+		return true
+	case SolicRecCompletaStatusRECEBIDA:
+		return true
+	case SolicRecCompletaStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SolicRecEncerramentoEncerramentoRejeicaoMotivo.
+const (
+	SolicRecEncerramentoEncerramentoRejeicaoMotivoDADOSBANCARIOSINVALIDOS SolicRecEncerramentoEncerramentoRejeicaoMotivo = "DADOS_BANCARIOS_INVALIDOS"
+)
+
+// Valid indicates whether the value is a known member of the SolicRecEncerramentoEncerramentoRejeicaoMotivo enum.
+func (e SolicRecEncerramentoEncerramentoRejeicaoMotivo) Valid() bool {
+	switch e {
+	case SolicRecEncerramentoEncerramentoRejeicaoMotivoDADOSBANCARIOSINVALIDOS:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SolicRecRevisadaStatus.
+const (
+	SolicRecRevisadaStatusCANCELADA SolicRecRevisadaStatus = "CANCELADA"
+)
+
+// Valid indicates whether the value is a known member of the SolicRecRevisadaStatus enum.
+func (e SolicRecRevisadaStatus) Valid() bool {
+	switch e {
+	case SolicRecRevisadaStatusCANCELADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SolicRecStatusStatus.
+const (
+	SolicRecStatusStatusACEITA    SolicRecStatusStatus = "ACEITA"
+	SolicRecStatusStatusCANCELADA SolicRecStatusStatus = "CANCELADA"
+	SolicRecStatusStatusCRIADA    SolicRecStatusStatus = "CRIADA"
+	SolicRecStatusStatusENVIADA   SolicRecStatusStatus = "ENVIADA"
+	SolicRecStatusStatusEXPIRADA  SolicRecStatusStatus = "EXPIRADA"
+	SolicRecStatusStatusRECEBIDA  SolicRecStatusStatus = "RECEBIDA"
+	SolicRecStatusStatusREJEITADA SolicRecStatusStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the SolicRecStatusStatus enum.
+func (e SolicRecStatusStatus) Valid() bool {
+	switch e {
+	case SolicRecStatusStatusACEITA:
+		return true
+	case SolicRecStatusStatusCANCELADA:
+		return true
+	case SolicRecStatusStatusCRIADA:
+		return true
+	case SolicRecStatusStatusENVIADA:
+		return true
+	case SolicRecStatusStatusEXPIRADA:
+		return true
+	case SolicRecStatusStatusRECEBIDA:
+		return true
+	case SolicRecStatusStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus.
+const (
+	PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusATIVA     PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus = "ATIVA"
+	PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusCANCELADA PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus = "CANCELADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusCONCLUIDA PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus = "CONCLUIDA"
+	PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusCRIADA    PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus = "CRIADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusEXPIRADA  PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus = "EXPIRADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusREJEITADA PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus enum.
+func (e PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus) Valid() bool {
+	switch e {
+	case PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusATIVA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusCANCELADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusCONCLUIDA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusCRIADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusEXPIRADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativa.
+const (
+	PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativaNAOPERMITE  PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativa = "NAO_PERMITE"
+	PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativaPERMITE3R7D PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativa = "PERMITE_3R_7D"
+)
+
+// Valid indicates whether the value is a known member of the PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativa enum.
+func (e PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativa) Valid() bool {
+	switch e {
+	case PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativaNAOPERMITE:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativaPERMITE3R7D:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostCobrTxidRetentativaData201JSONResponseBodyStatus.
+const (
+	PostCobrTxidRetentativaData201JSONResponseBodyStatusATIVA     PostCobrTxidRetentativaData201JSONResponseBodyStatus = "ATIVA"
+	PostCobrTxidRetentativaData201JSONResponseBodyStatusCANCELADA PostCobrTxidRetentativaData201JSONResponseBodyStatus = "CANCELADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyStatusCONCLUIDA PostCobrTxidRetentativaData201JSONResponseBodyStatus = "CONCLUIDA"
+	PostCobrTxidRetentativaData201JSONResponseBodyStatusCRIADA    PostCobrTxidRetentativaData201JSONResponseBodyStatus = "CRIADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyStatusEXPIRADA  PostCobrTxidRetentativaData201JSONResponseBodyStatus = "EXPIRADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyStatusREJEITADA PostCobrTxidRetentativaData201JSONResponseBodyStatus = "REJEITADA"
+)
+
+// Valid indicates whether the value is a known member of the PostCobrTxidRetentativaData201JSONResponseBodyStatus enum.
+func (e PostCobrTxidRetentativaData201JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case PostCobrTxidRetentativaData201JSONResponseBodyStatusATIVA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyStatusCANCELADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyStatusCONCLUIDA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyStatusCRIADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyStatusEXPIRADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyStatusREJEITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus.
+const (
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusAGENDADA   PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus = "AGENDADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusCANCELADA  PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus = "CANCELADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusEXPIRADA   PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus = "EXPIRADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusPAGA       PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus = "PAGA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusREJEITADA  PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus = "REJEITADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusSOLICITADA PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus enum.
+func (e PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus) Valid() bool {
+	switch e {
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusAGENDADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusCANCELADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusEXPIRADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusPAGA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusREJEITADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo.
+const (
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAB10 PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "AB10"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAC05 PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "AC05"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAC06 PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "AC06"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAM02 PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "AM02"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAM09 PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "AM09"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDENC PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "DENC"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDS27 PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "DS27"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDTED PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "DTED"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDTNT PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "DTNT"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoFBRD PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "FBRD"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoIRNT PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "IRNT"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoMIDI PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "MIDI"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoMSUC PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "MSUC"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoNIEC PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "NIEC"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoNIPA PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "NIPA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoNITX PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "NITX"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoQUNT PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "QUNT"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoRC09 PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "RC09"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoUDEI PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo = "UDEI"
+)
+
+// Valid indicates whether the value is a known member of the PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo enum.
+func (e PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo) Valid() bool {
+	switch e {
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAB10:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAC05:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAC06:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAM02:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoAM09:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDENC:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDS27:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDTED:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoDTNT:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoFBRD:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoIRNT:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoMIDI:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoMSUC:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoNIEC:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoNIPA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoNITX:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoQUNT:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoRC09:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigoUDEI:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus.
+const (
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusAGENDADA   PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus = "AGENDADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusCANCELADA  PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus = "CANCELADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusEXPIRADA   PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus = "EXPIRADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusPAGA       PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus = "PAGA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusREJEITADA  PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus = "REJEITADA"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusSOLICITADA PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus = "SOLICITADA"
+)
+
+// Valid indicates whether the value is a known member of the PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus enum.
+func (e PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus) Valid() bool {
+	switch e {
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusAGENDADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusCANCELADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusEXPIRADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusPAGA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusREJEITADA:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatusSOLICITADA:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo.
+const (
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipoAGND PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo = "AGND"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipoNTAG PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo = "NTAG"
+	PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipoRIFL PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo = "RIFL"
+)
+
+// Valid indicates whether the value is a known member of the PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo enum.
+func (e PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo) Valid() bool {
+	switch e {
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipoAGND:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipoNTAG:
+		return true
+	case PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipoRIFL:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetLocParamsTipoCob.
 const (
 	GetLocParamsTipoCobCob  GetLocParamsTipoCob = "cob"
@@ -645,6 +2568,18 @@ func (e GetLocParamsTipoCob) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// CNPJ defines model for CNPJ.
+type CNPJ struct {
+	// Cnpj CNPJ do usuário.
+	Cnpj string `json:"cnpj"`
+}
+
+// CPF defines model for CPF.
+type CPF struct {
+	// Cpf CPF do usuário.
+	Cpf string `json:"cpf"`
 }
 
 // CobApresentacao defines model for CobApresentacao.
@@ -2856,6 +4791,1183 @@ type CobPayloadValorRetirada1TrocoModalidadeAgente string
 type CobPayloadValor_Retirada struct {
 	union json.RawMessage
 }
+
+// CobRAtualizacao defines model for CobRAtualizacao.
+type CobRAtualizacao struct {
+	// Atualizacao Histórico das mudanças de status das cobranças recorrentes.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da cobrança.
+		Status CobRAtualizacaoAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+}
+
+// CobRAtualizacaoAtualizacaoStatus Status da cobrança.
+type CobRAtualizacaoAtualizacaoStatus string
+
+// CobRBase Atributos de cobrança recorrente
+type CobRBase struct {
+	// AjusteDiaUtil Campo de ativação do ajuste da data prevista para liquidação para próximo dia útil caso o vencimento corrente seja um dia não útil. O PSP Recebedor deverá considerar os feriados locais com base no código município do usuário pagador.
+	AjusteDiaUtil bool `json:"ajusteDiaUtil"`
+	Calendario    *struct {
+		// DataDeVencimento Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. É a data de vencimento da cobrança.
+		//
+		// Example: 2023-04-01
+		DataDeVencimento openapi_types.Date `json:"dataDeVencimento"`
+	} `json:"calendario,omitempty"`
+
+	// InfoAdicional Informações adicionais da fatura.
+	InfoAdicional *string `json:"infoAdicional,omitempty"`
+
+	// Recebedor O objeto recebedor organiza as informações sobre o recebedor da cobrança.
+	Recebedor *DadosBancariosRecebedor `json:"recebedor,omitempty"`
+
+	// Valor Valor da cobrança recorrente
+	Valor *struct {
+		// Original Valor original da cobrança.
+		Original string `json:"original"`
+	} `json:"valor,omitempty"`
+}
+
+// CobRCompleta Dados completos da cobrança recorrente via API Pix
+type CobRCompleta struct {
+	// AjusteDiaUtil Campo de ativação do ajuste da data prevista para liquidação para próximo dia útil caso o vencimento corrente seja um dia não útil. O PSP Recebedor deverá considerar os feriados locais com base no código município do usuário pagador.
+	AjusteDiaUtil bool `json:"ajusteDiaUtil"`
+
+	// Atualizacao Histórico das mudanças de status das cobranças recorrentes.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da cobrança.
+		Status CobRCompletaAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+	Calendario struct {
+		// Criacao Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. É a data de criação da cobrança.
+		//
+		// Example: 2023-04-01
+		Criacao openapi_types.Date `json:"criacao"`
+	} `json:"calendario"`
+
+	// Devedor O objeto devedor organiza as informações sobre o devedor da recorrência.
+	Devedor *struct {
+		// Cep CEP do usuário.
+		Cep *string `json:"cep,omitempty"`
+
+		// Cidade Cidade do usuário.
+		Cidade *string `json:"cidade,omitempty"`
+
+		// Email Email do usuário.
+		Email *string `json:"email,omitempty"`
+
+		// Logradouro Logradouro do usuário.
+		Logradouro *string `json:"logradouro,omitempty"`
+
+		// Uf UF do usuário.
+		Uf *string `json:"uf,omitempty"`
+	} `json:"devedor,omitempty"`
+
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec RecId `json:"idRec"`
+
+	// InfoAdicional Informações adicionais da fatura.
+	InfoAdicional *string `json:"infoAdicional,omitempty"`
+	Pix           *[]struct {
+		// ComponentesValor O objetivo dessa estrutura é explicar os elementos de composição do valor do Pix, incluindo informações sobre as multas, juros, descontos e abatimentos quando o Pix for relativo a cobranças com vencimento.
+		//
+		// Regras da estrutura:
+		// - O `valor` do Pix é igual a:
+		//   - (`original.valor` + `saque.valor` + `troco.valor`) + `multa.valor` + `juros.valor` – `abatimento.valor` – `desconto.valor`
+		//   considerando-se apenas os campos que estiverem presentes para cada tipo de cobrança pago.
+		// - As estruturas `saque` e `troco` só serão retornadas quando o Pix for relativo a um Pix Saque ou Pix Troco, respectivamente, e
+		// as demais estruturas (`juros`, `multa`, `abatimento` e `desconto`) só serão pertinentes aos Pix de pagamentos das cobranças com vencimento.
+		// - Não pode haver simultaneamente uma subsestrutura do tipo `saque` e outra do tipo `troco`;
+		// - Não há restrição na ordem das subestruturas.
+		//
+		// Para o caso de um Pix Saque pode-se retornar `original` com valor=0.00 (zero) uma vez que a soma será respeitada, ou pode-se omitir a
+		// subestrutura original. No caso de um Pix Troco ou de um pagamento de cobrança com vencimento a subsestrutura `original` vai sempre estar
+		// presente.
+		//
+		// #### Exemplos válidos:
+		// Exemplo de preenchimentos válidos.
+		//
+		// - **Pix para pagamento de cobrança imediata (sem saque ou troco).**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "100.00"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix Saque.**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "saque": {
+		//       "valor": "100.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix para pagamento de cobrança imediata com saque (pode vir original.valor=0.00).**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "0.00"
+		//     },
+		//     "saque": {
+		//       "valor": "100.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix Troco.**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "80.00"
+		//     },
+		//     "troco": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGTEC",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix para pagamento de cobrança imediata com troco (ordem não importa).**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "troco": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGTEC",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     },
+		//     "original": {
+		//       "valor": "80.00"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix para pagamento de cobrança com vencimento de R$100,00 considerando-se um atraso de 2 dias a uma multa de 3% e juros de 1% ao dia. O `valor` do Pix será R$105,00.**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "100.00"
+		//     },
+		//     "multa": {
+		//       "valor": "3.00"
+		//     },
+		//     "juros": {
+		//       "valor": "2.00"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// #### Exemplos inválidos:
+		// Exemplos, não exaustivos, de preenchimentos inválidos.
+		// - **`original.valor` maior que 0.00 (zero) e `saque` juntos**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "80.00"
+		//     },
+		//     "saque": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **dois elementos de `saque`**
+		//   ```
+		//   ...
+		//   "componentesValor": [
+		//     "saque": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     },
+		//     "saque": {
+		//       "valor": "10.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   ]
+		//   ...
+		//   ```
+		// - **saque e troco simultaneamente**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "60.00"
+		//     },
+		//     "saque": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     },
+		//     "troco": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGTEC",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		ComponentesValor *CobRCompleta_Pix_ComponentesValor `json:"componentesValor,omitempty"`
+		Devolucoes       *[]DevolucaoPixAutomatico          `json:"devolucoes,omitempty"`
+
+		// EndToEndId EndToEndIdentification que transita na PACS002, PACS004 e PACS008
+		EndToEndId EndToEndId `json:"endToEndId"`
+
+		// Horario Horário em que o Pix foi processado no PSP.
+		Horario     time.Time `json:"horario"`
+		InfoPagador *string   `json:"infoPagador,omitempty"`
+		Txid        string    `json:"txid"`
+
+		// Valor Valor do Pix.
+		Valor string `json:"valor"`
+	} `json:"pix,omitempty"`
+	PoliticaRetentativa CobRCompletaPoliticaRetentativa `json:"politicaRetentativa"`
+
+	// Recebedor O objeto recebedor organiza as informações sobre o recebedor da cobrança.
+	Recebedor DadosBancariosRecebedor `json:"recebedor"`
+	Status    CobRCompletaStatus      `json:"status"`
+
+	// Tentativas Histórico de Tentativas de Cobrança
+	Tentativas *[]struct {
+		// Atualizacao Histórico das mudanças de status da tentativa de cobrança.
+		Atualizacao []struct {
+			// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+			Data time.Time `json:"data"`
+
+			// Status Status da tentativa da cobrança.
+			Status CobRCompletaTentativasAtualizacaoStatus `json:"status"`
+		} `json:"atualizacao"`
+
+		// DataLiquidacao Data prevista para liquidação da cobrança. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataLiquidacao openapi_types.Date `json:"dataLiquidacao"`
+
+		// EndToEndId EndToEndIdentification que transita na PACS002, PACS004 e PACS008
+		EndToEndId EndToEndId `json:"endToEndId"`
+
+		// Rejeicao Informações sobre a rejeição da tentativa da cobrança
+		Rejeicao *struct {
+			// Codigo Código da rejeição da tentativa. Corresponde ao código de rejeição presente no catálogo de mensagens. Os códigos de rejeição da tentativa `AC05`,`AM09`,`DENC`,`DS27`,`DTED`,`MIDI`,`MSUC`,`NITX`,`RC09` e `DTED` causam a rejeição da cobrança recorrente correspondente.
+			Codigo CobRCompletaTentativasRejeicaoCodigo `json:"codigo"`
+
+			// Descricao Descricao da causa da rejeição
+			Descricao string `json:"descricao"`
+		} `json:"rejeicao,omitempty"`
+
+		// Status Status da tentativa da cobrança.
+		Status CobRCompletaTentativasStatus `json:"status"`
+
+		// Tipo Tipo da tentativa da cobrança.
+		Tipo CobRCompletaTentativasTipo `json:"tipo"`
+	} `json:"tentativas,omitempty"`
+
+	// Txid # Identificador da transação
+	//
+	// O campo `txid` determina o identificador da transação.
+	// O objetivo desse campo é ser um elemento que possibilite ao PSP do recebedor apresentar ao usuário recebedor a funcionalidade de conciliação de pagamentos.
+	//
+	// Na pacs.008, é referenciado como `TransactionIdentification <txId>` ou `idConciliacaoRecebedor`.
+	//
+	// Em termos de fluxo de funcionamento, o txid é lido pelo aplicativo do PSP do pagador e,
+	// depois de confirmado o pagamento, é enviado para o SPI via pacs.008.
+	// Uma pacs.008 também é enviada ao PSP do recebedor, contendo, além de todas as informações usuais
+	// do pagamento, o txid.
+	// Ao perceber um recebimento dotado de txid, o PSP do recebedor está apto a se comunicar com o usuário recebedor,
+	// informando que um pagamento específico foi liquidado.
+	//
+	// O txid é criado exclusivamente pelo usuário recebedor e está sob sua responsabilidade.
+	// O txid, no contexto de representação de uma cobrança, é único por CPF/CNPJ do usuário recebedor. Cabe ao
+	// PSP recebedor validar essa regra na API Pix.
+	Txid TxId `json:"txid"`
+
+	// Valor Valor da cobrança recorrente
+	Valor struct {
+		// Original Valor original da cobrança.
+		Original string `json:"original"`
+	} `json:"valor"`
+}
+
+// CobRCompletaAtualizacaoStatus Status da cobrança.
+type CobRCompletaAtualizacaoStatus string
+
+// CobRCompleta_Pix_ComponentesValor O objetivo dessa estrutura é explicar os elementos de composição do valor do Pix, incluindo informações sobre as multas, juros, descontos e abatimentos quando o Pix for relativo a cobranças com vencimento.
+//
+// Regras da estrutura:
+// - O `valor` do Pix é igual a:
+//   - (`original.valor` + `saque.valor` + `troco.valor`) + `multa.valor` + `juros.valor` – `abatimento.valor` – `desconto.valor`
+//     considerando-se apenas os campos que estiverem presentes para cada tipo de cobrança pago.
+//
+// - As estruturas `saque` e `troco` só serão retornadas quando o Pix for relativo a um Pix Saque ou Pix Troco, respectivamente, e
+// as demais estruturas (`juros`, `multa`, `abatimento` e `desconto`) só serão pertinentes aos Pix de pagamentos das cobranças com vencimento.
+// - Não pode haver simultaneamente uma subsestrutura do tipo `saque` e outra do tipo `troco`;
+// - Não há restrição na ordem das subestruturas.
+//
+// Para o caso de um Pix Saque pode-se retornar `original` com valor=0.00 (zero) uma vez que a soma será respeitada, ou pode-se omitir a
+// subestrutura original. No caso de um Pix Troco ou de um pagamento de cobrança com vencimento a subsestrutura `original` vai sempre estar
+// presente.
+//
+// #### Exemplos válidos:
+// Exemplo de preenchimentos válidos.
+//
+//   - **Pix para pagamento de cobrança imediata (sem saque ou troco).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "100.00"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix Saque.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "saque": {
+//     "valor": "100.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança imediata com saque (pode vir original.valor=0.00).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "0.00"
+//     },
+//     "saque": {
+//     "valor": "100.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix Troco.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "80.00"
+//     },
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança imediata com troco (ordem não importa).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "original": {
+//     "valor": "80.00"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança com vencimento de R$100,00 considerando-se um atraso de 2 dias a uma multa de 3% e juros de 1% ao dia. O `valor` do Pix será R$105,00.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "100.00"
+//     },
+//     "multa": {
+//     "valor": "3.00"
+//     },
+//     "juros": {
+//     "valor": "2.00"
+//     }
+//     }
+//     ...
+//     ```
+//
+// #### Exemplos inválidos:
+// Exemplos, não exaustivos, de preenchimentos inválidos.
+//   - **`original.valor` maior que 0.00 (zero) e `saque` juntos**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "80.00"
+//     },
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **dois elementos de `saque`**
+//     ```
+//     ...
+//     "componentesValor": [
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "saque": {
+//     "valor": "10.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     ]
+//     ...
+//     ```
+//   - **saque e troco simultaneamente**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "60.00"
+//     },
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+type CobRCompleta_Pix_ComponentesValor struct {
+	union json.RawMessage
+}
+
+// CobRCompletaPoliticaRetentativa defines model for CobRCompleta.PoliticaRetentativa.
+type CobRCompletaPoliticaRetentativa string
+
+// CobRCompletaStatus defines model for CobRCompleta.Status.
+type CobRCompletaStatus string
+
+// CobRCompletaTentativasAtualizacaoStatus Status da tentativa da cobrança.
+type CobRCompletaTentativasAtualizacaoStatus string
+
+// CobRCompletaTentativasRejeicaoCodigo Código da rejeição da tentativa. Corresponde ao código de rejeição presente no catálogo de mensagens. Os códigos de rejeição da tentativa `AC05`,`AM09`,`DENC`,`DS27`,`DTED`,`MIDI`,`MSUC`,`NITX`,`RC09` e `DTED` causam a rejeição da cobrança recorrente correspondente.
+type CobRCompletaTentativasRejeicaoCodigo string
+
+// CobRCompletaTentativasStatus Status da tentativa da cobrança.
+type CobRCompletaTentativasStatus string
+
+// CobRCompletaTentativasTipo Tipo da tentativa da cobrança.
+type CobRCompletaTentativasTipo string
+
+// CobRConfiguracao defines model for CobRConfiguracao.
+type CobRConfiguracao struct {
+	PoliticaRetentativa CobRConfiguracaoPoliticaRetentativa `json:"politicaRetentativa"`
+}
+
+// CobRConfiguracaoPoliticaRetentativa defines model for CobRConfiguracao.PoliticaRetentativa.
+type CobRConfiguracaoPoliticaRetentativa string
+
+// CobRGerada Dados criados ou alterados da cobrança recorrente via API Pix
+type CobRGerada struct {
+	// AjusteDiaUtil Campo de ativação do ajuste da data prevista para liquidação para próximo dia útil caso o vencimento corrente seja um dia não útil. O PSP Recebedor deverá considerar os feriados locais com base no código município do usuário pagador.
+	AjusteDiaUtil bool `json:"ajusteDiaUtil"`
+	Calendario    struct {
+		// Criacao Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. É a data de criação da cobrança.
+		//
+		// Example: 2023-04-01
+		Criacao openapi_types.Date `json:"criacao"`
+	} `json:"calendario"`
+
+	// Devedor O objeto devedor organiza as informações sobre o devedor da recorrência.
+	Devedor *struct {
+		// Cep CEP do usuário.
+		Cep *string `json:"cep,omitempty"`
+
+		// Cidade Cidade do usuário.
+		Cidade *string `json:"cidade,omitempty"`
+
+		// Email Email do usuário.
+		Email *string `json:"email,omitempty"`
+
+		// Logradouro Logradouro do usuário.
+		Logradouro *string `json:"logradouro,omitempty"`
+
+		// Uf UF do usuário.
+		Uf *string `json:"uf,omitempty"`
+	} `json:"devedor,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec RecId `json:"idRec"`
+
+	// InfoAdicional Informações adicionais da fatura.
+	InfoAdicional *string                   `json:"infoAdicional,omitempty"`
+	Recebedor     PessoaJuridicaRecorrencia `json:"recebedor"`
+	Status        CobRGeradaStatus          `json:"status"`
+
+	// Txid # Identificador da transação
+	//
+	// O campo `txid` determina o identificador da transação.
+	// O objetivo desse campo é ser um elemento que possibilite ao PSP do recebedor apresentar ao usuário recebedor a funcionalidade de conciliação de pagamentos.
+	//
+	// Na pacs.008, é referenciado como `TransactionIdentification <txId>` ou `idConciliacaoRecebedor`.
+	//
+	// Em termos de fluxo de funcionamento, o txid é lido pelo aplicativo do PSP do pagador e,
+	// depois de confirmado o pagamento, é enviado para o SPI via pacs.008.
+	// Uma pacs.008 também é enviada ao PSP do recebedor, contendo, além de todas as informações usuais
+	// do pagamento, o txid.
+	// Ao perceber um recebimento dotado de txid, o PSP do recebedor está apto a se comunicar com o usuário recebedor,
+	// informando que um pagamento específico foi liquidado.
+	//
+	// O txid é criado exclusivamente pelo usuário recebedor e está sob sua responsabilidade.
+	// O txid, no contexto de representação de uma cobrança, é único por CPF/CNPJ do usuário recebedor. Cabe ao
+	// PSP recebedor validar essa regra na API Pix.
+	Txid TxId `json:"txid"`
+
+	// Valor Valor da cobrança recorrente
+	Valor struct {
+		// Original Valor original da cobrança.
+		Original string `json:"original"`
+	} `json:"valor"`
+}
+
+// CobRGeradaStatus defines model for CobRGerada.Status.
+type CobRGeradaStatus string
+
+// CobRNotification Dados enviados para criação da cobrança recorrente via API Pix
+type CobRNotification struct {
+	// Atualizacao Histórico das mudanças de status das cobranças recorrentes.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da cobrança.
+		Status CobRNotificationAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec RecId `json:"idRec"`
+	Pix   *[]struct {
+		// ComponentesValor O objetivo dessa estrutura é explicar os elementos de composição do valor do Pix, incluindo informações sobre as multas, juros, descontos e abatimentos quando o Pix for relativo a cobranças com vencimento.
+		//
+		// Regras da estrutura:
+		// - O `valor` do Pix é igual a:
+		//   - (`original.valor` + `saque.valor` + `troco.valor`) + `multa.valor` + `juros.valor` – `abatimento.valor` – `desconto.valor`
+		//   considerando-se apenas os campos que estiverem presentes para cada tipo de cobrança pago.
+		// - As estruturas `saque` e `troco` só serão retornadas quando o Pix for relativo a um Pix Saque ou Pix Troco, respectivamente, e
+		// as demais estruturas (`juros`, `multa`, `abatimento` e `desconto`) só serão pertinentes aos Pix de pagamentos das cobranças com vencimento.
+		// - Não pode haver simultaneamente uma subsestrutura do tipo `saque` e outra do tipo `troco`;
+		// - Não há restrição na ordem das subestruturas.
+		//
+		// Para o caso de um Pix Saque pode-se retornar `original` com valor=0.00 (zero) uma vez que a soma será respeitada, ou pode-se omitir a
+		// subestrutura original. No caso de um Pix Troco ou de um pagamento de cobrança com vencimento a subsestrutura `original` vai sempre estar
+		// presente.
+		//
+		// #### Exemplos válidos:
+		// Exemplo de preenchimentos válidos.
+		//
+		// - **Pix para pagamento de cobrança imediata (sem saque ou troco).**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "100.00"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix Saque.**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "saque": {
+		//       "valor": "100.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix para pagamento de cobrança imediata com saque (pode vir original.valor=0.00).**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "0.00"
+		//     },
+		//     "saque": {
+		//       "valor": "100.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix Troco.**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "80.00"
+		//     },
+		//     "troco": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGTEC",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix para pagamento de cobrança imediata com troco (ordem não importa).**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "troco": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGTEC",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     },
+		//     "original": {
+		//       "valor": "80.00"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **Pix para pagamento de cobrança com vencimento de R$100,00 considerando-se um atraso de 2 dias a uma multa de 3% e juros de 1% ao dia. O `valor` do Pix será R$105,00.**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "100.00"
+		//     },
+		//     "multa": {
+		//       "valor": "3.00"
+		//     },
+		//     "juros": {
+		//       "valor": "2.00"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// #### Exemplos inválidos:
+		// Exemplos, não exaustivos, de preenchimentos inválidos.
+		// - **`original.valor` maior que 0.00 (zero) e `saque` juntos**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "80.00"
+		//     },
+		//     "saque": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		// - **dois elementos de `saque`**
+		//   ```
+		//   ...
+		//   "componentesValor": [
+		//     "saque": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     },
+		//     "saque": {
+		//       "valor": "10.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   ]
+		//   ...
+		//   ```
+		// - **saque e troco simultaneamente**
+		//   ```
+		//   ...
+		//   "componentesValor": {
+		//     "original": {
+		//       "valor": "60.00"
+		//     },
+		//     "saque": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGFSS",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     },
+		//     "troco": {
+		//       "valor": "20.00",
+		//       "modalidadeAgente": "AGTEC",
+		//       "prestadorDeServicoDeSaque": "12345678"
+		//     }
+		//   }
+		//   ...
+		//   ```
+		ComponentesValor *CobRNotification_Pix_ComponentesValor `json:"componentesValor,omitempty"`
+		Devolucoes       *[]DevolucaoPixAutomatico              `json:"devolucoes,omitempty"`
+
+		// EndToEndId EndToEndIdentification que transita na PACS002, PACS004 e PACS008
+		EndToEndId EndToEndId `json:"endToEndId"`
+
+		// Horario Horário em que o Pix foi processado no PSP.
+		Horario     time.Time `json:"horario"`
+		InfoPagador *string   `json:"infoPagador,omitempty"`
+		Txid        string    `json:"txid"`
+
+		// Valor Valor do Pix.
+		Valor string `json:"valor"`
+	} `json:"pix,omitempty"`
+	Status CobRNotificationStatus `json:"status"`
+
+	// Tentativas Histórico de Tentativas de Cobrança
+	Tentativas *[]struct {
+		// Atualizacao Histórico das mudanças de status da tentativa de cobrança.
+		Atualizacao []struct {
+			// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+			Data time.Time `json:"data"`
+
+			// Status Status da tentativa da cobrança.
+			Status CobRNotificationTentativasAtualizacaoStatus `json:"status"`
+		} `json:"atualizacao"`
+
+		// DataLiquidacao Data prevista para liquidação da cobrança. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataLiquidacao openapi_types.Date `json:"dataLiquidacao"`
+
+		// EndToEndId EndToEndIdentification que transita na PACS002, PACS004 e PACS008
+		EndToEndId EndToEndId `json:"endToEndId"`
+
+		// Rejeicao Informações sobre a rejeição da tentativa da cobrança
+		Rejeicao *struct {
+			// Codigo Código da rejeição da tentativa. Corresponde ao código de rejeição presente no catálogo de mensagens. Os códigos de rejeição da tentativa `AC05`,`AM09`,`DENC`,`DS27`,`DTED`,`MIDI`,`MSUC`,`NITX`,`RC09` e `DTED` causam a rejeição da cobrança recorrente correspondente.
+			Codigo CobRNotificationTentativasRejeicaoCodigo `json:"codigo"`
+
+			// Descricao Descricao da causa da rejeição
+			Descricao string `json:"descricao"`
+		} `json:"rejeicao,omitempty"`
+
+		// Status Status da tentativa da cobrança.
+		Status CobRNotificationTentativasStatus `json:"status"`
+
+		// Tipo Tipo da tentativa da cobrança.
+		Tipo CobRNotificationTentativasTipo `json:"tipo"`
+	} `json:"tentativas,omitempty"`
+
+	// Txid # Identificador da transação
+	//
+	// O campo `txid` determina o identificador da transação.
+	// O objetivo desse campo é ser um elemento que possibilite ao PSP do recebedor apresentar ao usuário recebedor a funcionalidade de conciliação de pagamentos.
+	//
+	// Na pacs.008, é referenciado como `TransactionIdentification <txId>` ou `idConciliacaoRecebedor`.
+	//
+	// Em termos de fluxo de funcionamento, o txid é lido pelo aplicativo do PSP do pagador e,
+	// depois de confirmado o pagamento, é enviado para o SPI via pacs.008.
+	// Uma pacs.008 também é enviada ao PSP do recebedor, contendo, além de todas as informações usuais
+	// do pagamento, o txid.
+	// Ao perceber um recebimento dotado de txid, o PSP do recebedor está apto a se comunicar com o usuário recebedor,
+	// informando que um pagamento específico foi liquidado.
+	//
+	// O txid é criado exclusivamente pelo usuário recebedor e está sob sua responsabilidade.
+	// O txid, no contexto de representação de uma cobrança, é único por CPF/CNPJ do usuário recebedor. Cabe ao
+	// PSP recebedor validar essa regra na API Pix.
+	Txid TxId `json:"txid"`
+}
+
+// CobRNotificationAtualizacaoStatus Status da cobrança.
+type CobRNotificationAtualizacaoStatus string
+
+// CobRNotification_Pix_ComponentesValor O objetivo dessa estrutura é explicar os elementos de composição do valor do Pix, incluindo informações sobre as multas, juros, descontos e abatimentos quando o Pix for relativo a cobranças com vencimento.
+//
+// Regras da estrutura:
+// - O `valor` do Pix é igual a:
+//   - (`original.valor` + `saque.valor` + `troco.valor`) + `multa.valor` + `juros.valor` – `abatimento.valor` – `desconto.valor`
+//     considerando-se apenas os campos que estiverem presentes para cada tipo de cobrança pago.
+//
+// - As estruturas `saque` e `troco` só serão retornadas quando o Pix for relativo a um Pix Saque ou Pix Troco, respectivamente, e
+// as demais estruturas (`juros`, `multa`, `abatimento` e `desconto`) só serão pertinentes aos Pix de pagamentos das cobranças com vencimento.
+// - Não pode haver simultaneamente uma subsestrutura do tipo `saque` e outra do tipo `troco`;
+// - Não há restrição na ordem das subestruturas.
+//
+// Para o caso de um Pix Saque pode-se retornar `original` com valor=0.00 (zero) uma vez que a soma será respeitada, ou pode-se omitir a
+// subestrutura original. No caso de um Pix Troco ou de um pagamento de cobrança com vencimento a subsestrutura `original` vai sempre estar
+// presente.
+//
+// #### Exemplos válidos:
+// Exemplo de preenchimentos válidos.
+//
+//   - **Pix para pagamento de cobrança imediata (sem saque ou troco).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "100.00"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix Saque.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "saque": {
+//     "valor": "100.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança imediata com saque (pode vir original.valor=0.00).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "0.00"
+//     },
+//     "saque": {
+//     "valor": "100.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix Troco.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "80.00"
+//     },
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança imediata com troco (ordem não importa).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "original": {
+//     "valor": "80.00"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança com vencimento de R$100,00 considerando-se um atraso de 2 dias a uma multa de 3% e juros de 1% ao dia. O `valor` do Pix será R$105,00.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "100.00"
+//     },
+//     "multa": {
+//     "valor": "3.00"
+//     },
+//     "juros": {
+//     "valor": "2.00"
+//     }
+//     }
+//     ...
+//     ```
+//
+// #### Exemplos inválidos:
+// Exemplos, não exaustivos, de preenchimentos inválidos.
+//   - **`original.valor` maior que 0.00 (zero) e `saque` juntos**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "80.00"
+//     },
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **dois elementos de `saque`**
+//     ```
+//     ...
+//     "componentesValor": [
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "saque": {
+//     "valor": "10.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     ]
+//     ...
+//     ```
+//   - **saque e troco simultaneamente**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "60.00"
+//     },
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+type CobRNotification_Pix_ComponentesValor struct {
+	union json.RawMessage
+}
+
+// CobRNotificationStatus defines model for CobRNotification.Status.
+type CobRNotificationStatus string
+
+// CobRNotificationTentativasAtualizacaoStatus Status da tentativa da cobrança.
+type CobRNotificationTentativasAtualizacaoStatus string
+
+// CobRNotificationTentativasRejeicaoCodigo Código da rejeição da tentativa. Corresponde ao código de rejeição presente no catálogo de mensagens. Os códigos de rejeição da tentativa `AC05`,`AM09`,`DENC`,`DS27`,`DTED`,`MIDI`,`MSUC`,`NITX`,`RC09` e `DTED` causam a rejeição da cobrança recorrente correspondente.
+type CobRNotificationTentativasRejeicaoCodigo string
+
+// CobRNotificationTentativasStatus Status da tentativa da cobrança.
+type CobRNotificationTentativasStatus string
+
+// CobRNotificationTentativasTipo Tipo da tentativa da cobrança.
+type CobRNotificationTentativasTipo string
+
+// CobRRevisada Dados enviados para revisão da cobrança recorrente via API Pix
+type CobRRevisada = CobRStatusRevisada
+
+// CobRSolicitada Dados enviados para criação da cobrança recorrente via API Pix
+type CobRSolicitada struct {
+	// AjusteDiaUtil Campo de ativação do ajuste da data prevista para liquidação para próximo dia útil caso o vencimento corrente seja um dia não útil. O PSP Recebedor deverá considerar os feriados locais com base no código município do usuário pagador.
+	AjusteDiaUtil bool `json:"ajusteDiaUtil"`
+	Calendario    struct {
+		// DataDeVencimento Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. É a data de vencimento da cobrança.
+		//
+		// Example: 2023-04-01
+		DataDeVencimento openapi_types.Date `json:"dataDeVencimento"`
+	} `json:"calendario"`
+
+	// Devedor O objeto devedor organiza as informações sobre o devedor da recorrência.
+	Devedor *struct {
+		// Cep CEP do usuário.
+		Cep *string `json:"cep,omitempty"`
+
+		// Cidade Cidade do usuário.
+		Cidade *string `json:"cidade,omitempty"`
+
+		// Email Email do usuário.
+		Email *string `json:"email,omitempty"`
+
+		// Logradouro Logradouro do usuário.
+		Logradouro *string `json:"logradouro,omitempty"`
+
+		// Uf UF do usuário.
+		Uf *string `json:"uf,omitempty"`
+	} `json:"devedor,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec RecId `json:"idRec"`
+
+	// InfoAdicional Informações adicionais da fatura.
+	InfoAdicional *string `json:"infoAdicional,omitempty"`
+
+	// Recebedor O objeto recebedor organiza as informações sobre o recebedor da cobrança.
+	Recebedor DadosBancariosRecebedor `json:"recebedor"`
+
+	// Valor Valor da cobrança recorrente
+	Valor struct {
+		// Original Valor original da cobrança.
+		Original string `json:"original"`
+	} `json:"valor"`
+}
+
+// CobRStatus defines model for CobRStatus.
+type CobRStatus struct {
+	Status *CobRStatusStatus `json:"status,omitempty"`
+}
+
+// CobRStatusStatus defines model for CobRStatus.Status.
+type CobRStatusStatus string
+
+// CobRStatusRevisada defines model for CobRStatusRevisada.
+type CobRStatusRevisada struct {
+	Status *CobRStatusRevisadaStatus `json:"status,omitempty"`
+}
+
+// CobRStatusRevisadaStatus defines model for CobRStatusRevisada.Status.
+type CobRStatusRevisadaStatus string
+
+// CobRTentativas defines model for CobRTentativas.
+type CobRTentativas struct {
+	// Tentativas Histórico de Tentativas de Cobrança
+	Tentativas *[]struct {
+		// Atualizacao Histórico das mudanças de status da tentativa de cobrança.
+		Atualizacao []struct {
+			// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+			Data time.Time `json:"data"`
+
+			// Status Status da tentativa da cobrança.
+			Status CobRTentativasTentativasAtualizacaoStatus `json:"status"`
+		} `json:"atualizacao"`
+
+		// DataLiquidacao Data prevista para liquidação da cobrança. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataLiquidacao openapi_types.Date `json:"dataLiquidacao"`
+
+		// EndToEndId EndToEndIdentification que transita na PACS002, PACS004 e PACS008
+		EndToEndId EndToEndId `json:"endToEndId"`
+
+		// Rejeicao Informações sobre a rejeição da tentativa da cobrança
+		Rejeicao *struct {
+			// Codigo Código da rejeição da tentativa. Corresponde ao código de rejeição presente no catálogo de mensagens. Os códigos de rejeição da tentativa `AC05`,`AM09`,`DENC`,`DS27`,`DTED`,`MIDI`,`MSUC`,`NITX`,`RC09` e `DTED` causam a rejeição da cobrança recorrente correspondente.
+			Codigo CobRTentativasTentativasRejeicaoCodigo `json:"codigo"`
+
+			// Descricao Descricao da causa da rejeição
+			Descricao string `json:"descricao"`
+		} `json:"rejeicao,omitempty"`
+
+		// Status Status da tentativa da cobrança.
+		Status CobRTentativasTentativasStatus `json:"status"`
+
+		// Tipo Tipo da tentativa da cobrança.
+		Tipo CobRTentativasTentativasTipo `json:"tipo"`
+	} `json:"tentativas,omitempty"`
+}
+
+// CobRTentativasTentativasAtualizacaoStatus Status da tentativa da cobrança.
+type CobRTentativasTentativasAtualizacaoStatus string
+
+// CobRTentativasTentativasRejeicaoCodigo Código da rejeição da tentativa. Corresponde ao código de rejeição presente no catálogo de mensagens. Os códigos de rejeição da tentativa `AC05`,`AM09`,`DENC`,`DS27`,`DTED`,`MIDI`,`MSUC`,`NITX`,`RC09` e `DTED` causam a rejeição da cobrança recorrente correspondente.
+type CobRTentativasTentativasRejeicaoCodigo string
+
+// CobRTentativasTentativasStatus Status da tentativa da cobrança.
+type CobRTentativasTentativasStatus string
+
+// CobRTentativasTentativasTipo Tipo da tentativa da cobrança.
+type CobRTentativasTentativasTipo string
 
 // CobRevisada Dados enviados para revisão da cobrança imediata via API Pix
 type CobRevisada struct {
@@ -6022,6 +9134,14 @@ type CobsConsultadas_Cobs_Valor_Retirada struct {
 	union json.RawMessage
 }
 
+// CobsRConsultadas defines model for CobsRConsultadas.
+type CobsRConsultadas struct {
+	Cobsr []CobRCompleta `json:"cobsr"`
+
+	// Parametros Parâmetros utilizados para a realização de uma consulta de cobranças.
+	Parametros ParametrosConsultaCobR `json:"parametros"`
+}
+
 // CobsVConsultadas defines model for CobsVConsultadas.
 type CobsVConsultadas struct {
 	Cobs []struct {
@@ -6632,16 +9752,92 @@ type CobsVConsultadas_Cobs_Pix_ComponentesValor struct {
 	union json.RawMessage
 }
 
+// DadosBancariosRecebedor defines model for DadosBancariosRecebedor.
+type DadosBancariosRecebedor struct {
+	// Agencia Número da agência do usuário recebedor.
+	Agencia *string `json:"agencia,omitempty"`
+
+	// Conta Número da conta do usuário recebedor.
+	Conta string `json:"conta"`
+
+	// TipoConta Tipo da conta do usuário recebedor.
+	TipoConta DadosBancariosRecebedorTipoConta `json:"tipoConta"`
+}
+
+// DadosBancariosRecebedorTipoConta Tipo da conta do usuário recebedor.
+type DadosBancariosRecebedorTipoConta string
+
+// DadosComplementaresPessoa defines model for DadosComplementaresPessoa.
+type DadosComplementaresPessoa struct {
+	// Cep CEP do usuário.
+	Cep *string `json:"cep,omitempty"`
+
+	// Cidade Cidade do usuário.
+	Cidade *string `json:"cidade,omitempty"`
+
+	// Logradouro Logradouro do usuário.
+	Logradouro *string `json:"logradouro,omitempty"`
+
+	// Uf UF do usuário.
+	Uf *string `json:"uf,omitempty"`
+}
+
 // DadosDevedor defines model for DadosDevedor.
 type DadosDevedor struct {
 	// Devedor A person (cpf) or a company (cnpj), with a name and optional address.
 	Devedor *Pessoa `json:"devedor,omitempty"`
 }
 
+// DadosDevedorRecorrencia defines model for DadosDevedorRecorrencia.
+type DadosDevedorRecorrencia struct {
+	// Devedor O objeto devedor organiza as informações sobre o devedor da recorrência.
+	Devedor *struct {
+		// Cep CEP do usuário.
+		Cep *string `json:"cep,omitempty"`
+
+		// Cidade Cidade do usuário.
+		Cidade *string `json:"cidade,omitempty"`
+
+		// Email Email do usuário.
+		Email *string `json:"email,omitempty"`
+
+		// Logradouro Logradouro do usuário.
+		Logradouro *string `json:"logradouro,omitempty"`
+
+		// Uf UF do usuário.
+		Uf *string `json:"uf,omitempty"`
+	} `json:"devedor,omitempty"`
+}
+
+// DadosJornada defines model for DadosJornada.
+type DadosJornada struct {
+	Txid *string `json:"txid,omitempty"`
+}
+
+// DadosPagadorRec defines model for DadosPagadorRec.
+type DadosPagadorRec struct {
+	Pagador *struct {
+		// CodMun Código baseado na Tabela de Códigos de Municípios do __[IBGE](https://www.ibge.gov.br/explica/codigos-dos-municipios.php)__ que apresenta a lista dos municípios brasileiros associados a um código composto de 7 dígitos, sendo os dois primeiros referentes ao código da Unidade da Federação.
+		CodMun *string `json:"codMun,omitempty"`
+
+		// IspbParticipante ISPB do PSP pagador.
+		IspbParticipante *string `json:"ispbParticipante,omitempty"`
+	} `json:"pagador,omitempty"`
+}
+
 // DadosRecebedor defines model for DadosRecebedor.
 type DadosRecebedor struct {
 	// Recebedor A person (cpf) or a company (cnpj), with a name and optional address.
 	Recebedor *Pessoa `json:"recebedor,omitempty"`
+}
+
+// Destinatario The payer a recurrence request goes to, by account.
+type Destinatario struct {
+	Agencia          *string `json:"agencia,omitempty"`
+	Cnpj             *string `json:"cnpj,omitempty"`
+	Conta            string  `json:"conta"`
+	Cpf              *string `json:"cpf,omitempty"`
+	IspbParticipante string  `json:"ispbParticipante"`
 }
 
 // Devolucao defines model for Devolucao.
@@ -6722,6 +9918,67 @@ type DevolucaoId = string
 //   - Quando a devolução for referente ao troco, o valor limita-se ao valor do troco (a natureza nesse caso deve ser RETIRADA).
 type DevolucaoNatureza string
 
+// DevolucaoNaturezaPixAutomatico Indica qual é a natureza da devolução. Uma devolução pode ser relacionada a um Pix comum (com códigos possíveis: `MD06` e `FR01` da pacs.004 e `REFU` da pacs.008). Na ausência deste campo a natureza deve ser interpretada como
+// sendo de um Pix comum (`ORIGINAL`).
+//
+// As naturezas são assim definidas:
+//   - `ORIGINAL`: quando a devolução é solicitada pelo usuário recebedor e se refere a um Pix comum (`MD06`);
+//   - `MED_FRAUDE`: quando a devolução ocorre no âmbito do MED (Mecanismo Especial de Devolução) por fundada suspeita de fraude e se refere a um Pix comum (`FR01`).
+//   - `MED_PIX_AUTOMATICO`: reembolso total ou parcial ao participante do usuário pagador no âmbito do MED (Mecanismo Especial de Devolução) para o Pix Automático pela utilização de recursos próprios para ressarcimento do usuário pagador.(`REFU`);
+//
+// Os valores de devoluções são sempre limitados aos valores máximos a seguir:
+// - Pix comum: o valor da devolução é limitado ao valor do próprio Pix (a natureza nesse caso pode ser: ORIGINAL, MED_PIX_AUTOMATICO ou MED_FRAUDE);
+type DevolucaoNaturezaPixAutomatico string
+
+// DevolucaoPixAutomatico defines model for DevolucaoPixAutomatico.
+type DevolucaoPixAutomatico struct {
+	// Descricao O campo `descricao`, opcional, determina um texto a ser apresentado ao pagador contendo informações sobre a devolução. Esse texto será preenchido, na pacs.004, pelo PSP do recebedor, no campo RemittanceInformation. O tamanho do campo na pacs.004 está limitado a 140 caracteres.
+	Descricao *string `json:"descricao,omitempty"`
+	Horario   struct {
+		// Liquidacao Horário no qual a devolução foi liquidada no PSP.
+		Liquidacao *time.Time `json:"liquidacao,omitempty"`
+
+		// Solicitacao Horário no qual a devolução foi solicitada no PSP.
+		Solicitacao *time.Time `json:"solicitacao,omitempty"`
+	} `json:"horario"`
+
+	// Id Id gerado pelo cliente para representar unicamente uma devolução.
+	Id DevolucaoId `json:"id"`
+
+	// Motivo # Status da Devolução
+	//
+	// Campo opcional que pode ser utilizado pelo PSP recebedor para detalhar os motivos
+	// de a devolução ter atingido o status em questão.
+	// Pode ser utilizado, por exemplo, para detalhar o motivo de a devolução não ter sido realizada.
+	Motivo *string `json:"motivo,omitempty"`
+
+	// Natureza Indica qual é a natureza da devolução. Uma devolução pode ser relacionada a um Pix comum (com códigos possíveis: `MD06` e `FR01` da pacs.004 e `REFU` da pacs.008). Na ausência deste campo a natureza deve ser interpretada como
+	// sendo de um Pix comum (`ORIGINAL`).
+	//
+	// As naturezas são assim definidas:
+	//   - `ORIGINAL`: quando a devolução é solicitada pelo usuário recebedor e se refere a um Pix comum (`MD06`);
+	//   - `MED_FRAUDE`: quando a devolução ocorre no âmbito do MED (Mecanismo Especial de Devolução) por fundada suspeita de fraude e se refere a um Pix comum (`FR01`).
+	//   - `MED_PIX_AUTOMATICO`: reembolso total ou parcial ao participante do usuário pagador no âmbito do MED (Mecanismo Especial de Devolução) para o Pix Automático pela utilização de recursos próprios para ressarcimento do usuário pagador.(`REFU`);
+	//
+	// Os valores de devoluções são sempre limitados aos valores máximos a seguir:
+	// - Pix comum: o valor da devolução é limitado ao valor do próprio Pix (a natureza nesse caso pode ser: ORIGINAL, MED_PIX_AUTOMATICO ou MED_FRAUDE);
+	Natureza *DevolucaoNaturezaPixAutomatico `json:"natureza,omitempty"`
+
+	// RtrId ReturnIdentification que transita na PACS004.
+	//
+	// Example: D12345678202009091000abcde123456
+	RtrId string `json:"rtrId"`
+
+	// Status Status da devolução.
+	Status DevolucaoPixAutomaticoStatus `json:"status"`
+
+	// Valor Valor a devolver.
+	Valor string `json:"valor"`
+}
+
+// DevolucaoPixAutomaticoStatus Status da devolução.
+type DevolucaoPixAutomaticoStatus string
+
 // DevolucaoSolicitada defines model for DevolucaoSolicitada.
 type DevolucaoSolicitada struct {
 	// Descricao O campo `descricao`, opcional, determina um texto a ser apresentado ao pagador contendo informações sobre a devolução. Esse texto será preenchido, na pacs.004, pelo PSP do recebedor, no campo RemittanceInformation. O tamanho do campo na pacs.004 está limitado a 140 caracteres.
@@ -6763,6 +10020,22 @@ type DevolucaoSolicitada struct {
 //   - Quando a devolução for referente à compra, o valor limita-se ao valor da compra (a natureza nesse caso deve ser ORIGINAL); e
 //   - Quando a devolução for referente ao troco, o valor limita-se ao valor do troco (a natureza nesse caso deve ser RETIRADA).
 type DevolucaoSolicitadaNatureza string
+
+// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+type Encerramento struct {
+	Cancelamento *struct {
+		Codigo      *string                              `json:"codigo,omitempty"`
+		Descricao   *string                              `json:"descricao,omitempty"`
+		Solicitante *EncerramentoCancelamentoSolicitante `json:"solicitante,omitempty"`
+	} `json:"cancelamento,omitempty"`
+	Rejeicao *struct {
+		Codigo    *string `json:"codigo,omitempty"`
+		Descricao *string `json:"descricao,omitempty"`
+	} `json:"rejeicao,omitempty"`
+}
+
+// EncerramentoCancelamentoSolicitante defines model for Encerramento.Cancelamento.Solicitante.
+type EncerramentoCancelamentoSolicitante string
 
 // EndToEndId EndToEndIdentification que transita na PACS002, PACS004 e PACS008
 type EndToEndId = string
@@ -6814,6 +10087,51 @@ type ParametrosConsultaCob struct {
 	Status *string `json:"status,omitempty"`
 }
 
+// ParametrosConsultaCobR Parâmetros utilizados para a realização de uma consulta de cobranças.
+type ParametrosConsultaCobR struct {
+	// Cnpj Filtro pelo CNPJ do devedor. Não pode ser utilizado ao mesmo tempo que o CPF.
+	Cnpj *string `json:"cnpj,omitempty"`
+
+	// Cpf Filtro pelo CPF do devedor. Não pode ser utilizado ao mesmo tempo que o CNPJ.
+	Cpf *string `json:"cpf,omitempty"`
+
+	// Fim Data de fim utilizada na consulta. Respeita RFC 3339.
+	//
+	// Example: 2020-04-01T17:00:00Z
+	Fim time.Time `json:"fim"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec *RecId `json:"idRec,omitempty"`
+
+	// Inicio Data inicial utilizada na consulta. Respeita RFC 3339.
+	//
+	// Example: 2020-04-01T00:00:00Z
+	Inicio    time.Time `json:"inicio"`
+	Paginacao Paginacao `json:"paginacao"`
+	Recebedor *struct {
+		// Convenio Convênio entre usuário e participante recebedor.
+		Convenio *string `json:"convenio,omitempty"`
+	} `json:"recebedor,omitempty"`
+
+	// Status Filtro pelo status das cobranças.
+	Status *string `json:"status,omitempty"`
+}
+
 // ParametrosConsultaPayloadLocation Parâmetros utilizados para a realização de uma consulta de locations.
 type ParametrosConsultaPayloadLocation struct {
 	// Fim Data de fim utilizada na consulta. Respeita RFC 3339.
@@ -6834,6 +10152,27 @@ type ParametrosConsultaPayloadLocation struct {
 
 // ParametrosConsultaPayloadLocationTipoCob defines model for ParametrosConsultaPayloadLocation.TipoCob.
 type ParametrosConsultaPayloadLocationTipoCob string
+
+// ParametrosConsultaPayloadLocationRec Parâmetros utilizados para a realização de uma consulta de locations.
+type ParametrosConsultaPayloadLocationRec struct {
+	// Fim Data de fim utilizada na consulta. Respeita RFC 3339.
+	//
+	// Example: 2020-12-01T17:00:00Z
+	Fim time.Time `json:"fim"`
+
+	// IdRecPresente Filtro pela existência de id da recorrência.
+	IdRecPresente *bool `json:"idRecPresente,omitempty"`
+
+	// Inicio Data inicial utilizada na consulta. Respeita RFC 3339.
+	//
+	// Example: 2020-01-01T00:00:00Z
+	Inicio    time.Time `json:"inicio"`
+	Paginacao Paginacao `json:"paginacao"`
+	Recebedor *struct {
+		// Convenio Convênio entre usuário e participante recebedor.
+		Convenio *string `json:"convenio,omitempty"`
+	} `json:"recebedor,omitempty"`
+}
 
 // ParametrosConsultaPix Parâmetros utilizados para a realização de uma consulta de Pix.
 type ParametrosConsultaPix struct {
@@ -6863,6 +10202,36 @@ type ParametrosConsultaPix struct {
 	// TxIdPresente Filtro pela existência de txid.
 	TxIdPresente *bool   `json:"txIdPresente,omitempty"`
 	Txid         *string `json:"txid,omitempty"`
+}
+
+// ParametrosConsultaRec Parâmetros utilizados para a realização de uma consulta de recorrências.
+type ParametrosConsultaRec struct {
+	// Cnpj Filtro pelo CNPJ do devedor. Não pode ser utilizado ao mesmo tempo que o CPF.
+	Cnpj *string `json:"cnpj,omitempty"`
+
+	// Cpf Filtro pelo CPF do devedor. Não pode ser utilizado ao mesmo tempo que o CNPJ.
+	Cpf *string `json:"cpf,omitempty"`
+
+	// Fim Data de fim utilizada na consulta. Respeita RFC 3339.
+	//
+	// Example: 2020-04-01T17:00:00Z
+	Fim time.Time `json:"fim"`
+
+	// Inicio Data inicial utilizada na consulta. Respeita RFC 3339.
+	//
+	// Example: 2020-04-01T00:00:00Z
+	Inicio time.Time `json:"inicio"`
+
+	// LocationPresente Filtro pela existência de location vinculada.
+	LocationPresente *bool     `json:"locationPresente,omitempty"`
+	Paginacao        Paginacao `json:"paginacao"`
+	Recebedor        *struct {
+		// Convenio Convênio entre usuário e participante recebedor.
+		Convenio *string `json:"convenio,omitempty"`
+	} `json:"recebedor,omitempty"`
+
+	// Status Filtro pelo status das recorrências.
+	Status *string `json:"status,omitempty"`
 }
 
 // ParametrosConsultaWebhooks Parâmetros utilizados para a realização de uma consulta de Webhooks.
@@ -6951,6 +10320,63 @@ type PayloadLocationConsultadas struct {
 // PayloadLocationId Identificador da location a ser informada na criação da cobrança .
 type PayloadLocationId = int64
 
+// PayloadLocationRecCompleta Identificador da localização do payload completo.
+type PayloadLocationRecCompleta struct {
+	// Criacao Data e hora em que a location foi criada. Respeita RFC 3339.
+	Criacao *time.Time `json:"criacao,omitempty"`
+
+	// Id Identificador da location a ser informada na criação de uma recorrência .
+	Id PayloadLocationRecId `json:"id"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec *RecId `json:"idRec,omitempty"`
+
+	// Location Localização do Payload a ser informada na criação da recorrência.
+	//
+	// Example: pix.example.com/qr/v2/rec/2353c790eefb11eaadc10242ac120002
+	Location *string `json:"location,omitempty"`
+}
+
+// PayloadLocationRecConsultadas defines model for PayloadLocationRecConsultadas.
+type PayloadLocationRecConsultadas struct {
+	Loc []PayloadLocationRecCompleta `json:"loc"`
+
+	// Parametros Parâmetros utilizados para a realização de uma consulta de locations.
+	Parametros ParametrosConsultaPayloadLocationRec `json:"parametros"`
+}
+
+// PayloadLocationRecGerada Identificador da localização do payload completo.
+type PayloadLocationRecGerada struct {
+	// Criacao Data e hora em que a location foi criada. Respeita RFC 3339.
+	Criacao *time.Time `json:"criacao,omitempty"`
+
+	// Id Identificador da location a ser informada na criação de uma recorrência .
+	Id PayloadLocationRecId `json:"id"`
+
+	// Location Localização do Payload a ser informada na criação da recorrência.
+	//
+	// Example: pix.example.com/qr/v2/rec/2353c790eefb11eaadc10242ac120002
+	Location *string `json:"location,omitempty"`
+}
+
+// PayloadLocationRecId Identificador da location a ser informada na criação de uma recorrência .
+type PayloadLocationRecId = int64
+
 // PayloadLocationSolicitada Identificador da localização do payload solicitada.
 type PayloadLocationSolicitada struct {
 	TipoCob PayloadLocationSolicitadaTipoCob `json:"tipoCob"`
@@ -6982,6 +10408,15 @@ type PessoaFisica struct {
 
 // PessoaJuridica defines model for PessoaJuridica.
 type PessoaJuridica struct {
+	// Cnpj CNPJ do usuário.
+	Cnpj string `json:"cnpj"`
+
+	// Nome Nome do usuário.
+	Nome string `json:"nome"`
+}
+
+// PessoaJuridicaRecorrencia defines model for PessoaJuridicaRecorrencia.
+type PessoaJuridicaRecorrencia struct {
 	// Cnpj CNPJ do usuário.
 	Cnpj string `json:"cnpj"`
 
@@ -7329,6 +10764,339 @@ type Pix_ComponentesValor struct {
 	union json.RawMessage
 }
 
+// PixAutomatico defines model for PixAutomatico.
+type PixAutomatico struct {
+	// ComponentesValor O objetivo dessa estrutura é explicar os elementos de composição do valor do Pix, incluindo informações sobre as multas, juros, descontos e abatimentos quando o Pix for relativo a cobranças com vencimento.
+	//
+	// Regras da estrutura:
+	// - O `valor` do Pix é igual a:
+	//   - (`original.valor` + `saque.valor` + `troco.valor`) + `multa.valor` + `juros.valor` – `abatimento.valor` – `desconto.valor`
+	//   considerando-se apenas os campos que estiverem presentes para cada tipo de cobrança pago.
+	// - As estruturas `saque` e `troco` só serão retornadas quando o Pix for relativo a um Pix Saque ou Pix Troco, respectivamente, e
+	// as demais estruturas (`juros`, `multa`, `abatimento` e `desconto`) só serão pertinentes aos Pix de pagamentos das cobranças com vencimento.
+	// - Não pode haver simultaneamente uma subsestrutura do tipo `saque` e outra do tipo `troco`;
+	// - Não há restrição na ordem das subestruturas.
+	//
+	// Para o caso de um Pix Saque pode-se retornar `original` com valor=0.00 (zero) uma vez que a soma será respeitada, ou pode-se omitir a
+	// subestrutura original. No caso de um Pix Troco ou de um pagamento de cobrança com vencimento a subsestrutura `original` vai sempre estar
+	// presente.
+	//
+	// #### Exemplos válidos:
+	// Exemplo de preenchimentos válidos.
+	//
+	// - **Pix para pagamento de cobrança imediata (sem saque ou troco).**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "original": {
+	//       "valor": "100.00"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	// - **Pix Saque.**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "saque": {
+	//       "valor": "100.00",
+	//       "modalidadeAgente": "AGFSS",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	// - **Pix para pagamento de cobrança imediata com saque (pode vir original.valor=0.00).**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "original": {
+	//       "valor": "0.00"
+	//     },
+	//     "saque": {
+	//       "valor": "100.00",
+	//       "modalidadeAgente": "AGFSS",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	// - **Pix Troco.**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "original": {
+	//       "valor": "80.00"
+	//     },
+	//     "troco": {
+	//       "valor": "20.00",
+	//       "modalidadeAgente": "AGTEC",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	// - **Pix para pagamento de cobrança imediata com troco (ordem não importa).**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "troco": {
+	//       "valor": "20.00",
+	//       "modalidadeAgente": "AGTEC",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     },
+	//     "original": {
+	//       "valor": "80.00"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	// - **Pix para pagamento de cobrança com vencimento de R$100,00 considerando-se um atraso de 2 dias a uma multa de 3% e juros de 1% ao dia. O `valor` do Pix será R$105,00.**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "original": {
+	//       "valor": "100.00"
+	//     },
+	//     "multa": {
+	//       "valor": "3.00"
+	//     },
+	//     "juros": {
+	//       "valor": "2.00"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	// #### Exemplos inválidos:
+	// Exemplos, não exaustivos, de preenchimentos inválidos.
+	// - **`original.valor` maior que 0.00 (zero) e `saque` juntos**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "original": {
+	//       "valor": "80.00"
+	//     },
+	//     "saque": {
+	//       "valor": "20.00",
+	//       "modalidadeAgente": "AGFSS",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	// - **dois elementos de `saque`**
+	//   ```
+	//   ...
+	//   "componentesValor": [
+	//     "saque": {
+	//       "valor": "20.00",
+	//       "modalidadeAgente": "AGFSS",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     },
+	//     "saque": {
+	//       "valor": "10.00",
+	//       "modalidadeAgente": "AGFSS",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     }
+	//   ]
+	//   ...
+	//   ```
+	// - **saque e troco simultaneamente**
+	//   ```
+	//   ...
+	//   "componentesValor": {
+	//     "original": {
+	//       "valor": "60.00"
+	//     },
+	//     "saque": {
+	//       "valor": "20.00",
+	//       "modalidadeAgente": "AGFSS",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     },
+	//     "troco": {
+	//       "valor": "20.00",
+	//       "modalidadeAgente": "AGTEC",
+	//       "prestadorDeServicoDeSaque": "12345678"
+	//     }
+	//   }
+	//   ...
+	//   ```
+	ComponentesValor *PixAutomatico_ComponentesValor `json:"componentesValor,omitempty"`
+	Devolucoes       *[]DevolucaoPixAutomatico       `json:"devolucoes,omitempty"`
+
+	// EndToEndId EndToEndIdentification que transita na PACS002, PACS004 e PACS008
+	EndToEndId EndToEndId `json:"endToEndId"`
+
+	// Horario Horário em que o Pix foi processado no PSP.
+	Horario     time.Time `json:"horario"`
+	InfoPagador *string   `json:"infoPagador,omitempty"`
+	Txid        string    `json:"txid"`
+
+	// Valor Valor do Pix.
+	Valor string `json:"valor"`
+}
+
+// PixAutomatico_ComponentesValor O objetivo dessa estrutura é explicar os elementos de composição do valor do Pix, incluindo informações sobre as multas, juros, descontos e abatimentos quando o Pix for relativo a cobranças com vencimento.
+//
+// Regras da estrutura:
+// - O `valor` do Pix é igual a:
+//   - (`original.valor` + `saque.valor` + `troco.valor`) + `multa.valor` + `juros.valor` – `abatimento.valor` – `desconto.valor`
+//     considerando-se apenas os campos que estiverem presentes para cada tipo de cobrança pago.
+//
+// - As estruturas `saque` e `troco` só serão retornadas quando o Pix for relativo a um Pix Saque ou Pix Troco, respectivamente, e
+// as demais estruturas (`juros`, `multa`, `abatimento` e `desconto`) só serão pertinentes aos Pix de pagamentos das cobranças com vencimento.
+// - Não pode haver simultaneamente uma subsestrutura do tipo `saque` e outra do tipo `troco`;
+// - Não há restrição na ordem das subestruturas.
+//
+// Para o caso de um Pix Saque pode-se retornar `original` com valor=0.00 (zero) uma vez que a soma será respeitada, ou pode-se omitir a
+// subestrutura original. No caso de um Pix Troco ou de um pagamento de cobrança com vencimento a subsestrutura `original` vai sempre estar
+// presente.
+//
+// #### Exemplos válidos:
+// Exemplo de preenchimentos válidos.
+//
+//   - **Pix para pagamento de cobrança imediata (sem saque ou troco).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "100.00"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix Saque.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "saque": {
+//     "valor": "100.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança imediata com saque (pode vir original.valor=0.00).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "0.00"
+//     },
+//     "saque": {
+//     "valor": "100.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix Troco.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "80.00"
+//     },
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança imediata com troco (ordem não importa).**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "original": {
+//     "valor": "80.00"
+//     }
+//     }
+//     ...
+//     ```
+//   - **Pix para pagamento de cobrança com vencimento de R$100,00 considerando-se um atraso de 2 dias a uma multa de 3% e juros de 1% ao dia. O `valor` do Pix será R$105,00.**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "100.00"
+//     },
+//     "multa": {
+//     "valor": "3.00"
+//     },
+//     "juros": {
+//     "valor": "2.00"
+//     }
+//     }
+//     ...
+//     ```
+//
+// #### Exemplos inválidos:
+// Exemplos, não exaustivos, de preenchimentos inválidos.
+//   - **`original.valor` maior que 0.00 (zero) e `saque` juntos**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "80.00"
+//     },
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+//   - **dois elementos de `saque`**
+//     ```
+//     ...
+//     "componentesValor": [
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "saque": {
+//     "valor": "10.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     ]
+//     ...
+//     ```
+//   - **saque e troco simultaneamente**
+//     ```
+//     ...
+//     "componentesValor": {
+//     "original": {
+//     "valor": "60.00"
+//     },
+//     "saque": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGFSS",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     },
+//     "troco": {
+//     "valor": "20.00",
+//     "modalidadeAgente": "AGTEC",
+//     "prestadorDeServicoDeSaque": "12345678"
+//     }
+//     }
+//     ...
+//     ```
+type PixAutomatico_ComponentesValor struct {
+	union json.RawMessage
+}
+
 // PixConsultados defines model for PixConsultados.
 type PixConsultados struct {
 	// Parametros Parâmetros utilizados para a realização de uma consulta de Pix.
@@ -7439,6 +11207,746 @@ type Problema struct {
 	Violacoes *[]Violacao `json:"violacoes,omitempty"`
 }
 
+// RecAtivacao defines model for RecAtivacao.
+type RecAtivacao struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+
+		// TipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+		//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+		//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+		//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+		//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+		//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+		TipoJornada RecAtivacaoAtivacaoTipoJornada `json:"tipoJornada"`
+	} `json:"ativacao,omitempty"`
+}
+
+// RecAtivacaoAtivacaoTipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+type RecAtivacaoAtivacaoTipoJornada string
+
+// RecAtivacaoSolicitada defines model for RecAtivacaoSolicitada.
+type RecAtivacaoSolicitada struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+	} `json:"ativacao,omitempty"`
+}
+
+// RecAtualizacao defines model for RecAtualizacao.
+type RecAtualizacao struct {
+	// Atualizacao Histórico das mudanças de status da recorrência.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da recorrência.
+		Status RecAtualizacaoAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+}
+
+// RecAtualizacaoAtualizacaoStatus Status da recorrência.
+type RecAtualizacaoAtualizacaoStatus string
+
+// RecBase Atributos de Configuração de Recorrência
+type RecBase struct {
+	// Calendario Informações sobre calendário da recorrência
+	Calendario struct {
+		// DataFinal Campo opcional que deve ser preenchido para autorizações com vigência pré-definida, devendo ser compatível com os valores informados em tipoFrequencia e a dataInicialRecorrencia. Não deve ser preenchido para autorizações por tempo indeterminado. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataFinal *openapi_types.Date `json:"dataFinal,omitempty"`
+
+		// DataInicial Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. Data estimada de primeiro pagamento.
+		//
+		// Example: 2023-04-01
+		DataInicial   openapi_types.Date             `json:"dataInicial"`
+		Periodicidade RecBaseCalendarioPeriodicidade `json:"periodicidade"`
+	} `json:"calendario"`
+	Valor *struct {
+		// ValorMinimoRecebedor Campo opcional. Valor definido pelo usuário recebedor. Se o usuário pagador atribuir um valor máximo para os pagamentos daquela autorização, ele não poderá ser inferior ao piso definido pelo usuário recebedor. Não pode ser preenchido nas autorizações de valor fixo, ou seja, com campo valor preenchido.
+		ValorMinimoRecebedor *string `json:"valorMinimoRecebedor,omitempty"`
+
+		// ValorRec Campo opcional, deve ser preenchido apenas quando o valor dos pagamentos for fixo ou não for sujeito a alteração durante a vigência da autorização.
+		ValorRec *string `json:"valorRec,omitempty"`
+	} `json:"valor,omitempty"`
+
+	// Vinculo Informações sobre o objeto da recorrência.
+	Vinculo struct {
+		// Contrato Número, identificador, ou código que representa o objeto da autorização (contrato, pedido etc.).
+		Contrato string `json:"contrato"`
+
+		// Devedor A person (cpf) or a company (cnpj), with a name and optional address.
+		Devedor Pessoa `json:"devedor"`
+
+		// Objeto Campo de texto livre para informações referentes ao contrato que permitam ao usuário pagador reconhecer o objeto dos pagamentos periódicos por meio do Pix Automático.
+		//
+		// Example: ["Conta de energia Av. Paulista, 1804","Serviço de internet banda larga","Assinatura anual"]
+		Objeto *string `json:"objeto,omitempty"`
+	} `json:"vinculo"`
+}
+
+// RecBaseCalendarioPeriodicidade defines model for RecBase.Calendario.Periodicidade.
+type RecBaseCalendarioPeriodicidade string
+
+// RecCompleta Atributos de Configuração de Recorrência
+type RecCompleta struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+
+		// TipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+		//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+		//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+		//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+		//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+		//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+		TipoJornada RecCompletaAtivacaoTipoJornada `json:"tipoJornada"`
+	} `json:"ativacao,omitempty"`
+
+	// Atualizacao Histórico das mudanças de status da recorrência.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da recorrência.
+		Status RecCompletaAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+
+	// Calendario Informações sobre calendário da recorrência
+	Calendario struct {
+		// DataFinal Campo opcional que deve ser preenchido para autorizações com vigência pré-definida, devendo ser compatível com os valores informados em tipoFrequencia e a dataInicialRecorrencia. Não deve ser preenchido para autorizações por tempo indeterminado. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataFinal *openapi_types.Date `json:"dataFinal,omitempty"`
+
+		// DataInicial Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. Data estimada de primeiro pagamento.
+		//
+		// Example: 2023-04-01
+		DataInicial   openapi_types.Date                 `json:"dataInicial"`
+		Periodicidade RecCompletaCalendarioPeriodicidade `json:"periodicidade"`
+	} `json:"calendario"`
+
+	// DadosQR ##### Informações relacionadas aos parâmetros `idRec` e `txid` informados na requisição.
+	// Ao consultar uma recorrência via endpoint GET `/rec/{idRec}?txid={txid}`, o usuário recebedor pode optar pela consulta sem
+	// o `txid` ou por compor a requisição com um `txid` de uma cobrança imediata, ou cobrança com vencimento, de forma a obter o QR Composto
+	// para a jornada de interesse.
+	//
+	// Os `dadosQR` retornados variam de acordo com a jornada desejada, indicada pela presença dos parâmetros de interesse, conforme a tabela abaixo:
+	// <table  >
+	// <tr><td width="15%">idRec</td><td  width="15%">txid de Cob</td><td  width="15%">txid de CobV</td><td width="100%">Conteúdo esperado</td></tr>
+	// <tr><td>X</td><td>-</td><td>-</td><td><pre>{ jornada: "JORNADA_2", pixCopiaECola: "QR Composto da recorrência" }</pre></td></tr>
+	// <tr><td>X</td><td>X</td><td>-</td><td><pre>{ jornada: "JORNADA_3", pixCopiaECola: "QR Composto da cobrança imediata + recorrência" }</pre></td></tr>
+	// <tr><td>X</td><td>-</td><td>X</td><td><pre>{ jornada: "JORNADA_4", pixCopiaECola: "QR Composto da cobrança com vencimento + recorrência" }</pre></td></tr>
+	// </table>
+	//
+	// Os campos `dadosQR.jornada` e `dadosQR.pixCopiaECola` só serão retornados se as respectivas locations necessárias para a construção do QR Composto
+	// estiverem preenchidas na recorrência e na eventual cobrança, a depender da jornada desejada.
+	DadosQR *struct {
+		Jornada *RecCompletaDadosQRJornada `json:"jornada,omitempty"`
+
+		// PixCopiaECola Este campo retorna o valor do Pix Copia e Cola correspondente à recorrência. Trata-se da sequência de caracteres que representa o BR Code.
+		PixCopiaECola *string `json:"pixCopiaECola,omitempty"`
+	} `json:"dadosQR,omitempty"`
+
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec   RecId                       `json:"idRec"`
+	Loc     *PayloadLocationRecCompleta `json:"loc,omitempty"`
+	Pagador *struct {
+		// CodMun Código baseado na Tabela de Códigos de Municípios do __[IBGE](https://www.ibge.gov.br/explica/codigos-dos-municipios.php)__ que apresenta a lista dos municípios brasileiros associados a um código composto de 7 dígitos, sendo os dois primeiros referentes ao código da Unidade da Federação.
+		CodMun *string `json:"codMun,omitempty"`
+
+		// IspbParticipante ISPB do PSP pagador.
+		IspbParticipante *string `json:"ispbParticipante,omitempty"`
+	} `json:"pagador,omitempty"`
+	PoliticaRetentativa RecCompletaPoliticaRetentativa `json:"politicaRetentativa"`
+
+	// Recebedor The receiver of a recurrence, and its agreement with its PSP.
+	Recebedor RecebedorRecorrencia `json:"recebedor"`
+
+	// Solicitacao Solicitações vinculadas
+	Solicitacao *[]SolicRecCompleta `json:"solicitacao,omitempty"`
+	Status      RecCompletaStatus   `json:"status"`
+	Valor       *struct {
+		// ValorMinimoRecebedor Campo opcional. Valor definido pelo usuário recebedor. Se o usuário pagador atribuir um valor máximo para os pagamentos daquela autorização, ele não poderá ser inferior ao piso definido pelo usuário recebedor. Não pode ser preenchido nas autorizações de valor fixo, ou seja, com campo valor preenchido.
+		ValorMinimoRecebedor *string `json:"valorMinimoRecebedor,omitempty"`
+
+		// ValorRec Campo opcional, deve ser preenchido apenas quando o valor dos pagamentos for fixo ou não for sujeito a alteração durante a vigência da autorização.
+		ValorRec *string `json:"valorRec,omitempty"`
+	} `json:"valor,omitempty"`
+
+	// Vinculo Informações sobre o objeto da recorrência.
+	Vinculo struct {
+		// Contrato Número, identificador, ou código que representa o objeto da autorização (contrato, pedido etc.).
+		Contrato string `json:"contrato"`
+
+		// Devedor A person (cpf) or a company (cnpj), with a name and optional address.
+		Devedor Pessoa `json:"devedor"`
+
+		// Objeto Campo de texto livre para informações referentes ao contrato que permitam ao usuário pagador reconhecer o objeto dos pagamentos periódicos por meio do Pix Automático.
+		//
+		// Example: ["Conta de energia Av. Paulista, 1804","Serviço de internet banda larga","Assinatura anual"]
+		Objeto *string `json:"objeto,omitempty"`
+	} `json:"vinculo"`
+}
+
+// RecCompletaAtivacaoTipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+type RecCompletaAtivacaoTipoJornada string
+
+// RecCompletaAtualizacaoStatus Status da recorrência.
+type RecCompletaAtualizacaoStatus string
+
+// RecCompletaCalendarioPeriodicidade defines model for RecCompleta.Calendario.Periodicidade.
+type RecCompletaCalendarioPeriodicidade string
+
+// RecCompletaDadosQRJornada defines model for RecCompleta.DadosQR.Jornada.
+type RecCompletaDadosQRJornada string
+
+// RecCompletaPoliticaRetentativa defines model for RecCompleta.PoliticaRetentativa.
+type RecCompletaPoliticaRetentativa string
+
+// RecCompletaStatus defines model for RecCompleta.Status.
+type RecCompletaStatus string
+
+// RecCompletaPesquisada Atributos de Configuração de Recorrência
+type RecCompletaPesquisada struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+
+		// TipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+		//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+		//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+		//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+		//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+		//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+		TipoJornada RecCompletaPesquisadaAtivacaoTipoJornada `json:"tipoJornada"`
+	} `json:"ativacao,omitempty"`
+
+	// Atualizacao Histórico das mudanças de status da recorrência.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da recorrência.
+		Status RecCompletaPesquisadaAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+
+	// Calendario Informações sobre calendário da recorrência
+	Calendario struct {
+		// DataFinal Campo opcional que deve ser preenchido para autorizações com vigência pré-definida, devendo ser compatível com os valores informados em tipoFrequencia e a dataInicialRecorrencia. Não deve ser preenchido para autorizações por tempo indeterminado. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataFinal *openapi_types.Date `json:"dataFinal,omitempty"`
+
+		// DataInicial Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. Data estimada de primeiro pagamento.
+		//
+		// Example: 2023-04-01
+		DataInicial   openapi_types.Date                           `json:"dataInicial"`
+		Periodicidade RecCompletaPesquisadaCalendarioPeriodicidade `json:"periodicidade"`
+	} `json:"calendario"`
+
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec   RecId                       `json:"idRec"`
+	Loc     *PayloadLocationRecCompleta `json:"loc,omitempty"`
+	Pagador *struct {
+		// CodMun Código baseado na Tabela de Códigos de Municípios do __[IBGE](https://www.ibge.gov.br/explica/codigos-dos-municipios.php)__ que apresenta a lista dos municípios brasileiros associados a um código composto de 7 dígitos, sendo os dois primeiros referentes ao código da Unidade da Federação.
+		CodMun *string `json:"codMun,omitempty"`
+
+		// IspbParticipante ISPB do PSP pagador.
+		IspbParticipante *string `json:"ispbParticipante,omitempty"`
+	} `json:"pagador,omitempty"`
+	PoliticaRetentativa RecCompletaPesquisadaPoliticaRetentativa `json:"politicaRetentativa"`
+
+	// Recebedor The receiver of a recurrence, and its agreement with its PSP.
+	Recebedor RecebedorRecorrencia `json:"recebedor"`
+
+	// Solicitacao Solicitações vinculadas
+	Solicitacao *[]SolicRecCompleta         `json:"solicitacao,omitempty"`
+	Status      RecCompletaPesquisadaStatus `json:"status"`
+	Valor       *struct {
+		// ValorMinimoRecebedor Campo opcional. Valor definido pelo usuário recebedor. Se o usuário pagador atribuir um valor máximo para os pagamentos daquela autorização, ele não poderá ser inferior ao piso definido pelo usuário recebedor. Não pode ser preenchido nas autorizações de valor fixo, ou seja, com campo valor preenchido.
+		ValorMinimoRecebedor *string `json:"valorMinimoRecebedor,omitempty"`
+
+		// ValorRec Campo opcional, deve ser preenchido apenas quando o valor dos pagamentos for fixo ou não for sujeito a alteração durante a vigência da autorização.
+		ValorRec *string `json:"valorRec,omitempty"`
+	} `json:"valor,omitempty"`
+
+	// Vinculo Informações sobre o objeto da recorrência.
+	Vinculo struct {
+		// Contrato Número, identificador, ou código que representa o objeto da autorização (contrato, pedido etc.).
+		Contrato string `json:"contrato"`
+
+		// Devedor A person (cpf) or a company (cnpj), with a name and optional address.
+		Devedor Pessoa `json:"devedor"`
+
+		// Objeto Campo de texto livre para informações referentes ao contrato que permitam ao usuário pagador reconhecer o objeto dos pagamentos periódicos por meio do Pix Automático.
+		//
+		// Example: ["Conta de energia Av. Paulista, 1804","Serviço de internet banda larga","Assinatura anual"]
+		Objeto *string `json:"objeto,omitempty"`
+	} `json:"vinculo"`
+}
+
+// RecCompletaPesquisadaAtivacaoTipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+type RecCompletaPesquisadaAtivacaoTipoJornada string
+
+// RecCompletaPesquisadaAtualizacaoStatus Status da recorrência.
+type RecCompletaPesquisadaAtualizacaoStatus string
+
+// RecCompletaPesquisadaCalendarioPeriodicidade defines model for RecCompletaPesquisada.Calendario.Periodicidade.
+type RecCompletaPesquisadaCalendarioPeriodicidade string
+
+// RecCompletaPesquisadaPoliticaRetentativa defines model for RecCompletaPesquisada.PoliticaRetentativa.
+type RecCompletaPesquisadaPoliticaRetentativa string
+
+// RecCompletaPesquisadaStatus defines model for RecCompletaPesquisada.Status.
+type RecCompletaPesquisadaStatus string
+
+// RecConfiguracao defines model for RecConfiguracao.
+type RecConfiguracao struct {
+	PoliticaRetentativa RecConfiguracaoPoliticaRetentativa `json:"politicaRetentativa"`
+}
+
+// RecConfiguracaoPoliticaRetentativa defines model for RecConfiguracao.PoliticaRetentativa.
+type RecConfiguracaoPoliticaRetentativa string
+
+// RecEncerramento defines model for RecEncerramento.
+type RecEncerramento struct {
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+}
+
+// RecGerada Atributos de Configuração de Recorrência
+type RecGerada struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+
+		// TipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+		//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+		//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+		//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+		//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+		//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+		TipoJornada RecGeradaAtivacaoTipoJornada `json:"tipoJornada"`
+	} `json:"ativacao,omitempty"`
+
+	// Atualizacao Histórico das mudanças de status da recorrência.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da recorrência.
+		Status RecGeradaAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+
+	// Calendario Informações sobre calendário da recorrência
+	Calendario struct {
+		// DataFinal Campo opcional que deve ser preenchido para autorizações com vigência pré-definida, devendo ser compatível com os valores informados em tipoFrequencia e a dataInicialRecorrencia. Não deve ser preenchido para autorizações por tempo indeterminado. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataFinal *openapi_types.Date `json:"dataFinal,omitempty"`
+
+		// DataInicial Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. Data estimada de primeiro pagamento.
+		//
+		// Example: 2023-04-01
+		DataInicial   openapi_types.Date               `json:"dataInicial"`
+		Periodicidade RecGeradaCalendarioPeriodicidade `json:"periodicidade"`
+	} `json:"calendario"`
+
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec RecId                       `json:"idRec"`
+	Loc   *PayloadLocationRecCompleta `json:"loc,omitempty"`
+
+	// Recebedor The receiver of a recurrence, and its agreement with its PSP.
+	Recebedor RecebedorRecorrencia `json:"recebedor"`
+	Status    RecGeradaStatus      `json:"status"`
+	Valor     *struct {
+		// ValorMinimoRecebedor Campo opcional. Valor definido pelo usuário recebedor. Se o usuário pagador atribuir um valor máximo para os pagamentos daquela autorização, ele não poderá ser inferior ao piso definido pelo usuário recebedor. Não pode ser preenchido nas autorizações de valor fixo, ou seja, com campo valor preenchido.
+		ValorMinimoRecebedor *string `json:"valorMinimoRecebedor,omitempty"`
+
+		// ValorRec Campo opcional, deve ser preenchido apenas quando o valor dos pagamentos for fixo ou não for sujeito a alteração durante a vigência da autorização.
+		ValorRec *string `json:"valorRec,omitempty"`
+	} `json:"valor,omitempty"`
+
+	// Vinculo Informações sobre o objeto da recorrência.
+	Vinculo struct {
+		// Contrato Número, identificador, ou código que representa o objeto da autorização (contrato, pedido etc.).
+		Contrato string `json:"contrato"`
+
+		// Devedor A person (cpf) or a company (cnpj), with a name and optional address.
+		Devedor Pessoa `json:"devedor"`
+
+		// Objeto Campo de texto livre para informações referentes ao contrato que permitam ao usuário pagador reconhecer o objeto dos pagamentos periódicos por meio do Pix Automático.
+		//
+		// Example: ["Conta de energia Av. Paulista, 1804","Serviço de internet banda larga","Assinatura anual"]
+		Objeto *string `json:"objeto,omitempty"`
+	} `json:"vinculo"`
+}
+
+// RecGeradaAtivacaoTipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+type RecGeradaAtivacaoTipoJornada string
+
+// RecGeradaAtualizacaoStatus Status da recorrência.
+type RecGeradaAtualizacaoStatus string
+
+// RecGeradaCalendarioPeriodicidade defines model for RecGerada.Calendario.Periodicidade.
+type RecGeradaCalendarioPeriodicidade string
+
+// RecGeradaStatus defines model for RecGerada.Status.
+type RecGeradaStatus string
+
+// RecId # Identificador da Recorrência
+//
+// Regra de formação:
+// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+//
+// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+//
+// Example: RR1234567820240115abcdefghijk
+type RecId = string
+
+// RecNotification Atributos de Notificação de Recorrência
+type RecNotification struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+
+		// TipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+		//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+		//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+		//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+		//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+		//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+		TipoJornada RecNotificationAtivacaoTipoJornada `json:"tipoJornada"`
+	} `json:"ativacao,omitempty"`
+
+	// Atualizacao Histórico das mudanças de status da recorrência.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da recorrência.
+		Status RecNotificationAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+
+	// Encerramento Why a recurrence or a recurring charge ended, rejected or canceled.
+	Encerramento *Encerramento `json:"encerramento,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec  RecId                 `json:"idRec"`
+	Status RecNotificationStatus `json:"status"`
+}
+
+// RecNotificationAtivacaoTipoJornada Dado relacionado ao caminho percorrido pelo processo de adesão a recorrência pelo usuário pagador, os valores possíveis são:
+//   - JORNADA_1: Usuário pagador aceitou a recorrência através de notificação externa ao ecossistema
+//   - JORNADA_2: Usuário pagador aceitou a recorrência através de leitura de QR Code de recorrência
+//   - JORNADA_3: Usuário pagador iniciou a recorrência através de leitura de QR Code composto e pagamento de cobrança imediata. O uso desta jornada torna obrigatório o preenchimento da informação dadosJornada.txid
+//   - JORNADA_4: Usuário pagador escolheu aderir à recorrência através de leitura de QR Code composto relacionado à cobrança com vencimento ou estática relacionada a um contrato vigente
+//   - AGUARDANDO_DEFINICAO: Valor inicial posterior a criação e anterior a ativação da recorrência.
+type RecNotificationAtivacaoTipoJornada string
+
+// RecNotificationAtualizacaoStatus Status da recorrência.
+type RecNotificationAtualizacaoStatus string
+
+// RecNotificationStatus defines model for RecNotification.Status.
+type RecNotificationStatus string
+
+// RecPayload Atributos de Configuração de Recorrência
+type RecPayload struct {
+	// Atualizacao Histórico das mudanças de status da recorrência.
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data time.Time `json:"data"`
+
+		// Status Status da recorrência.
+		Status RecPayloadAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+
+	// Calendario Informações sobre calendário da recorrência
+	Calendario struct {
+		// DataFinal Campo opcional que deve ser preenchido para autorizações com vigência pré-definida, devendo ser compatível com os valores informados em tipoFrequencia e a dataInicialRecorrencia. Não deve ser preenchido para autorizações por tempo indeterminado. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataFinal *openapi_types.Date `json:"dataFinal,omitempty"`
+
+		// DataInicial Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. Data estimada de primeiro pagamento.
+		//
+		// Example: 2023-04-01
+		DataInicial   openapi_types.Date                `json:"dataInicial"`
+		Periodicidade RecPayloadCalendarioPeriodicidade `json:"periodicidade"`
+	} `json:"calendario"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec               RecId                         `json:"idRec"`
+	PoliticaRetentativa RecPayloadPoliticaRetentativa `json:"politicaRetentativa"`
+
+	// Recebedor The receiver of a recurrence, and its agreement with its PSP.
+	Recebedor RecebedorRecorrencia `json:"recebedor"`
+	Valor     *struct {
+		// ValorMinimoRecebedor Campo opcional. Valor definido pelo usuário recebedor. Se o usuário pagador atribuir um valor máximo para os pagamentos daquela autorização, ele não poderá ser inferior ao piso definido pelo usuário recebedor. Não pode ser preenchido nas autorizações de valor fixo, ou seja, com campo valor preenchido.
+		ValorMinimoRecebedor *string `json:"valorMinimoRecebedor,omitempty"`
+
+		// ValorRec Campo opcional, deve ser preenchido apenas quando o valor dos pagamentos for fixo ou não for sujeito a alteração durante a vigência da autorização.
+		ValorRec *string `json:"valorRec,omitempty"`
+	} `json:"valor,omitempty"`
+
+	// Vinculo Informações sobre o objeto da recorrência.
+	Vinculo struct {
+		// Contrato Número, identificador, ou código que representa o objeto da autorização (contrato, pedido etc.).
+		Contrato string `json:"contrato"`
+
+		// Devedor A person (cpf) or a company (cnpj), with a name and optional address.
+		Devedor Pessoa `json:"devedor"`
+
+		// Objeto Campo de texto livre para informações referentes ao contrato que permitam ao usuário pagador reconhecer o objeto dos pagamentos periódicos por meio do Pix Automático.
+		//
+		// Example: ["Conta de energia Av. Paulista, 1804","Serviço de internet banda larga","Assinatura anual"]
+		Objeto *string `json:"objeto,omitempty"`
+	} `json:"vinculo"`
+}
+
+// RecPayloadAtualizacaoStatus Status da recorrência.
+type RecPayloadAtualizacaoStatus string
+
+// RecPayloadCalendarioPeriodicidade defines model for RecPayload.Calendario.Periodicidade.
+type RecPayloadCalendarioPeriodicidade string
+
+// RecPayloadPoliticaRetentativa defines model for RecPayload.PoliticaRetentativa.
+type RecPayloadPoliticaRetentativa string
+
+// RecRevisada Atributos de Revisão da Configuração de Recorrência
+type RecRevisada struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+	} `json:"ativacao,omitempty"`
+
+	// Calendario Informações sobre calendário da recorrência
+	Calendario *struct {
+		// DataInicial Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. Data estimada de primeiro pagamento.
+		//
+		// Example: 2023-04-01
+		DataInicial *openapi_types.Date `json:"dataInicial,omitempty"`
+	} `json:"calendario,omitempty"`
+	Loc     *PayloadLocationRecId `json:"loc,omitempty"`
+	Status  *RecRevisadaStatus    `json:"status,omitempty"`
+	Vinculo *struct {
+		// Devedor O objeto devedor organiza as informações sobre o devedor da recorrência.
+		Devedor *RecRevisada_Vinculo_Devedor `json:"devedor,omitempty"`
+	} `json:"vinculo,omitempty"`
+}
+
+// RecRevisadaStatus defines model for RecRevisada.Status.
+type RecRevisadaStatus string
+
+// RecRevisadaVinculoDevedor0 defines model for RecRevisada.Vinculo.Devedor.0.
+type RecRevisadaVinculoDevedor0 struct {
+	// Nome Nome do usuário.
+	Nome string `json:"nome"`
+}
+
+// RecRevisadaVinculoDevedor1 defines model for RecRevisada.Vinculo.Devedor.1.
+type RecRevisadaVinculoDevedor1 struct {
+	// Nome Nome do usuário.
+	Nome string `json:"nome"`
+}
+
+// RecRevisada_Vinculo_Devedor O objeto devedor organiza as informações sobre o devedor da recorrência.
+type RecRevisada_Vinculo_Devedor struct {
+	union json.RawMessage
+}
+
+// RecSolicitada Atributos de Configuração de Recorrência
+type RecSolicitada struct {
+	// Ativacao Dados relacionados à confirmação da ativação da recorrência.
+	Ativacao *struct {
+		DadosJornada *DadosJornada `json:"dadosJornada,omitempty"`
+	} `json:"ativacao,omitempty"`
+
+	// Calendario Informações sobre calendário da recorrência
+	Calendario struct {
+		// DataFinal Campo opcional que deve ser preenchido para autorizações com vigência pré-definida, devendo ser compatível com os valores informados em tipoFrequencia e a dataInicialRecorrencia. Não deve ser preenchido para autorizações por tempo indeterminado. Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601.
+		//
+		// Example: 2023-04-01
+		DataFinal *openapi_types.Date `json:"dataFinal,omitempty"`
+
+		// DataInicial Trata-se de uma data, no formato `YYYY-MM-DD`, segundo ISO 8601. Data estimada de primeiro pagamento.
+		//
+		// Example: 2023-04-01
+		DataInicial   openapi_types.Date                   `json:"dataInicial"`
+		Periodicidade RecSolicitadaCalendarioPeriodicidade `json:"periodicidade"`
+	} `json:"calendario"`
+	Loc                 *PayloadLocationRecId            `json:"loc,omitempty"`
+	PoliticaRetentativa RecSolicitadaPoliticaRetentativa `json:"politicaRetentativa"`
+	Recebedor           *struct {
+		// Convenio Convênio entre usuário e participante recebedor.
+		Convenio *string `json:"convenio,omitempty"`
+	} `json:"recebedor,omitempty"`
+	Valor *struct {
+		// ValorMinimoRecebedor Campo opcional. Valor definido pelo usuário recebedor. Se o usuário pagador atribuir um valor máximo para os pagamentos daquela autorização, ele não poderá ser inferior ao piso definido pelo usuário recebedor. Não pode ser preenchido nas autorizações de valor fixo, ou seja, com campo valor preenchido.
+		ValorMinimoRecebedor *string `json:"valorMinimoRecebedor,omitempty"`
+
+		// ValorRec Campo opcional, deve ser preenchido apenas quando o valor dos pagamentos for fixo ou não for sujeito a alteração durante a vigência da autorização.
+		ValorRec *string `json:"valorRec,omitempty"`
+	} `json:"valor,omitempty"`
+
+	// Vinculo Informações sobre o objeto da recorrência.
+	Vinculo struct {
+		// Contrato Número, identificador, ou código que representa o objeto da autorização (contrato, pedido etc.).
+		Contrato string `json:"contrato"`
+
+		// Devedor A person (cpf) or a company (cnpj), with a name and optional address.
+		Devedor Pessoa `json:"devedor"`
+
+		// Objeto Campo de texto livre para informações referentes ao contrato que permitam ao usuário pagador reconhecer o objeto dos pagamentos periódicos por meio do Pix Automático.
+		//
+		// Example: ["Conta de energia Av. Paulista, 1804","Serviço de internet banda larga","Assinatura anual"]
+		Objeto *string `json:"objeto,omitempty"`
+	} `json:"vinculo"`
+}
+
+// RecSolicitadaCalendarioPeriodicidade defines model for RecSolicitada.Calendario.Periodicidade.
+type RecSolicitadaCalendarioPeriodicidade string
+
+// RecSolicitadaPoliticaRetentativa defines model for RecSolicitada.PoliticaRetentativa.
+type RecSolicitadaPoliticaRetentativa string
+
+// RecStatus defines model for RecStatus.
+type RecStatus struct {
+	Status RecStatusStatus `json:"status"`
+}
+
+// RecStatusStatus defines model for RecStatus.Status.
+type RecStatusStatus string
+
+// RecebedorRecorrencia The receiver of a recurrence, and its agreement with its PSP.
+type RecebedorRecorrencia struct {
+	Cnpj             *string `json:"cnpj,omitempty"`
+	Convenio         *string `json:"convenio,omitempty"`
+	IspbParticipante *string `json:"ispbParticipante,omitempty"`
+	Nome             *string `json:"nome,omitempty"`
+}
+
+// RecsConsultadas defines model for RecsConsultadas.
+type RecsConsultadas struct {
+	// Parametros Parâmetros utilizados para a realização de uma consulta de recorrências.
+	Parametros ParametrosConsultaRec   `json:"parametros"`
+	Recs       []RecCompletaPesquisada `json:"recs"`
+}
+
 // Revisao # O campo `revisao`
 //
 // Denota a revisão da cobrança.  Sempre começa em zero. Sempre varia em acréscimos de 1.
@@ -7453,6 +11961,163 @@ type Problema struct {
 // Não é necessário armazenar histórico das alterações do campo `loc` para uma determinada cobrança.
 // Para os outros campos da cobrança, registra-se histórico.
 type Revisao = int32
+
+// SolicRecAtualizacao defines model for SolicRecAtualizacao.
+type SolicRecAtualizacao struct {
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data   time.Time                            `json:"data"`
+		Status SolicRecAtualizacaoAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+}
+
+// SolicRecAtualizacaoAtualizacaoStatus defines model for SolicRecAtualizacao.Atualizacao.Status.
+type SolicRecAtualizacaoAtualizacaoStatus string
+
+// SolicRecBase Dados criados ou alterados da cobrança recorrente via API Pix
+type SolicRecBase struct {
+	Calendario struct {
+		// DataExpiracaoSolicitacao Data da expiração da solicitação enviada ao usuário pagador. Respeita RFC 3339.
+		DataExpiracaoSolicitacao time.Time `json:"dataExpiracaoSolicitacao"`
+	} `json:"calendario"`
+
+	// Destinatario The payer a recurrence request goes to, by account.
+	Destinatario Destinatario `json:"destinatario"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec RecId `json:"idRec"`
+}
+
+// SolicRecCompleta Dados criados ou alterados da solicitação da recorrência
+type SolicRecCompleta struct {
+	Atualizacao []struct {
+		// Data Data e hora do registro de status atualizado. Respeita RFC 3339.
+		Data   time.Time                         `json:"data"`
+		Status SolicRecCompletaAtualizacaoStatus `json:"status"`
+	} `json:"atualizacao"`
+	Calendario struct {
+		// DataExpiracaoSolicitacao Data da expiração da solicitação enviada ao usuário pagador. Respeita RFC 3339.
+		DataExpiracaoSolicitacao time.Time `json:"dataExpiracaoSolicitacao"`
+	} `json:"calendario"`
+
+	// Destinatario The payer a recurrence request goes to, by account.
+	Destinatario Destinatario `json:"destinatario"`
+	Encerramento *struct {
+		// Rejeicao Informações sobre a rejeição da solicitação de recorrência
+		Rejeicao *struct {
+			// Motivo Motivo pelo qual a solicitação de recorrência foi rejeitada.
+			Motivo SolicRecCompletaEncerramentoRejeicaoMotivo `json:"motivo"`
+		} `json:"rejeicao,omitempty"`
+	} `json:"encerramento,omitempty"`
+
+	// IdRec # Identificador da Recorrência
+	//
+	// Regra de formação:
+	// - RAxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; "case sensitive", isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - "R":  fixo (1 caractere). "R" para a recorrência criada dentro do Pix;
+	//   - "A": identificação da possibilidade de novas tentativas, sendo possíveis os valores "R" ou "N" (1 caractere). "R" caso a recorrência permita novas tentativas de pagamento pós vencimento, ou "N" caso não permita novas tentativas.
+	//   - "xxxxxxxx":  identificação do agente que presta serviço para o usuário recebedor que gerou o ID Recorrência, podendo ser: o ISPB do participante direto, o ISPB do participante indireto ou os 8 primeiros caracteres do CNPJ do prestador de serviço de iniciação (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - "yyyyMMdd":  data (8 caracteres) de criação da recorrência;
+	//   - "kkkkkkkkkkk": sequencial criado pelo agente que gerou o ID Recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada "yyyyMMdd".
+	//
+	// Dessa forma, o ID da recorrência deve ser formado de acordo com um dos tipos a seguir:
+	// - "RRxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que permite novas tentativas de pagamento pós vencimento; ou
+	// - "RNxxxxxxxxyyyyMMddkkkkkkkkkkk"; para recorrência criada dentro do Pix e que não permite novas tentativas de pagamento pós vencimento.”
+	//
+	//
+	// Example: RR1234567820240115abcdefghijk
+	IdRec RecId `json:"idRec"`
+
+	// IdSolicRec # Identificador da Solicitação da Recorrência
+	//
+	// Regra de formação:
+	// - SCxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; “case sensitive”, isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - SC - fixo (2 caracteres);
+	//   - xxxxxxxx – ISPB do agente que envia a mensagem pain.009 de solicitação de confirmação da recorrência (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - yyyyMMdd – data (8 caracteres) de criação da mensagem pain.009 de solicitação de confirmação da recorrência;
+	//   - kkkkkkkkkkk – sequencial criado pelo agente que gerou a mensagem de solicitação de confirmação da recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada “yyyyMMdd”.
+	//
+	//
+	// Example: SC1234567820240115abcdefghijk
+	IdSolicRec string `json:"idSolicRec"`
+
+	// RecPayload Atributos de Configuração de Recorrência
+	RecPayload *RecPayload            `json:"recPayload,omitempty"`
+	Status     SolicRecCompletaStatus `json:"status"`
+}
+
+// SolicRecCompletaAtualizacaoStatus defines model for SolicRecCompleta.Atualizacao.Status.
+type SolicRecCompletaAtualizacaoStatus string
+
+// SolicRecCompletaEncerramentoRejeicaoMotivo Motivo pelo qual a solicitação de recorrência foi rejeitada.
+type SolicRecCompletaEncerramentoRejeicaoMotivo string
+
+// SolicRecCompletaStatus defines model for SolicRecCompleta.Status.
+type SolicRecCompletaStatus string
+
+// SolicRecEncerramento defines model for SolicRecEncerramento.
+type SolicRecEncerramento struct {
+	Encerramento *struct {
+		// Rejeicao Informações sobre a rejeição da solicitação de recorrência
+		Rejeicao *struct {
+			// Motivo Motivo pelo qual a solicitação de recorrência foi rejeitada.
+			Motivo SolicRecEncerramentoEncerramentoRejeicaoMotivo `json:"motivo"`
+		} `json:"rejeicao,omitempty"`
+	} `json:"encerramento,omitempty"`
+}
+
+// SolicRecEncerramentoEncerramentoRejeicaoMotivo Motivo pelo qual a solicitação de recorrência foi rejeitada.
+type SolicRecEncerramentoEncerramentoRejeicaoMotivo string
+
+// SolicRecId Dados criados ou alterados da cobrança recorrente via API Pix
+type SolicRecId struct {
+	// IdSolicRec # Identificador da Solicitação da Recorrência
+	//
+	// Regra de formação:
+	// - SCxxxxxxxxyyyyMMddkkkkkkkkkkk (29 caracteres; “case sensitive”, isso é, diferencia letras maiúsculas e minúsculas), sendo:
+	//   - SC - fixo (2 caracteres);
+	//   - xxxxxxxx – ISPB do agente que envia a mensagem pain.009 de solicitação de confirmação da recorrência (8 caracteres alfanuméricos [A-Z|0-9]);
+	//   - yyyyMMdd – data (8 caracteres) de criação da mensagem pain.009 de solicitação de confirmação da recorrência;
+	//   - kkkkkkkkkkk – sequencial criado pelo agente que gerou a mensagem de solicitação de confirmação da recorrência (11 caracteres alfanuméricos [a-z|A-Z|0-9]). Deve ser único dentro de cada “yyyyMMdd”.
+	//
+	//
+	// Example: SC1234567820240115abcdefghijk
+	IdSolicRec string `json:"idSolicRec"`
+}
+
+// SolicRecRevisada Dados alterados da solicitação da recorrência
+type SolicRecRevisada struct {
+	Status SolicRecRevisadaStatus `json:"status"`
+}
+
+// SolicRecRevisadaStatus defines model for SolicRecRevisada.Status.
+type SolicRecRevisadaStatus string
+
+// SolicRecSolicitada Dados criados ou alterados da solicitação da recorrência
+type SolicRecSolicitada = SolicRecBase
+
+// SolicRecStatus defines model for SolicRecStatus.
+type SolicRecStatus struct {
+	Status SolicRecStatusStatus `json:"status"`
+}
+
+// SolicRecStatusStatus defines model for SolicRecStatus.Status.
+type SolicRecStatusStatus string
 
 // TxId # Identificador da transação
 //
@@ -7491,6 +12156,21 @@ type Violacao struct {
 	Valor *string `json:"valor,omitempty"`
 }
 
+// WebhookCobRCompleto defines model for WebhookCobRCompleto.
+type WebhookCobRCompleto struct {
+	// Criacao Data e hora em que o webhook foi cadastrado. Respeita RFC 3339.
+	Criacao *time.Time `json:"criacao,omitempty"`
+
+	// WebhookUrl Example: https://pix.example.com/api/webhookrec/
+	WebhookUrl string `json:"webhookUrl"`
+}
+
+// WebhookCobRSolicitado defines model for WebhookCobRSolicitado.
+type WebhookCobRSolicitado struct {
+	// WebhookUrl Example: https://pix.example.com/api/webhookrec/
+	WebhookUrl string `json:"webhookUrl"`
+}
+
 // WebhookCompleto defines model for WebhookCompleto.
 type WebhookCompleto struct {
 	// Cnpj Filtro pelo CNPJ do devedor. Não pode ser utilizado ao mesmo tempo que o CPF.
@@ -7502,6 +12182,24 @@ type WebhookCompleto struct {
 	// WebhookUrl Example: https://pix.example.com/api/webhook/
 	WebhookUrl string `json:"webhookUrl"`
 }
+
+// WebhookRecBase defines model for WebhookRecBase.
+type WebhookRecBase struct {
+	// WebhookUrl Example: https://pix.example.com/api/webhookrec/
+	WebhookUrl string `json:"webhookUrl"`
+}
+
+// WebhookRecCompleto defines model for WebhookRecCompleto.
+type WebhookRecCompleto struct {
+	// Criacao Data e hora em que o webhook foi cadastrado. Respeita RFC 3339.
+	Criacao *time.Time `json:"criacao,omitempty"`
+
+	// WebhookUrl Example: https://pix.example.com/api/webhookrec/
+	WebhookUrl string `json:"webhookUrl"`
+}
+
+// WebhookRecSolicitado defines model for WebhookRecSolicitado.
+type WebhookRecSolicitado = WebhookRecBase
 
 // WebhookSolicitado defines model for WebhookSolicitado.
 type WebhookSolicitado struct {
@@ -7537,6 +12235,12 @@ type CobBody = CobSolicitada
 // CobBodyRevisada Dados enviados para revisão da cobrança imediata via API Pix
 type CobBodyRevisada = CobRevisada
 
+// CobRBody Dados enviados para criação da cobrança recorrente via API Pix
+type CobRBody = CobRSolicitada
+
+// CobRBodyRevisada Dados enviados para revisão da cobrança recorrente via API Pix
+type CobRBodyRevisada = CobRRevisada
+
 // CobVBody Dados enviados para criação ou alteração da cobrança com vencimento via API Pix
 type CobVBody = CobVSolicitada
 
@@ -7549,6 +12253,26 @@ type DevolucaoBody = DevolucaoSolicitada
 // PayloadLocationBody Identificador da localização do payload solicitada.
 type PayloadLocationBody = PayloadLocationSolicitada
 
+// RecBody Atributos de Configuração de Recorrência
+type RecBody = RecSolicitada
+
+// RecBodyRevisada Atributos de Revisão da Configuração de Recorrência
+type RecBodyRevisada = RecRevisada
+
+// SolicRecBody Dados criados ou alterados da solicitação da recorrência
+type SolicRecBody = SolicRecSolicitada
+
+// SolicRecBodyRevisada Dados alterados da solicitação da recorrência
+type SolicRecBodyRevisada = SolicRecRevisada
+
+// WebhookCobRBody defines model for WebhookCobRBody.
+type WebhookCobRBody struct {
+	Cobsr *[]CobRNotification `json:"cobsr,omitempty"`
+}
+
+// WebhookCobRConfigBody defines model for WebhookCobRConfigBody.
+type WebhookCobRConfigBody = WebhookCobRSolicitado
+
 // WebhookConfigBody defines model for WebhookConfigBody.
 type WebhookConfigBody = WebhookSolicitado
 
@@ -7557,6 +12281,14 @@ type WebhookPixBody struct {
 	// Pix Example: [{"allOf":[{"$ref":"#/components/examples/pixWebhook1/value"}]},{"allOf":[{"$ref":"#/components/examples/pixWebhook2/value"}]}]
 	Pix *[]Pix `json:"pix,omitempty"`
 }
+
+// WebhookRecBody defines model for WebhookRecBody.
+type WebhookRecBody struct {
+	Recs *[]RecNotification `json:"recs,omitempty"`
+}
+
+// WebhookRecConfigBody defines model for WebhookRecConfigBody.
+type WebhookRecConfigBody = WebhookRecSolicitado
 
 // GetCobParams defines parameters for GetCob.
 type GetCobParams struct {
@@ -7574,6 +12306,45 @@ type GetCobParams struct {
 type GetCobTxidParams struct {
 	Revisao *Revisao `form:"revisao,omitempty" json:"revisao,omitempty"`
 }
+
+// GetCobrParams defines parameters for GetCobr.
+type GetCobrParams struct {
+	Inicio                  Inicio          `form:"inicio" json:"inicio"`
+	Fim                     Fim             `form:"fim" json:"fim"`
+	IdRec                   *string         `form:"idRec,omitempty" json:"idRec,omitempty"`
+	Cpf                     *string         `form:"cpf,omitempty" json:"cpf,omitempty"`
+	Cnpj                    *string         `form:"cnpj,omitempty" json:"cnpj,omitempty"`
+	Status                  *string         `form:"status,omitempty" json:"status,omitempty"`
+	Convenio                *string         `form:"convenio,omitempty" json:"convenio,omitempty"`
+	PaginacaoPaginaAtual    *PaginaAtual    `form:"paginacao.paginaAtual,omitempty" json:"paginacao.paginaAtual,omitempty"`
+	PaginacaoItensPorPagina *ItensPorPagina `form:"paginacao.itensPorPagina,omitempty" json:"paginacao.itensPorPagina,omitempty"`
+}
+
+// PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBodyAtualizacaoStatus string
+
+// PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor struct {
+	union json.RawMessage
+}
+
+// PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativa defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBodyPoliticaRetentativa string
+
+// PostCobrTxidRetentativaData201JSONResponseBodyStatus defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBodyStatus string
+
+// PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBodyTentativasAtualizacaoStatus string
+
+// PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBodyTentativasRejeicaoCodigo string
+
+// PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBodyTentativasStatus string
+
+// PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo defines parameters for PostCobrTxidRetentativaData.
+type PostCobrTxidRetentativaData201JSONResponseBodyTentativasTipo string
 
 // GetCobvParams defines parameters for GetCobv.
 type GetCobvParams struct {
@@ -7615,6 +12386,16 @@ type GetLocParams struct {
 // GetLocParamsTipoCob defines parameters for GetLoc.
 type GetLocParamsTipoCob string
 
+// GetLocrecParams defines parameters for GetLocrec.
+type GetLocrecParams struct {
+	Inicio                  Inicio          `form:"inicio" json:"inicio"`
+	Fim                     Fim             `form:"fim" json:"fim"`
+	IdRecPresente           *bool           `form:"idRecPresente,omitempty" json:"idRecPresente,omitempty"`
+	Convenio                *string         `form:"convenio,omitempty" json:"convenio,omitempty"`
+	PaginacaoPaginaAtual    *PaginaAtual    `form:"paginacao.paginaAtual,omitempty" json:"paginacao.paginaAtual,omitempty"`
+	PaginacaoItensPorPagina *ItensPorPagina `form:"paginacao.itensPorPagina,omitempty" json:"paginacao.itensPorPagina,omitempty"`
+}
+
 // GetPixParams defines parameters for GetPix.
 type GetPixParams struct {
 	Inicio                  Inicio          `form:"inicio" json:"inicio"`
@@ -7627,6 +12408,24 @@ type GetPixParams struct {
 	Cnpj                    *string         `form:"cnpj,omitempty" json:"cnpj,omitempty"`
 	PaginacaoPaginaAtual    *PaginaAtual    `form:"paginacao.paginaAtual,omitempty" json:"paginacao.paginaAtual,omitempty"`
 	PaginacaoItensPorPagina *ItensPorPagina `form:"paginacao.itensPorPagina,omitempty" json:"paginacao.itensPorPagina,omitempty"`
+}
+
+// GetRecParams defines parameters for GetRec.
+type GetRecParams struct {
+	Inicio                  Inicio          `form:"inicio" json:"inicio"`
+	Fim                     Fim             `form:"fim" json:"fim"`
+	Cpf                     *string         `form:"cpf,omitempty" json:"cpf,omitempty"`
+	Cnpj                    *string         `form:"cnpj,omitempty" json:"cnpj,omitempty"`
+	LocationPresente        *bool           `form:"locationPresente,omitempty" json:"locationPresente,omitempty"`
+	Status                  *string         `form:"status,omitempty" json:"status,omitempty"`
+	Convenio                *string         `form:"convenio,omitempty" json:"convenio,omitempty"`
+	PaginacaoPaginaAtual    *PaginaAtual    `form:"paginacao.paginaAtual,omitempty" json:"paginacao.paginaAtual,omitempty"`
+	PaginacaoItensPorPagina *ItensPorPagina `form:"paginacao.itensPorPagina,omitempty" json:"paginacao.itensPorPagina,omitempty"`
+}
+
+// GetRecIdRecParams defines parameters for GetRecIdRec.
+type GetRecIdRecParams struct {
+	Txid *string `form:"txid,omitempty" json:"txid,omitempty"`
 }
 
 // GetWebhookParams defines parameters for GetWebhook.
@@ -7643,6 +12442,16 @@ type ListaPixJSONBody struct {
 	Pix *[]Pix `json:"pix,omitempty"`
 }
 
+// CobrJSONBody defines parameters for Cobr.
+type CobrJSONBody struct {
+	Cobsr *[]CobRNotification `json:"cobsr,omitempty"`
+}
+
+// RecJSONBody defines parameters for Rec.
+type RecJSONBody struct {
+	Recs *[]RecNotification `json:"recs,omitempty"`
+}
+
 // PostCobJSONRequestBody defines body for PostCob for application/json ContentType.
 type PostCobJSONRequestBody = CobSolicitada
 
@@ -7651,6 +12460,15 @@ type PatchCobTxidJSONRequestBody = CobRevisada
 
 // PutCobTxidJSONRequestBody defines body for PutCobTxid for application/json ContentType.
 type PutCobTxidJSONRequestBody = CobSolicitada
+
+// PostCobrJSONRequestBody defines body for PostCobr for application/json ContentType.
+type PostCobrJSONRequestBody = CobRSolicitada
+
+// PatchCobrTxidJSONRequestBody defines body for PatchCobrTxid for application/json ContentType.
+type PatchCobrTxidJSONRequestBody = CobRRevisada
+
+// PutCobrTxidJSONRequestBody defines body for PutCobrTxid for application/json ContentType.
+type PutCobrTxidJSONRequestBody = CobRSolicitada
 
 // PatchCobvTxidJSONRequestBody defines body for PatchCobvTxid for application/json ContentType.
 type PatchCobvTxidJSONRequestBody = CobVRevisada
@@ -7664,11 +12482,35 @@ type PostLocJSONRequestBody = PayloadLocationSolicitada
 // PutPixE2eidDevolucaoIdJSONRequestBody defines body for PutPixE2eidDevolucaoId for application/json ContentType.
 type PutPixE2eidDevolucaoIdJSONRequestBody = DevolucaoSolicitada
 
+// PostRecJSONRequestBody defines body for PostRec for application/json ContentType.
+type PostRecJSONRequestBody = RecSolicitada
+
+// PatchRecIdRecJSONRequestBody defines body for PatchRecIdRec for application/json ContentType.
+type PatchRecIdRecJSONRequestBody = RecRevisada
+
+// PostSolicrecJSONRequestBody defines body for PostSolicrec for application/json ContentType.
+type PostSolicrecJSONRequestBody = SolicRecSolicitada
+
+// PatchSolicrecIdSolicRecJSONRequestBody defines body for PatchSolicrecIdSolicRec for application/json ContentType.
+type PatchSolicrecIdSolicRecJSONRequestBody = SolicRecRevisada
+
 // PutWebhookChaveJSONRequestBody defines body for PutWebhookChave for application/json ContentType.
 type PutWebhookChaveJSONRequestBody = WebhookSolicitado
 
+// PutWebhookcobrJSONRequestBody defines body for PutWebhookcobr for application/json ContentType.
+type PutWebhookcobrJSONRequestBody = WebhookCobRSolicitado
+
+// PutWebhookrecJSONRequestBody defines body for PutWebhookrec for application/json ContentType.
+type PutWebhookrecJSONRequestBody = WebhookRecSolicitado
+
 // ListaPixJSONRequestBody defines body for ListaPix for application/json ContentType.
 type ListaPixJSONRequestBody ListaPixJSONBody
+
+// CobrJSONRequestBody defines body for Cobr for application/json ContentType.
+type CobrJSONRequestBody CobrJSONBody
+
+// RecJSONRequestBody defines body for Rec for application/json ContentType.
+type RecJSONRequestBody RecJSONBody
 
 // AsPessoaFisica returns the union data inside the CobCompleta_Devedor as a PessoaFisica
 func (t CobCompleta_Devedor) AsPessoaFisica() (PessoaFisica, error) {
@@ -8230,6 +13072,286 @@ func (t CobPayloadValor_Retirada) MarshalJSON() ([]byte, error) {
 }
 
 func (t *CobPayloadValor_Retirada) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPixValorOriginal returns the union data inside the CobRCompleta_Pix_ComponentesValor as a PixValorOriginal
+func (t CobRCompleta_Pix_ComponentesValor) AsPixValorOriginal() (PixValorOriginal, error) {
+	var body PixValorOriginal
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorOriginal overwrites any union data inside the CobRCompleta_Pix_ComponentesValor as the provided PixValorOriginal
+func (t *CobRCompleta_Pix_ComponentesValor) FromPixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorOriginal performs a merge with any union data inside the CobRCompleta_Pix_ComponentesValor, using the provided PixValorOriginal
+func (t *CobRCompleta_Pix_ComponentesValor) MergePixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorJuros returns the union data inside the CobRCompleta_Pix_ComponentesValor as a PixValorJuros
+func (t CobRCompleta_Pix_ComponentesValor) AsPixValorJuros() (PixValorJuros, error) {
+	var body PixValorJuros
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorJuros overwrites any union data inside the CobRCompleta_Pix_ComponentesValor as the provided PixValorJuros
+func (t *CobRCompleta_Pix_ComponentesValor) FromPixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorJuros performs a merge with any union data inside the CobRCompleta_Pix_ComponentesValor, using the provided PixValorJuros
+func (t *CobRCompleta_Pix_ComponentesValor) MergePixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorMulta returns the union data inside the CobRCompleta_Pix_ComponentesValor as a PixValorMulta
+func (t CobRCompleta_Pix_ComponentesValor) AsPixValorMulta() (PixValorMulta, error) {
+	var body PixValorMulta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorMulta overwrites any union data inside the CobRCompleta_Pix_ComponentesValor as the provided PixValorMulta
+func (t *CobRCompleta_Pix_ComponentesValor) FromPixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorMulta performs a merge with any union data inside the CobRCompleta_Pix_ComponentesValor, using the provided PixValorMulta
+func (t *CobRCompleta_Pix_ComponentesValor) MergePixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorAbatimento returns the union data inside the CobRCompleta_Pix_ComponentesValor as a PixValorAbatimento
+func (t CobRCompleta_Pix_ComponentesValor) AsPixValorAbatimento() (PixValorAbatimento, error) {
+	var body PixValorAbatimento
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorAbatimento overwrites any union data inside the CobRCompleta_Pix_ComponentesValor as the provided PixValorAbatimento
+func (t *CobRCompleta_Pix_ComponentesValor) FromPixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorAbatimento performs a merge with any union data inside the CobRCompleta_Pix_ComponentesValor, using the provided PixValorAbatimento
+func (t *CobRCompleta_Pix_ComponentesValor) MergePixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorDesconto returns the union data inside the CobRCompleta_Pix_ComponentesValor as a PixValorDesconto
+func (t CobRCompleta_Pix_ComponentesValor) AsPixValorDesconto() (PixValorDesconto, error) {
+	var body PixValorDesconto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorDesconto overwrites any union data inside the CobRCompleta_Pix_ComponentesValor as the provided PixValorDesconto
+func (t *CobRCompleta_Pix_ComponentesValor) FromPixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorDesconto performs a merge with any union data inside the CobRCompleta_Pix_ComponentesValor, using the provided PixValorDesconto
+func (t *CobRCompleta_Pix_ComponentesValor) MergePixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CobRCompleta_Pix_ComponentesValor) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CobRCompleta_Pix_ComponentesValor) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPixValorOriginal returns the union data inside the CobRNotification_Pix_ComponentesValor as a PixValorOriginal
+func (t CobRNotification_Pix_ComponentesValor) AsPixValorOriginal() (PixValorOriginal, error) {
+	var body PixValorOriginal
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorOriginal overwrites any union data inside the CobRNotification_Pix_ComponentesValor as the provided PixValorOriginal
+func (t *CobRNotification_Pix_ComponentesValor) FromPixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorOriginal performs a merge with any union data inside the CobRNotification_Pix_ComponentesValor, using the provided PixValorOriginal
+func (t *CobRNotification_Pix_ComponentesValor) MergePixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorJuros returns the union data inside the CobRNotification_Pix_ComponentesValor as a PixValorJuros
+func (t CobRNotification_Pix_ComponentesValor) AsPixValorJuros() (PixValorJuros, error) {
+	var body PixValorJuros
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorJuros overwrites any union data inside the CobRNotification_Pix_ComponentesValor as the provided PixValorJuros
+func (t *CobRNotification_Pix_ComponentesValor) FromPixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorJuros performs a merge with any union data inside the CobRNotification_Pix_ComponentesValor, using the provided PixValorJuros
+func (t *CobRNotification_Pix_ComponentesValor) MergePixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorMulta returns the union data inside the CobRNotification_Pix_ComponentesValor as a PixValorMulta
+func (t CobRNotification_Pix_ComponentesValor) AsPixValorMulta() (PixValorMulta, error) {
+	var body PixValorMulta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorMulta overwrites any union data inside the CobRNotification_Pix_ComponentesValor as the provided PixValorMulta
+func (t *CobRNotification_Pix_ComponentesValor) FromPixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorMulta performs a merge with any union data inside the CobRNotification_Pix_ComponentesValor, using the provided PixValorMulta
+func (t *CobRNotification_Pix_ComponentesValor) MergePixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorAbatimento returns the union data inside the CobRNotification_Pix_ComponentesValor as a PixValorAbatimento
+func (t CobRNotification_Pix_ComponentesValor) AsPixValorAbatimento() (PixValorAbatimento, error) {
+	var body PixValorAbatimento
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorAbatimento overwrites any union data inside the CobRNotification_Pix_ComponentesValor as the provided PixValorAbatimento
+func (t *CobRNotification_Pix_ComponentesValor) FromPixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorAbatimento performs a merge with any union data inside the CobRNotification_Pix_ComponentesValor, using the provided PixValorAbatimento
+func (t *CobRNotification_Pix_ComponentesValor) MergePixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorDesconto returns the union data inside the CobRNotification_Pix_ComponentesValor as a PixValorDesconto
+func (t CobRNotification_Pix_ComponentesValor) AsPixValorDesconto() (PixValorDesconto, error) {
+	var body PixValorDesconto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorDesconto overwrites any union data inside the CobRNotification_Pix_ComponentesValor as the provided PixValorDesconto
+func (t *CobRNotification_Pix_ComponentesValor) FromPixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorDesconto performs a merge with any union data inside the CobRNotification_Pix_ComponentesValor, using the provided PixValorDesconto
+func (t *CobRNotification_Pix_ComponentesValor) MergePixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CobRNotification_Pix_ComponentesValor) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CobRNotification_Pix_ComponentesValor) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -9432,6 +14554,348 @@ func (t Pix_ComponentesValor) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Pix_ComponentesValor) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPixValorOriginal returns the union data inside the PixAutomatico_ComponentesValor as a PixValorOriginal
+func (t PixAutomatico_ComponentesValor) AsPixValorOriginal() (PixValorOriginal, error) {
+	var body PixValorOriginal
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorOriginal overwrites any union data inside the PixAutomatico_ComponentesValor as the provided PixValorOriginal
+func (t *PixAutomatico_ComponentesValor) FromPixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorOriginal performs a merge with any union data inside the PixAutomatico_ComponentesValor, using the provided PixValorOriginal
+func (t *PixAutomatico_ComponentesValor) MergePixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorJuros returns the union data inside the PixAutomatico_ComponentesValor as a PixValorJuros
+func (t PixAutomatico_ComponentesValor) AsPixValorJuros() (PixValorJuros, error) {
+	var body PixValorJuros
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorJuros overwrites any union data inside the PixAutomatico_ComponentesValor as the provided PixValorJuros
+func (t *PixAutomatico_ComponentesValor) FromPixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorJuros performs a merge with any union data inside the PixAutomatico_ComponentesValor, using the provided PixValorJuros
+func (t *PixAutomatico_ComponentesValor) MergePixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorMulta returns the union data inside the PixAutomatico_ComponentesValor as a PixValorMulta
+func (t PixAutomatico_ComponentesValor) AsPixValorMulta() (PixValorMulta, error) {
+	var body PixValorMulta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorMulta overwrites any union data inside the PixAutomatico_ComponentesValor as the provided PixValorMulta
+func (t *PixAutomatico_ComponentesValor) FromPixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorMulta performs a merge with any union data inside the PixAutomatico_ComponentesValor, using the provided PixValorMulta
+func (t *PixAutomatico_ComponentesValor) MergePixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorAbatimento returns the union data inside the PixAutomatico_ComponentesValor as a PixValorAbatimento
+func (t PixAutomatico_ComponentesValor) AsPixValorAbatimento() (PixValorAbatimento, error) {
+	var body PixValorAbatimento
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorAbatimento overwrites any union data inside the PixAutomatico_ComponentesValor as the provided PixValorAbatimento
+func (t *PixAutomatico_ComponentesValor) FromPixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorAbatimento performs a merge with any union data inside the PixAutomatico_ComponentesValor, using the provided PixValorAbatimento
+func (t *PixAutomatico_ComponentesValor) MergePixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorDesconto returns the union data inside the PixAutomatico_ComponentesValor as a PixValorDesconto
+func (t PixAutomatico_ComponentesValor) AsPixValorDesconto() (PixValorDesconto, error) {
+	var body PixValorDesconto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorDesconto overwrites any union data inside the PixAutomatico_ComponentesValor as the provided PixValorDesconto
+func (t *PixAutomatico_ComponentesValor) FromPixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorDesconto performs a merge with any union data inside the PixAutomatico_ComponentesValor, using the provided PixValorDesconto
+func (t *PixAutomatico_ComponentesValor) MergePixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PixAutomatico_ComponentesValor) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PixAutomatico_ComponentesValor) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsRecRevisadaVinculoDevedor0 returns the union data inside the RecRevisada_Vinculo_Devedor as a RecRevisadaVinculoDevedor0
+func (t RecRevisada_Vinculo_Devedor) AsRecRevisadaVinculoDevedor0() (RecRevisadaVinculoDevedor0, error) {
+	var body RecRevisadaVinculoDevedor0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRecRevisadaVinculoDevedor0 overwrites any union data inside the RecRevisada_Vinculo_Devedor as the provided RecRevisadaVinculoDevedor0
+func (t *RecRevisada_Vinculo_Devedor) FromRecRevisadaVinculoDevedor0(v RecRevisadaVinculoDevedor0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRecRevisadaVinculoDevedor0 performs a merge with any union data inside the RecRevisada_Vinculo_Devedor, using the provided RecRevisadaVinculoDevedor0
+func (t *RecRevisada_Vinculo_Devedor) MergeRecRevisadaVinculoDevedor0(v RecRevisadaVinculoDevedor0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRecRevisadaVinculoDevedor1 returns the union data inside the RecRevisada_Vinculo_Devedor as a RecRevisadaVinculoDevedor1
+func (t RecRevisada_Vinculo_Devedor) AsRecRevisadaVinculoDevedor1() (RecRevisadaVinculoDevedor1, error) {
+	var body RecRevisadaVinculoDevedor1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRecRevisadaVinculoDevedor1 overwrites any union data inside the RecRevisada_Vinculo_Devedor as the provided RecRevisadaVinculoDevedor1
+func (t *RecRevisada_Vinculo_Devedor) FromRecRevisadaVinculoDevedor1(v RecRevisadaVinculoDevedor1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRecRevisadaVinculoDevedor1 performs a merge with any union data inside the RecRevisada_Vinculo_Devedor, using the provided RecRevisadaVinculoDevedor1
+func (t *RecRevisada_Vinculo_Devedor) MergeRecRevisadaVinculoDevedor1(v RecRevisadaVinculoDevedor1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t RecRevisada_Vinculo_Devedor) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *RecRevisada_Vinculo_Devedor) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPixValorOriginal returns the union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as a PixValorOriginal
+func (t PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) AsPixValorOriginal() (PixValorOriginal, error) {
+	var body PixValorOriginal
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorOriginal overwrites any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as the provided PixValorOriginal
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) FromPixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorOriginal performs a merge with any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor, using the provided PixValorOriginal
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) MergePixValorOriginal(v PixValorOriginal) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorJuros returns the union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as a PixValorJuros
+func (t PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) AsPixValorJuros() (PixValorJuros, error) {
+	var body PixValorJuros
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorJuros overwrites any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as the provided PixValorJuros
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) FromPixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorJuros performs a merge with any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor, using the provided PixValorJuros
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) MergePixValorJuros(v PixValorJuros) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorMulta returns the union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as a PixValorMulta
+func (t PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) AsPixValorMulta() (PixValorMulta, error) {
+	var body PixValorMulta
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorMulta overwrites any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as the provided PixValorMulta
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) FromPixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorMulta performs a merge with any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor, using the provided PixValorMulta
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) MergePixValorMulta(v PixValorMulta) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorAbatimento returns the union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as a PixValorAbatimento
+func (t PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) AsPixValorAbatimento() (PixValorAbatimento, error) {
+	var body PixValorAbatimento
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorAbatimento overwrites any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as the provided PixValorAbatimento
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) FromPixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorAbatimento performs a merge with any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor, using the provided PixValorAbatimento
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) MergePixValorAbatimento(v PixValorAbatimento) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPixValorDesconto returns the union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as a PixValorDesconto
+func (t PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) AsPixValorDesconto() (PixValorDesconto, error) {
+	var body PixValorDesconto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPixValorDesconto overwrites any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor as the provided PixValorDesconto
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) FromPixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePixValorDesconto performs a merge with any union data inside the PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor, using the provided PixValorDesconto
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) MergePixValorDesconto(v PixValorDesconto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PostCobrTxidRetentativaData201JSONResponseBody_Pix_ComponentesValor) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

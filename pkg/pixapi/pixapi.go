@@ -35,6 +35,12 @@ func Append[T any](field **[]T) *T {
 	return &(**field)[len(**field)-1]
 }
 
+// Push adds a zero element to a slice field and returns it.
+func Push[T any](field *[]T) *T {
+	*field = append(*field, *new(T))
+	return &(*field)[len(*field)-1]
+}
+
 // Ptr returns a pointer to v, for the optional fields.
 func Ptr[T any](v T) *T { return &v }
 
@@ -45,6 +51,7 @@ var (
 	txidPattern  = regexp.MustCompile(`^[a-zA-Z0-9]{26,35}$`)
 	e2eIDPattern = regexp.MustCompile(`^E[0-9A-Z]{8}\d{12}[a-zA-Z0-9]{11}$`)
 	idPattern    = regexp.MustCompile(`^[a-zA-Z0-9]{1,35}$`)
+	recIDPattern = regexp.MustCompile(`^R[RN][0-9A-Z]{8}\d{8}[a-zA-Z0-9]{11}$`)
 )
 
 // FormatValor writes centavos as the API's amounts: reais with a dot and two decimals.
@@ -89,4 +96,22 @@ const (
 	ScopePixRead      = "pix.read"
 	ScopeWebhookWrite = "webhook.write"
 	ScopeWebhookRead  = "webhook.read"
+
+	ScopeRecWrite                = "rec.write"
+	ScopeRecRead                 = "rec.read"
+	ScopeSolicRecWrite           = "solicrec.write"
+	ScopeSolicRecRead            = "solicrec.read"
+	ScopeCobRWrite               = "cobr.write"
+	ScopeCobRRead                = "cobr.read"
+	ScopeWebhookRecWrite         = "webhookrec.write"
+	ScopeWebhookRecRead          = "webhookrec.read"
+	ScopeWebhookCobRWrite        = "webhookcobr.write"
+	ScopeWebhookCobRRead         = "webhookcobr.read"
+	ScopePayloadLocationRecWrite = "payloadlocationrec.write"
+	ScopePayloadLocationRecRead  = "payloadlocationrec.read"
 )
+
+// ValidRecID reports whether s has the shape of an idRec: R, R or N (whether retries
+// after the due date are allowed), the ISPB of the agent that made it, the day it was
+// made (yyyyMMdd) and 11 letters or digits.
+func ValidRecID(s string) bool { return recIDPattern.MatchString(s) }

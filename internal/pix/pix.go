@@ -35,6 +35,10 @@ type Config struct {
 	ClientSecret string
 	// Key is Jupiter's Pix key at the bank, which every charge is paid to.
 	Key string
+	// Branch and Account are Jupiter's account at the bank, which Pix Automático, using
+	// no keys, is paid to.
+	Branch  string
+	Account string
 	// TLS carries Jupiter's client certificate and the CAs the bank's certificate is
 	// checked against.
 	TLS *tls.Config
@@ -62,6 +66,9 @@ const (
 var scopes = strings.Join([]string{
 	pixapi.ScopeCobWrite, pixapi.ScopeCobRead, pixapi.ScopeCobVWrite, pixapi.ScopeCobVRead,
 	pixapi.ScopePixWrite, pixapi.ScopePixRead, pixapi.ScopeWebhookWrite, pixapi.ScopeWebhookRead,
+	pixapi.ScopeRecWrite, pixapi.ScopeRecRead, pixapi.ScopeSolicRecWrite, pixapi.ScopeSolicRecRead,
+	pixapi.ScopeCobRWrite, pixapi.ScopeCobRRead, pixapi.ScopeWebhookRecWrite, pixapi.ScopeWebhookCobRWrite,
+	pixapi.ScopePayloadLocationRecWrite,
 }, " ")
 
 var _ payments.PixRail = (*Connector)(nil)
@@ -92,8 +99,9 @@ func New(cfg Config) (*Connector, error) {
 }
 
 // FromEnv builds a connector from the variables named with prefix (JUPITER_PIX_ for live
-// mode, JUPITER_PIX_TEST_ for test mode): URL, CLIENT_ID, CLIENT_SECRET, KEY, CERT,
-// CERT_KEY, CA and WEBHOOK_URL. Without a URL it returns nil: the mode has no Pix.
+// mode, JUPITER_PIX_TEST_ for test mode): URL, CLIENT_ID, CLIENT_SECRET, KEY, BRANCH,
+// ACCOUNT, CERT, CERT_KEY, CA and WEBHOOK_URL. Without a URL it returns nil: the mode has
+// no Pix.
 func FromEnv(getenv func(string) string, prefix string, livemode bool, pool *pgxpool.Pool, logger *slog.Logger) (*Connector, error) {
 	base := getenv(prefix + "URL")
 	if base == "" {
@@ -105,7 +113,7 @@ func FromEnv(getenv func(string) string, prefix string, livemode bool, pool *pgx
 	}
 	return New(Config{
 		BaseURL: base, ClientID: getenv(prefix + "CLIENT_ID"), ClientSecret: getenv(prefix + "CLIENT_SECRET"),
-		Key: getenv(prefix + "KEY"), TLS: tlsConfig, WebhookURL: getenv(prefix + "WEBHOOK_URL"), Livemode: livemode,
+		Key: getenv(prefix + "KEY"), Branch: getenv(prefix + "BRANCH"), Account: getenv(prefix + "ACCOUNT"), TLS: tlsConfig, WebhookURL: getenv(prefix + "WEBHOOK_URL"), Livemode: livemode,
 		Pool: pool, Logger: logger,
 	})
 }
@@ -187,6 +195,8 @@ func (c *Connector) forgetToken() {
 // timeout, a 5xx, and the 4xx that say nothing of the request (401, 403, 408, 409, 429).
 // A read (GET) is never refused: whatever it answers besides 404 is unknown.
 func (c *Connector) call(ctx context.Context, method, path string, body, out any) error {
+	// Errors name the path without its query, which may carry a payer's CPF or CNPJ.
+	label, _, _ := strings.Cut(path, "?")
 	for attempt := 0; ; attempt++ {
 		status, raw, err := c.send(ctx, method, path, body)
 		if err != nil {
@@ -201,15 +211,15 @@ func (c *Connector) call(ctx context.Context, method, path string, body, out any
 				return nil
 			}
 			if err := json.Unmarshal(raw, out); err != nil {
-				return fmt.Errorf("pix: %s %s: an answer that is not the API's: %w", method, path, err)
+				return fmt.Errorf("pix: %s %s: an answer that is not the API's: %w", method, label, err)
 			}
 			return nil
 		case status == http.StatusNotFound:
-			return fmt.Errorf("%w: %s %s: %s", payments.ErrPixNotFound, method, path, problem(raw))
+			return fmt.Errorf("%w: %s %s: %s", payments.ErrPixNotFound, method, label, problem(raw))
 		case method != http.MethodGet && (status == http.StatusBadRequest || status == http.StatusGone || status == http.StatusUnprocessableEntity):
-			return fmt.Errorf("%w: %s %s: %d %s", payments.ErrPixRefused, method, path, status, problem(raw))
+			return fmt.Errorf("%w: %s %s: %d %s", payments.ErrPixRefused, method, label, status, problem(raw))
 		default:
-			return fmt.Errorf("pix: %s %s: %d %s", method, path, status, problem(raw))
+			return fmt.Errorf("pix: %s %s: %d %s", method, label, status, problem(raw))
 		}
 	}
 }
@@ -237,12 +247,16 @@ func (c *Connector) send(ctx context.Context, method, path string, body any) (in
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return 0, nil, fmt.Errorf("pix: %s %s: %w", method, path, err)
+		// url.Error repeats the whole URL, query included.
+		if uerr := (*url.Error)(nil); errors.As(err, &uerr) {
+			err = uerr.Err
+		}
+		return 0, nil, fmt.Errorf("pix: %s %s: %w", method, strings.SplitN(path, "?", 2)[0], err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
 	if err != nil {
-		return 0, nil, fmt.Errorf("pix: %s %s: %w", method, path, err)
+		return 0, nil, fmt.Errorf("pix: %s %s: %w", method, strings.SplitN(path, "?", 2)[0], err)
 	}
 	return resp.StatusCode, raw, nil
 }

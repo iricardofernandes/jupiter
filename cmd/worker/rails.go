@@ -9,8 +9,10 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
+	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/pix"
+	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
@@ -38,6 +40,18 @@ func connectRails(ctx context.Context, pool *pgxpool.Pool, cards *vault.Client, 
 		return rails{}, err
 	}
 	return r, nil
+}
+
+// subscriptions charges by Pix Automático in the modes that have a Pix bank.
+func (r rails) subscriptions(pool *pgxpool.Pool, p *payments.Service, e *events.Service, logger *slog.Logger) *subscriptions.Service {
+	cfg := subscriptions.Config{Pool: pool, Payments: p, Events: e, Logger: logger}
+	if r.livePix != nil {
+		cfg.LiveBank = r.livePix
+	}
+	if r.testPix != nil {
+		cfg.TestBank = r.testPix
+	}
+	return subscriptions.New(cfg)
 }
 
 // configure adds the rails that exist to cfg.

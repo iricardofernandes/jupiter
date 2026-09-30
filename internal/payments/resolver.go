@@ -80,7 +80,7 @@ func (s *Service) resolveAttempt(ctx context.Context, pool *pgxpool.Pool, attemp
 	if inStatus(attempt, attemptAuthenticating) {
 		return s.resumeAuthentication(ctx, pool, owner, intentID)
 	}
-	if attempt.PaymentMethod == PaymentMethodPix {
+	if isPix(attempt.PaymentMethod) {
 		return s.resolvePix(ctx, pool, owner, intentID, intent, attempt)
 	}
 	rail, err := s.rail(owner.Livemode)
@@ -212,7 +212,7 @@ func (s *Service) resolveRefund(ctx context.Context, pool *pgxpool.Pool, refundI
 		return false, err
 	}
 	var res Result
-	if attempt.PaymentMethod == PaymentMethodPix {
+	if isPix(attempt.PaymentMethod) {
 		res, err = s.queryPixReturn(ctx, refund.Livemode, attempt.NetworkTransactionID, bankID(refund.ID))
 	} else {
 		var rail Rail

@@ -86,7 +86,9 @@ func TestAPayoutWhoseAnswerIsLost(t *testing.T) {
 func TestAPayoutWaitsForRefundsInFlight(t *testing.T) {
 	h := newHarness(t)
 	h.fund(5000)
-	h.setFaults(func(e pixsim.Event) pixsim.Fault { return pixsim.Fault{Pending: e.Kind == "return", PendingFor: time.Hour} })
+	h.setFaults(func(e pixsim.Event) pixsim.Fault {
+		return pixsim.Fault{Pending: e.Kind == "return", PendingFor: time.Hour}
+	})
 	it := h.call(http.MethodGet, "/v1/payment_intents?limit=1", nil)
 	data, _ := it.body["data"].([]any)
 	first, _ := data[0].(map[string]any)

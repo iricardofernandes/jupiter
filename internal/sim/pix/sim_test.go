@@ -53,7 +53,10 @@ type env struct {
 	client   *http.Client
 	token    string
 	received chan pixapi.WebhookPixBody
-	faults   func(pix.Event) pix.Fault
+	// recs and cobrs receive the Pix Automático notifications.
+	recs   chan pixapi.RecNotification
+	cobrs  chan pixapi.CobRNotification
+	faults func(pix.Event) pix.Fault
 }
 
 func newEnv(t *testing.T) *env {
@@ -62,14 +65,32 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := &env{t: t, pki: pki, clock: &clock{now: time.Date(2026, 10, 5, 15, 0, 0, 0, time.UTC)}, received: make(chan pixapi.WebhookPixBody, 10)}
+	e := &env{
+		t: t, pki: pki, clock: &clock{now: time.Date(2026, 10, 5, 15, 0, 0, 0, time.UTC)}, received: make(chan pixapi.WebhookPixBody, 10),
+		recs: make(chan pixapi.RecNotification, 50), cobrs: make(chan pixapi.CobRNotification, 50),
+	}
 
 	// Jupiter's side of notifications: mutual TLS, admitting the bank's identity.
 	receiverCert, _ := pki.Server("127.0.0.1")
 	receiver := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		var body pixapi.WebhookPixBody
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		e.received <- body
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/rec"):
+			var body pixapi.WebhookRecBody
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			for _, n := range *body.Recs {
+				e.recs <- n
+			}
+		case strings.HasSuffix(r.URL.Path, "/cobr"):
+			var body pixapi.WebhookCobRBody
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			for _, n := range *body.Cobsr {
+				e.cobrs <- n
+			}
+		default:
+			var body pixapi.WebhookPixBody
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			e.received <- body
+		}
 	}))
 	receiver.TLS = mtls.ServerConfig(receiverCert.TLS, pki.Pool(), "spiffe://sim-pix/webhook")
 	receiver.StartTLS()
@@ -101,8 +122,10 @@ func newEnv(t *testing.T) *env {
 
 	e.client = e.clientWith("spiffe://jupiter/pix")
 	e.token = e.issueToken(e.client)
-	if code := e.call(http.MethodPut, "/webhook/"+key, map[string]string{"webhookUrl": receiver.URL + "/pix/webhook"}, nil); code != http.StatusOK {
-		t.Fatalf("registering the webhook: %d", code)
+	for _, path := range []string{"/webhook/" + key, "/webhookrec", "/webhookcobr"} {
+		if code := e.call(http.MethodPut, path, map[string]string{"webhookUrl": receiver.URL + "/pix/webhook"}, nil); code != http.StatusOK {
+			t.Fatalf("registering %s: %d", path, code)
+		}
 	}
 	return e
 }
@@ -374,14 +397,14 @@ func TestReturns(t *testing.T) {
 	e.notification()
 	var d pixapi.Devolucao
 	if code := e.call(http.MethodPut, "/pix/"+res.EndToEndID+"/devolucao/re1", map[string]string{"valor": "30.00"}, &d); code != http.StatusCreated ||
-		d.Status != pixapi.EMPROCESSAMENTO {
+		d.Status != pixapi.DevolucaoStatusEMPROCESSAMENTO {
 		t.Fatalf("a partial return: %d %+v", code, d)
 	}
 	got := e.notification()
-	if got.Devolucoes == nil || (*got.Devolucoes)[0].Status != pixapi.DEVOLVIDO {
+	if got.Devolucoes == nil || (*got.Devolucoes)[0].Status != pixapi.DevolucaoStatusDEVOLVIDO {
 		t.Fatalf("notified: %+v", got)
 	}
-	if code := e.call(http.MethodPut, "/pix/"+res.EndToEndID+"/devolucao/re1", map[string]string{"valor": "30.00"}, &d); code != http.StatusCreated || d.Status != pixapi.DEVOLVIDO {
+	if code := e.call(http.MethodPut, "/pix/"+res.EndToEndID+"/devolucao/re1", map[string]string{"valor": "30.00"}, &d); code != http.StatusCreated || d.Status != pixapi.DevolucaoStatusDEVOLVIDO {
 		t.Fatalf("asking again: %d %+v", code, d)
 	}
 	if code := e.call(http.MethodPut, "/pix/"+res.EndToEndID+"/devolucao/re2", map[string]string{"valor": "70.01"}, nil); code != http.StatusBadRequest {
@@ -389,7 +412,7 @@ func TestReturns(t *testing.T) {
 	}
 	e.sim.ClosePayer("12345678909")
 	e.call(http.MethodPut, "/pix/"+res.EndToEndID+"/devolucao/re3", map[string]string{"valor": "70.00"}, nil)
-	if got := e.notification(); (*got.Devolucoes)[1].Status != pixapi.NAOREALIZADO {
+	if got := e.notification(); (*got.Devolucoes)[1].Status != pixapi.DevolucaoStatusNAOREALIZADO {
 		t.Fatalf("to a closed account: %+v", *got.Devolucoes)
 	}
 	if e.sim.Balance(clientID) != 100000+10000-3000 {

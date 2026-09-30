@@ -43,6 +43,9 @@ const (
 	pixReturnsEvery   = time.Minute
 	payoutsEvery      = 15 * time.Second
 	pixReconcileEvery = 5 * time.Minute
+	// subscriptionsEvery is how often the worker looks for subscriptions due a look;
+	// each is looked at no more than hourly, and sooner when the bank notifies.
+	subscriptionsEvery = time.Minute
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -100,13 +103,18 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	}
 	r.configure(&paymentsConfig)
 	paymentService := payments.New(paymentsConfig)
+	subscriptionService := r.subscriptions(pool, paymentService, eventService, logger)
 	a := api.New(api.Deps{
-		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Vault: cards, Risk: riskEngine, Box: box, Logger: logger,
+		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Vault: cards, Risk: riskEngine,
+		Subscriptions: subscriptionService, Box: box, Logger: logger,
 	})
 
 	return service.App{
-		Ready:      pool.Ping,
-		Background: tasks(jobClient, l, pool, a, paymentService, r.network, []*pix.Connector{r.livePix, r.testPix}, logger),
+		Ready: pool.Ping,
+		Background: tasks(jobClient, l, pool, a, paymentService, r.network, []*pix.Connector{r.livePix, r.testPix}, logger,
+			service.Every(logger, "subscriptions.advance", subscriptionsEvery, counted(logger, "looked at subscriptions", func(ctx context.Context) (int, error) {
+				return subscriptionService.Advance(ctx, pool)
+			}))),
 		Close: func() {
 			r.close()
 			pool.Close()

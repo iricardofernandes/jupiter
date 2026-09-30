@@ -44,6 +44,9 @@ type Payment struct {
 }
 
 type PaymentResult struct {
+	// Authorized is the recurrence a payer authorized by reading its QR code, when the
+	// code was a recurrence's and not a payment's.
+	Authorized string `json:"authorized,omitempty"`
 	EndToEndID string `json:"end_to_end_id,omitempty"`
 	Amount     string `json:"amount,omitempty"`
 	TxID       string `json:"txid,omitempty"`
@@ -57,6 +60,13 @@ const fetchTimeout = 10 * time.Second
 // Pay carries out a payer's payment. A refusal, such as a charge already paid or
 // expired, is a result with Refused set, not an error.
 func (s *Sim) Pay(ctx context.Context, p Payment) (PaymentResult, error) {
+	if code, err := brcode.Parse(p.BRCode); err == nil && code.RecurrenceURL != "" && code.Key == "" && code.URL == "" {
+		res, err := s.authorizeByQR(ctx, code, p)
+		if errors.Is(err, errRefused) {
+			return PaymentResult{Refused: strings.TrimPrefix(err.Error(), errRefused.Error()+": ")}, nil
+		}
+		return res, err
+	}
 	target, err := s.resolve(ctx, p)
 	if errors.Is(err, errRefused) {
 		return PaymentResult{Refused: strings.TrimPrefix(err.Error(), errRefused.Error()+": ")}, nil
@@ -121,34 +131,9 @@ func (s *Sim) resolve(ctx context.Context, p Payment) (target, error) {
 // fetchPayload reads a dynamic code's payload as a payer's bank does: over HTTPS, from a
 // location whose signature checks out against the key set on the same host.
 func (s *Sim) fetchPayload(ctx context.Context, location string, p Payment) (target, error) {
-	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
-	defer cancel()
-	host, _, _ := strings.Cut(location, "/")
-	jws, err := s.fetch(ctx, "https://"+location)
+	body, err := s.fetchSigned(ctx, location, "")
 	if err != nil {
 		return target{}, err
-	}
-	var header map[string]string
-	if parts := splitJWS(string(jws)); parts != nil {
-		raw, _ := decodeSegment(parts[0])
-		_ = json.Unmarshal(raw, &header)
-	}
-	if header["jku"] != "https://"+host+jwksPath {
-		return target{}, refused("the payload's key set is not on the location's host")
-	}
-	rawKeys, err := s.fetch(ctx, header["jku"])
-	if err != nil {
-		return target{}, err
-	}
-	var keys struct {
-		Keys []map[string]string `json:"keys"`
-	}
-	if err := json.Unmarshal(rawKeys, &keys); err != nil {
-		return target{}, refused("an unreadable key set")
-	}
-	body, _, err := verifyJWS(string(jws), keys.Keys)
-	if err != nil {
-		return target{}, refused("%v", err)
 	}
 	var payload struct {
 		Chave  string `json:"chave"`
@@ -175,6 +160,42 @@ func (s *Sim) fetchPayload(ctx context.Context, location string, p Payment) (tar
 		return target{}, refused("the payload has no amount to pay")
 	}
 	return t, nil
+}
+
+// fetchSigned fetches a payload location's JWS over HTTPS and returns its payload once
+// its signature checks out against the key set its header names, which must be on the
+// location's own host.
+func (s *Sim) fetchSigned(ctx context.Context, location, query string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+	host, _, _ := strings.Cut(location, "/")
+	jws, err := s.fetch(ctx, "https://"+location+query)
+	if err != nil {
+		return nil, err
+	}
+	var header map[string]string
+	if parts := splitJWS(string(jws)); parts != nil {
+		raw, _ := decodeSegment(parts[0])
+		_ = json.Unmarshal(raw, &header)
+	}
+	if header["jku"] != "https://"+host+jwksPath {
+		return nil, refused("the payload's key set is not on the location's host")
+	}
+	rawKeys, err := s.fetch(ctx, header["jku"])
+	if err != nil {
+		return nil, err
+	}
+	var keys struct {
+		Keys []map[string]string `json:"keys"`
+	}
+	if err := json.Unmarshal(rawKeys, &keys); err != nil {
+		return nil, refused("an unreadable key set")
+	}
+	body, _, err := verifyJWS(string(jws), keys.Keys)
+	if err != nil {
+		return nil, refused("%v", err)
+	}
+	return body, nil
 }
 
 func (s *Sim) fetch(ctx context.Context, url string) ([]byte, error) {
@@ -311,6 +332,7 @@ func (s *Sim) AdminHandler() http.Handler {
 		s.ClosePayer(r.PathValue("tax_id"))
 		w.WriteHeader(http.StatusNoContent)
 	})
+	s.adminRecurrenceRoutes(mux)
 	mux.HandleFunc("GET /admin/transfers", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, s.Transfers())
 	})
@@ -321,6 +343,56 @@ func (s *Sim) AdminHandler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"balance": pixapi.FormatValor(s.Balance(r.PathValue("client")))})
 	})
 	return loopbackJSON(mux)
+}
+
+// adminRecurrenceRoutes are the payer's side of Pix Automático: answering a request,
+// revoking an authorization, and how much money they have.
+func (s *Sim) adminRecurrenceRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /admin/recurrence-requests/{id}/decide", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Accept bool `json:"accept"`
+		}
+		if json.NewDecoder(io.LimitReader(r.Body, maxBody)).Decode(&body) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := s.DecideRequest(r.Context(), r.PathValue("id"), body.Accept); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /admin/recurrences/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		if err := s.CancelAsPayer(r.Context(), r.PathValue("id")); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /admin/payers/{tax_id}/funds", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Balance *string `json:"balance"`
+		}
+		if json.NewDecoder(io.LimitReader(r.Body, maxBody)).Decode(&body) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		amount := int64(-1)
+		if body.Balance != nil {
+			v, err := pixapi.ParseValor(*body.Balance)
+			if err != nil {
+				http.Error(w, "bad balance", http.StatusBadRequest)
+				return
+			}
+			amount = v
+		}
+		s.SetPayerFunds(r.PathValue("tax_id"), amount)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /admin/tick", func(w http.ResponseWriter, r *http.Request) {
+		s.Tick(r.Context())
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
 
 // loopbackJSON admits only requests addressed to a loopback host, and POSTs only with a
