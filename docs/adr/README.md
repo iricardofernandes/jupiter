@@ -17,6 +17,9 @@ point at its replacement.
 | [0008](0008-hot-accounts-with-batched-balances.md) | Hot accounts keep synchronous entries and batched balances | Accepted |
 | [0009](0009-immutable-two-phase-transfers.md) | Two-phase transfers as immutable transactions, with invariants in the database | Accepted |
 | [0010](0010-per-module-migrations.md) | Each module migrates its own schema with goose | Accepted |
+| [0011](0011-api-conventions.md) | API conventions: keys and modes, versions, errors, lists | Accepted |
+| [0012](0012-idempotency-keys-with-recovery-points.md) | Idempotency keys with atomic phases and recovery points | Accepted |
+| [0013](0013-thin-events-and-webhook-delivery.md) | Thin events written with the change, delivered at least once by River | Accepted |
 
 ## Template
 

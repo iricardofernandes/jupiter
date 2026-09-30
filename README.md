@@ -6,13 +6,14 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **1 — ledger**
+> ### Current phase: **2 — API foundation**
 >
-> The double-entry ledger is in place: append-only entries, two-phase transfers, separate
-> books for client and own funds, invariants enforced by PostgreSQL and verified
-> continuously, and batched balances for hot accounts. No payment exists yet; payment
-> intents are phase 3. What each phase delivers, and what must be true before the next
-> begins, is in [`docs/plan.md`](docs/plan.md).
+> The ledger (phase 1) and the merchant API's foundation are in place: API keys with
+> test and live modes and scopes, idempotency keys that survive a crash between phases,
+> date-named versions, typed errors, cursor pagination, and signed webhooks delivered at
+> least once. No payment exists yet; payment intents are phase 3. What each phase
+> delivers, and what must be true before the next begins, is in
+> [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -55,6 +56,8 @@ primary source, its documentation says so.
 | | |
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
+| [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
+| [`docs/api/`](docs/api/) | Error codes and how to receive webhooks |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
 | [`docs/benchmarks/`](docs/benchmarks/) | Measurements, with the command and hardware that produced them |
 | [`docs/research/`](docs/research/) | How the payments market works, globally and in Brazil, and what it implies for Jupiter |
@@ -70,6 +73,7 @@ make check             # format, vet, lint, vulnerabilities, unit and architectu
 make test-integration  # tests against a real PostgreSQL in Docker
 make up                # local infrastructure; returns once every service is healthy
 make migrate           # apply database migrations to it
+make merchant NAME=x   # create a merchant; prints its API keys once
 make ledger-check      # verify the ledger's invariants on it
 make down
 make help              # every target
@@ -89,6 +93,16 @@ stacks:
 
 Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
 
+To run the API and the worker against it, export `JUPITER_DATABASE_URL` and a
+`JUPITER_SECRET_KEY` (`openssl rand -base64 32`), then `go run ./cmd/api` and
+`go run ./cmd/worker`:
+
+```sh
+curl -X POST http://127.0.0.1:8080/v1/webhook_endpoints \
+  -H "Authorization: Bearer $SK_TEST" -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"url": "https://example.com/hooks", "enabled_events": ["*"]}'
+```
+
 ## Repository layout
 
 ```
@@ -98,7 +112,7 @@ internal/money/      amounts, currencies, rates, rounding and allocation
 internal/id/         prefixed, time-ordered identifiers
 internal/platform/   process lifecycle, PostgreSQL and other shared infrastructure
 internal/sim/<name>/ a simulator's code, isolated from Jupiter's domain
-pkg/                 libraries meant for other projects too (BR Code, CNAB 240)
+pkg/                 libraries meant for other projects too (webhook verification; later BR Code, CNAB 240)
 test/architecture/   the test that enforces these boundaries
 test/e2e/            the golden path
 deploy/              configuration for the local infrastructure
