@@ -15,6 +15,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 )
@@ -30,9 +31,16 @@ type Deps struct {
 	Pool      *pgxpool.Pool
 	Merchants *merchant.Service
 	Events    *events.Service
+	Payments  *payments.Service
 	Box       *secretbox.Box
 	Logger    *slog.Logger
 	Now       func() time.Time
+	// AfterPhase, if set, runs after each atomic phase of an idempotent request commits.
+	// It is the seam through which simulations kill requests between phases.
+	AfterPhase func(recoveryPoint string)
+	// IdempotencyWait bounds how long a request waits for a concurrent one holding the
+	// same Idempotency-Key; zero keeps the default of ten seconds.
+	IdempotencyWait time.Duration
 }
 
 type API struct {
@@ -51,7 +59,10 @@ func New(d Deps) *API {
 	if d.Logger == nil {
 		d.Logger = slog.New(slog.DiscardHandler)
 	}
-	a := &API{deps: d, idem: defaultIdempotencyConfig}
+	a := &API{deps: d, idem: defaultIdempotencyConfig, afterPhase: d.AfterPhase}
+	if d.IdempotencyWait > 0 {
+		a.idem.wait = d.IdempotencyWait
+	}
 	a.operations = a.registerOperations()
 	return a
 }

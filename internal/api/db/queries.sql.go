@@ -49,17 +49,24 @@ func (q *Queries) AbandonedIdempotencyKeys(ctx context.Context, arg AbandonedIde
 }
 
 const advanceIdempotencyKey = `-- name: AdvanceIdempotencyKey :exec
-UPDATE api.idempotency_keys SET recovery_point = $1 WHERE id = $2 AND lock_token = $3
+UPDATE api.idempotency_keys SET recovery_point = $1, recovery_state = $2
+WHERE id = $3 AND lock_token = $4
 `
 
 type AdvanceIdempotencyKeyParams struct {
 	RecoveryPoint string
+	RecoveryState []byte
 	ID            int64
 	LockToken     pgtype.UUID
 }
 
 func (q *Queries) AdvanceIdempotencyKey(ctx context.Context, arg AdvanceIdempotencyKeyParams) error {
-	_, err := q.db.Exec(ctx, advanceIdempotencyKey, arg.RecoveryPoint, arg.ID, arg.LockToken)
+	_, err := q.db.Exec(ctx, advanceIdempotencyKey,
+		arg.RecoveryPoint,
+		arg.RecoveryState,
+		arg.ID,
+		arg.LockToken,
+	)
 	return err
 }
 
@@ -156,7 +163,7 @@ func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotenc
 }
 
 const lockIdempotencyKeyByID = `-- name: LockIdempotencyKeyByID :one
-SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at FROM api.idempotency_keys WHERE id = $1 FOR UPDATE
+SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at, recovery_state FROM api.idempotency_keys WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockIdempotencyKeyByID(ctx context.Context, id int64) (ApiIdempotencyKey, error) {
@@ -182,12 +189,13 @@ func (q *Queries) LockIdempotencyKeyByID(ctx context.Context, id int64) (ApiIdem
 		&i.ResponseBody,
 		&i.CreatedAt,
 		&i.LastRunAt,
+		&i.RecoveryState,
 	)
 	return i, err
 }
 
 const lockIdempotencyKeyRow = `-- name: LockIdempotencyKeyRow :one
-SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at FROM api.idempotency_keys
+SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at, recovery_state FROM api.idempotency_keys
 WHERE merchant_id = $1 AND livemode = $2 AND key = $3
 FOR UPDATE
 `
@@ -221,6 +229,7 @@ func (q *Queries) LockIdempotencyKeyRow(ctx context.Context, arg LockIdempotency
 		&i.ResponseBody,
 		&i.CreatedAt,
 		&i.LastRunAt,
+		&i.RecoveryState,
 	)
 	return i, err
 }

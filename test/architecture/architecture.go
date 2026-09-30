@@ -37,7 +37,7 @@ func (v Violation) String() string {
 
 // buildTags must name every build tag the repository uses, so that no file is hidden
 // from the check. Keep it in step with the Makefile's vet target.
-const buildTags = "integration,e2e"
+const buildTags = "integration,e2e,simulation"
 
 func Load(ctx context.Context, dir string) ([]Package, error) {
 	cmd := exec.CommandContext(ctx, "go", "list", "-e", "-tags="+buildTags,

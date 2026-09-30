@@ -45,7 +45,7 @@ fmt-check: ## Fail if any file is not formatted
 
 .PHONY: vet
 vet: ## Run go vet, including code behind build tags
-	$(GO) vet -tags=integration,e2e ./...
+	$(GO) vet -tags=integration,e2e,simulation ./...
 
 .PHONY: lint
 lint: ## Run golangci-lint
@@ -72,8 +72,15 @@ test-integration: ## Integration tests against real dependencies in Docker (test
 	$(GO) test -race -count=1 -tags=integration -run=. ./...
 
 .PHONY: test-e2e
-test-e2e: ## The golden path, end to end (grows from phase 3)
+test-e2e: ## The golden path, end to end
 	$(GO) test -race -count=1 -tags=e2e ./test/e2e/...
+
+SIM_PAYMENTS ?= 300
+
+.PHONY: test-simulation
+test-simulation: ## Deterministic simulation: SIM_PAYMENTS payments with faults; SIM_SEED replays a run
+	SIM_PAYMENTS=$(SIM_PAYMENTS) SIM_SEED=$(SIM_SEED) $(GO) test -count=1 -timeout=60m -tags=simulation -v ./test/simulation/ | grep -E 'simulation_test.go|scripts_test.go|^(---|ok|FAIL)'
+
 
 .PHONY: tidy
 tidy: ## Tidy both modules
@@ -110,6 +117,6 @@ clean: ## Stop local infrastructure and delete its volumes and bin/
 	rm -rf bin/
 
 .PHONY: demo
-demo: ## Run the golden path against local infrastructure (from phase 3)
-	@echo "The golden path demo starts with phase 3 (payment intents); see docs/plan.md." >&2
-	@exit 1
+demo: ## Walk through the golden path, narrating each step
+	$(GO) test -count=1 -tags=e2e -run=TestGoldenPath -v ./test/e2e/ | grep -E 'golden_path_test.go|^(---|ok|FAIL)'
+

@@ -193,3 +193,20 @@ func (l *Ledger) ExpireDue(ctx context.Context, pool *pgxpool.Pool, limit int32)
 	}
 	return expired, errors.Join(failures...)
 }
+
+// Resolution returns the transaction that resolved a pending transfer, or
+// ErrTransactionNotFound while it is still open.
+func (l *Ledger) Resolution(ctx context.Context, q db.DBTX, pendingID id.ID) (Transaction, error) {
+	row, err := db.New(q).GetResolution(ctx, optionalID(pendingID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Transaction{}, fmt.Errorf("%w: %s is unresolved", ErrTransactionNotFound, pendingID)
+	}
+	if err != nil {
+		return Transaction{}, err
+	}
+	resolutionID, err := TransactionPrefix.Parse(row.ID)
+	if err != nil {
+		return Transaction{}, err
+	}
+	return l.Transaction(ctx, q, resolutionID)
+}

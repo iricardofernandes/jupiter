@@ -17,11 +17,214 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Payment intents
+  - name: Refunds
+  - name: Test helpers
   - name: API keys
   - name: Webhook endpoints
   - name: Events
 
 paths:
+  /v1/payment_intents:
+    get:
+      operationId: listPaymentIntents
+      tags: [Payment intents]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+      responses:
+        "200":
+          description: A page of payment intents, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntentList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createPaymentIntent
+      tags: [Payment intents]
+      description: |
+        Creates a payment intent, and confirms it at once when confirm is true. A card that
+        declines answers 402 with the intent, now back in requires_payment_method.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePaymentIntentRequest" }
+      responses:
+        "200":
+          description: The payment intent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/payment_intents/{id}:
+    get:
+      operationId: getPaymentIntent
+      tags: [Payment intents]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The payment intent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: updatePaymentIntent
+      tags: [Payment intents]
+      description: Changes a payment intent before it is confirmed.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePaymentIntentRequest" }
+      responses:
+        "200":
+          description: The payment intent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/payment_intents/{id}/confirm:
+    post:
+      operationId: confirmPaymentIntent
+      tags: [Payment intents]
+      description: |
+        Tries to pay. The intent ends in requires_capture (manual capture), succeeded
+        (automatic), requires_action, or back in requires_payment_method with a 402 when
+        the card declines. When the rail's answer is lost, it stays in processing until
+        Jupiter learns the outcome, and a webhook reports it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmPaymentIntentRequest" }
+      responses:
+        "200":
+          description: The payment intent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/payment_intents/{id}/capture:
+    post:
+      operationId: capturePaymentIntent
+      tags: [Payment intents]
+      description: Captures all or part of an authorization; the rest is released.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CapturePaymentIntentRequest" }
+      responses:
+        "200":
+          description: The payment intent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/payment_intents/{id}/cancel:
+    post:
+      operationId: cancelPaymentIntent
+      tags: [Payment intents]
+      description: Cancels a payment intent, voiding its authorization if it has one.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CancelPaymentIntentRequest" }
+      responses:
+        "200":
+          description: The payment intent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/refunds:
+    get:
+      operationId: listRefunds
+      tags: [Refunds]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+        - name: payment_intent
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of refunds, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RefundList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createRefund
+      tags: [Refunds]
+      description: Refunds all or part of a succeeded payment intent.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRefundRequest" }
+      responses:
+        "200":
+          description: The refund.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Refund" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/refunds/{id}:
+    get:
+      operationId: getRefund
+      tags: [Refunds]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The refund.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Refund" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/test_helpers/payment_intents/{id}/complete_action:
+    post:
+      operationId: completePaymentIntentAction
+      tags: [Test helpers]
+      description: |
+        Test mode only. Plays the cardholder's part in a requires_action intent: succeeded
+        resumes the authorization, failed returns the intent to requires_payment_method.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompleteActionRequest" }
+      responses:
+        "200":
+          description: The payment intent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentIntent" }
+        default: { $ref: "#/components/responses/Failure" }
+
   /v1/api_keys:
     get:
       operationId: listApiKeys
@@ -294,8 +497,10 @@ components:
       properties:
         type:
           type: string
-          enum: [api_error, authentication_error, permission_error, invalid_request_error, idempotency_error, rate_limit_error]
+          enum: [api_error, authentication_error, card_error, permission_error, invalid_request_error, idempotency_error, rate_limit_error]
         code: { type: string }
+        decline_code: { type: string }
+        payment_intent: { $ref: "#/components/schemas/PaymentIntent" }
         message: { type: string }
         param: { type: string }
         request_id: { type: string }
@@ -308,6 +513,128 @@ components:
         object: { type: string, enum: [list] }
         has_more: { type: boolean }
         url: { type: string }
+
+    PaymentIntent:
+      type: object
+      required: [id, object, livemode, amount, currency, capture_method, status, payment_method, description,
+                 amount_capturable, amount_received, amount_refunded, latest_attempt, last_payment_error,
+                 next_action, cancellation_reason, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [payment_intent] }
+        livemode: { type: boolean }
+        amount: { type: integer, format: int64, description: "In the currency's minor unit, such as centavos." }
+        currency: { type: string, description: "Lower-case ISO 4217 code." }
+        capture_method: { type: string, enum: [automatic, manual] }
+        status:
+          type: string
+          enum: [requires_payment_method, requires_confirmation, requires_action, processing, requires_capture, succeeded, canceled]
+        payment_method: { type: string, nullable: true }
+        description: { type: string }
+        amount_capturable: { type: integer, format: int64 }
+        amount_received: { type: integer, format: int64 }
+        amount_refunded: { type: integer, format: int64 }
+        latest_attempt: { type: string, nullable: true }
+        last_payment_error:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/PaymentError" }]
+        next_action:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/NextAction" }]
+        cancellation_reason: { type: string, nullable: true }
+        created: { type: integer, format: int64 }
+    PaymentError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        decline_code: { type: string }
+        message: { type: string }
+    NextAction:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, description: "use_test_authentication: complete it with the test helper." }
+    PaymentIntentList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/PaymentIntent" }
+    CreatePaymentIntentRequest:
+      type: object
+      required: [amount, currency]
+      additionalProperties: false
+      properties:
+        amount: { type: integer, format: int64, minimum: 1 }
+        currency: { type: string }
+        capture_method: { type: string, enum: [automatic, manual] }
+        payment_method: { type: string }
+        description: { type: string, maxLength: 1000 }
+        confirm: { type: boolean }
+    UpdatePaymentIntentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amount: { type: integer, format: int64, minimum: 1 }
+        payment_method: { type: string }
+        description: { type: string, maxLength: 1000 }
+    ConfirmPaymentIntentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        payment_method: { type: string }
+    CapturePaymentIntentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amount_to_capture: { type: integer, format: int64, minimum: 1 }
+    CancelPaymentIntentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        cancellation_reason: { type: string, enum: [duplicate, fraudulent, requested_by_customer, abandoned] }
+    CompleteActionRequest:
+      type: object
+      required: [outcome]
+      additionalProperties: false
+      properties:
+        outcome: { type: string, enum: [succeeded, failed] }
+
+    Refund:
+      type: object
+      required: [id, object, livemode, amount, currency, payment_intent, reason, status, failure_reason, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [refund] }
+        livemode: { type: boolean }
+        amount: { type: integer, format: int64 }
+        currency: { type: string }
+        payment_intent: { type: string }
+        reason: { type: string, nullable: true }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        failure_reason: { type: string, nullable: true }
+        created: { type: integer, format: int64 }
+    RefundList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Refund" }
+    CreateRefundRequest:
+      type: object
+      required: [payment_intent]
+      additionalProperties: false
+      properties:
+        payment_intent: { type: string }
+        amount: { type: integer, format: int64, minimum: 1 }
+        reason: { type: string, enum: [duplicate, fraudulent, requested_by_customer] }
 
     ApiKey:
       type: object

@@ -4,6 +4,7 @@ run:
   build-tags:
     - integration
     - e2e
+    - simulation
 
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
@@ -60,6 +61,7 @@ linters:
       enable-all: true
       disable:
         - fieldalignment # readability of structs matters more than a few bytes
+        - shadow # redeclaring err inside closures is idiomatic; it caught no bug in three phases
     nestif:
       min-complexity: 4
     nolintlint:

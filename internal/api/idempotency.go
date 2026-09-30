@@ -59,6 +59,11 @@ type request struct {
 	pathID    string
 	body      []byte
 	requestID string
+	// state is what earlier phases handed on; it is saved with each recovery point.
+	state map[string]string
+	// scratch carries a foreign call's result to the atomic step of the same phase. It
+	// is never saved: a recovery repeats the foreign call, which is idempotent.
+	scratch any
 }
 
 // outcome ends an atomic phase: either the recovery point the next phase starts from,
@@ -67,6 +72,10 @@ type outcome struct {
 	next   string
 	status int
 	body   any
+}
+
+func proceed(next string) (outcome, error) {
+	return outcome{next: next}, nil
 }
 
 func respond(body any) (outcome, error) {
@@ -124,7 +133,10 @@ func (a *API) serve(w http.ResponseWriter, r *http.Request, opName, pathID strin
 		a.writeError(w, r, invalidRequest("body_invalid", "", "The request body could not be read or is larger than 1 MB."))
 		return
 	}
-	req := &request{principal: p, version: versionFrom(r.Context()), pathID: pathID, body: body, requestID: requestIDFrom(r.Context())}
+	req := &request{
+		principal: p, version: versionFrom(r.Context()), pathID: pathID, body: body,
+		requestID: requestIDFrom(r.Context()), state: map[string]string{},
+	}
 
 	var status int
 	var raw []byte
@@ -175,6 +187,7 @@ type acquired struct {
 	id     int64
 	token  pgtype.UUID
 	point  string
+	state  []byte
 	status int
 	body   []byte
 	busy   bool
@@ -195,6 +208,9 @@ func (a *API) runKeyed(ctx context.Context, op operation, req *request, key stri
 		case got.body != nil:
 			return got.status, got.body, nil
 		case !got.busy:
+			if err := restoreState(req, got.state); err != nil {
+				return 0, nil, err
+			}
 			return a.runHeld(ctx, op, req, got.id, got.token, got.point)
 		case time.Now().After(deadline):
 			return 0, nil, errBusy
@@ -253,10 +269,21 @@ func (a *API) acquire(ctx context.Context, op operation, req *request, key strin
 		if err := q.TakeIdempotencyLock(ctx, db.TakeIdempotencyLockParams{ID: row.ID, LockToken: token, Now: timestamptz(now)}); err != nil {
 			return err
 		}
-		got = acquired{id: row.ID, token: token, point: row.RecoveryPoint}
+		got = acquired{id: row.ID, token: token, point: row.RecoveryPoint, state: row.RecoveryState}
 		return nil
 	})
 	return got, err
+}
+
+func restoreState(req *request, raw []byte) error {
+	req.state = map[string]string{}
+	if len(raw) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(raw, &req.state); err != nil {
+		return fmt.Errorf("reading recovery state: %w", err)
+	}
+	return nil
 }
 
 // runHeld runs the phases of a request that holds its key, detached from the client's
@@ -332,7 +359,13 @@ func (a *API) runAtomic(ctx context.Context, ph phase, req *request, keyID int64
 			if keyID == 0 {
 				return nil
 			}
-			return q.AdvanceIdempotencyKey(ctx, db.AdvanceIdempotencyKeyParams{RecoveryPoint: next, ID: keyID, LockToken: token})
+			state, stateErr := json.Marshal(req.state)
+			if stateErr != nil {
+				return stateErr
+			}
+			return q.AdvanceIdempotencyKey(ctx, db.AdvanceIdempotencyKeyParams{
+				RecoveryPoint: next, RecoveryState: state, ID: keyID, LockToken: token,
+			})
 		}
 		rendered, renderErr := render(out.body, req.version)
 		if renderErr != nil {
@@ -464,14 +497,15 @@ func storedRequest(row db.ApiIdempotencyKey) (*request, error) {
 	for i, s := range row.KeyScopes {
 		scopes[i] = merchant.Scope(s)
 	}
-	return &request{
+	req := &request{
 		principal: merchant.Principal{
 			Merchant: merchantID, Key: keyID, Livemode: row.Livemode, Kind: merchant.Kind(row.KeyKind),
 			Scopes: scopes, APIVersion: row.ApiVersion,
 		},
 		version: row.ApiVersion, pathID: row.PathID, body: row.RequestBody,
 		requestID: requestPrefix.New().String() + "_" + completerSource,
-	}, nil
+	}
+	return req, restoreState(req, row.RecoveryState)
 }
 
 // ReapIdempotencyKeys deletes keys past their retention and returns how many.

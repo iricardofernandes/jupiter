@@ -254,38 +254,18 @@ func (a *API) event(ctx context.Context, p merchant.Principal, e events.Event, i
 		return eventJSON(e, nil), nil
 	}
 	var related any
+	var err error
 	switch e.Object.Type {
-	case "webhook_endpoint":
-		if !p.Can(merchant.ScopeWebhookEndpointsRead) {
-			return openapi.Event{}, forbidden(string(merchant.ScopeWebhookEndpointsRead))
-		}
-		endpointID, err := events.EndpointPrefix.Parse(e.Object.ID)
-		if err != nil {
-			return openapi.Event{}, err
-		}
-		endpoint, err := a.deps.Events.Endpoint(ctx, a.deps.Pool, owner(p), endpointID)
-		if err == nil {
-			related = endpointJSON(endpoint, nil)
-		} else if !errors.Is(err, events.ErrNotFound) {
-			return openapi.Event{}, err
-		}
-	case "api_key":
-		if !p.Can(merchant.ScopeAPIKeysRead) {
-			return openapi.Event{}, forbidden(string(merchant.ScopeAPIKeysRead))
-		}
-		keyID, err := merchant.KeyPrefix.Parse(e.Object.ID)
-		if err != nil {
-			return openapi.Event{}, err
-		}
-		k, err := a.deps.Merchants.GetKey(ctx, a.deps.Pool, p, keyID)
-		if err == nil {
-			related = apiKeyJSON(k, nil)
-		} else if !errors.Is(err, merchant.ErrNotFound) {
-			return openapi.Event{}, err
-		}
+	case "webhook_endpoint", "api_key":
+		related, err = a.relatedAccountObject(ctx, p, e.Object)
+	case "payment_intent", "refund":
+		related, err = a.relatedPayment(ctx, p, e.Object)
 	}
-	if related == nil {
+	if errors.Is(err, errRelatedGone) || (err == nil && related == nil) {
 		return eventJSON(e, nil), nil
+	}
+	if err != nil {
+		return openapi.Event{}, err
 	}
 	raw, err := json.Marshal(related)
 	if err != nil {
@@ -296,4 +276,47 @@ func (a *API) event(ctx context.Context, p merchant.Principal, e events.Event, i
 		return openapi.Event{}, err
 	}
 	return eventJSON(e, object), nil
+}
+
+// errRelatedGone marks a related object deleted since the event; it is left out.
+var errRelatedGone = errors.New("related object no longer exists")
+
+// relatedAccountObject reads an endpoint or API key for include[].
+func (a *API) relatedAccountObject(ctx context.Context, p merchant.Principal, ref events.ObjectRef) (any, error) {
+	if ref.Type == "webhook_endpoint" {
+		return a.relatedEndpoint(ctx, p, ref.ID)
+	}
+	if !p.Can(merchant.ScopeAPIKeysRead) {
+		return nil, forbidden(string(merchant.ScopeAPIKeysRead))
+	}
+	keyID, err := merchant.KeyPrefix.Parse(ref.ID)
+	if err != nil {
+		return nil, err
+	}
+	k, err := a.deps.Merchants.GetKey(ctx, a.deps.Pool, p, keyID)
+	if errors.Is(err, merchant.ErrNotFound) {
+		return nil, errRelatedGone
+	}
+	if err != nil {
+		return nil, err
+	}
+	return apiKeyJSON(k, nil), nil
+}
+
+func (a *API) relatedEndpoint(ctx context.Context, p merchant.Principal, rawID string) (any, error) {
+	if !p.Can(merchant.ScopeWebhookEndpointsRead) {
+		return nil, forbidden(string(merchant.ScopeWebhookEndpointsRead))
+	}
+	endpointID, err := events.EndpointPrefix.Parse(rawID)
+	if err != nil {
+		return nil, err
+	}
+	endpoint, err := a.deps.Events.Endpoint(ctx, a.deps.Pool, owner(p), endpointID)
+	if errors.Is(err, events.ErrNotFound) {
+		return nil, errRelatedGone
+	}
+	if err != nil {
+		return nil, err
+	}
+	return endpointJSON(endpoint, nil), nil
 }

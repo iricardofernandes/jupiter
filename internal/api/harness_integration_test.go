@@ -23,7 +23,9 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/events"
+	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
@@ -33,7 +35,7 @@ import (
 var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
-	os.Exit(postgrestest.Main(m, &server, merchant.Migrate, events.Migrate, api.Migrate, jobs.Migrate))
+	os.Exit(postgrestest.Main(m, &server, ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate))
 }
 
 type clock struct {
@@ -59,12 +61,22 @@ type harness struct {
 	api       *api.API
 	events    *events.Service
 	merchants *merchant.Service
+	payments  *payments.Service
+	ledger    *ledger.Ledger
 	clock     *clock
 	server    *httptest.Server
 	keys      map[string]string
 }
 
-func newHarness(t *testing.T, apiVersion string) *harness {
+// harnessOption changes the harness before the API is built.
+type harnessOption func(*payments.Config)
+
+// withRail replaces the test rail, for rails that misbehave in ways the test rail does not.
+func withRail(r payments.Rail) harnessOption {
+	return func(c *payments.Config) { c.TestRail = r }
+}
+
+func newHarness(t *testing.T, apiVersion string, opts ...harnessOption) *harness {
 	t.Helper()
 	pool := server.Pool(t)
 	key := make([]byte, 32)
@@ -85,7 +97,13 @@ func newHarness(t *testing.T, apiVersion string) *harness {
 		Box: box, Jobs: inserter, Render: api.RenderEvent, Now: c.Now,
 		AllowPrivateNetworks: true, RetryBase: 20 * time.Millisecond,
 	})
-	h.api = api.New(api.Deps{Pool: pool, Merchants: h.merchants, Events: h.events, Box: box, Now: c.Now})
+	h.ledger = ledger.New(ledger.WithClock(c.Now))
+	cfg := payments.Config{Ledger: h.ledger, Events: h.events, TestRail: payments.NewTestRail(pool, c.Now, nil), Now: c.Now}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	h.payments = payments.New(cfg)
+	h.api = api.New(api.Deps{Pool: pool, Merchants: h.merchants, Events: h.events, Payments: h.payments, Box: box, Now: c.Now})
 	h.server = httptest.NewServer(h.api.Handler())
 	t.Cleanup(h.server.Close)
 	h.newMerchant(apiVersion)

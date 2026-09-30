@@ -13,6 +13,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
@@ -27,6 +28,8 @@ const (
 	checkInterval     = 5 * time.Minute
 	completerInterval = time.Minute
 	reaperInterval    = time.Hour
+	resolveInterval   = 15 * time.Second
+	expireAuthsEvery  = time.Minute
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -68,8 +71,11 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		pool.Close()
 		return service.App{}, err
 	}
-	a := api.New(api.Deps{Pool: pool, Merchants: merchant.New(nil), Events: eventService, Box: box, Logger: logger})
 	l := ledger.New()
+	paymentService := payments.New(payments.Config{
+		Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, logger),
+	})
+	a := api.New(api.Deps{Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Box: box, Logger: logger})
 
 	return service.App{
 		Ready: pool.Ping,
@@ -80,6 +86,8 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 			service.Every(logger, "ledger.check", checkInterval, check(l, pool, logger)),
 			service.Every(logger, "api.complete_abandoned", completerInterval, completeAbandoned(a, logger)),
 			service.Every(logger, "api.reap_idempotency_keys", reaperInterval, reap(a, logger)),
+			service.Every(logger, "payments.resolve", resolveInterval, resolve(paymentService, pool, logger)),
+			service.Every(logger, "payments.expire_authorizations", expireAuthsEvery, expireAuthorizations(paymentService, pool, logger)),
 		},
 		Close: pool.Close,
 	}, nil

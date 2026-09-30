@@ -40,12 +40,25 @@ const (
 	TypeWebhookEndpointDeleted = "webhook_endpoint.deleted"
 	TypeAPIKeyCreated          = "api_key.created"
 	TypeAPIKeyRevoked          = "api_key.revoked"
+
+	TypePaymentIntentCreated        = "payment_intent.created"
+	TypePaymentIntentProcessing     = "payment_intent.processing"
+	TypePaymentIntentRequiresAction = "payment_intent.requires_action"
+	TypePaymentIntentCapturable     = "payment_intent.amount_capturable_updated"
+	TypePaymentIntentSucceeded      = "payment_intent.succeeded"
+	TypePaymentIntentPaymentFailed  = "payment_intent.payment_failed"
+	TypePaymentIntentCanceled       = "payment_intent.canceled"
+	TypeRefundCreated               = "refund.created"
+	TypeRefundUpdated               = "refund.updated"
 )
 
 // Types lists every event type an endpoint can subscribe to, besides "*".
 var Types = []string{
 	TypeWebhookEndpointCreated, TypeWebhookEndpointUpdated, TypeWebhookEndpointDeleted,
 	TypeAPIKeyCreated, TypeAPIKeyRevoked,
+	TypePaymentIntentCreated, TypePaymentIntentProcessing, TypePaymentIntentRequiresAction,
+	TypePaymentIntentCapturable, TypePaymentIntentSucceeded, TypePaymentIntentPaymentFailed,
+	TypePaymentIntentCanceled, TypeRefundCreated, TypeRefundUpdated,
 }
 
 // Owner scopes every object to a merchant and a mode; test and live data never mix.

@@ -71,6 +71,87 @@ func (e ApiKeyListObject) Valid() bool {
 	}
 }
 
+// Defines values for CancelPaymentIntentRequestCancellationReason.
+const (
+	CancelPaymentIntentRequestCancellationReasonAbandoned           CancelPaymentIntentRequestCancellationReason = "abandoned"
+	CancelPaymentIntentRequestCancellationReasonDuplicate           CancelPaymentIntentRequestCancellationReason = "duplicate"
+	CancelPaymentIntentRequestCancellationReasonFraudulent          CancelPaymentIntentRequestCancellationReason = "fraudulent"
+	CancelPaymentIntentRequestCancellationReasonRequestedByCustomer CancelPaymentIntentRequestCancellationReason = "requested_by_customer"
+)
+
+// Valid indicates whether the value is a known member of the CancelPaymentIntentRequestCancellationReason enum.
+func (e CancelPaymentIntentRequestCancellationReason) Valid() bool {
+	switch e {
+	case CancelPaymentIntentRequestCancellationReasonAbandoned:
+		return true
+	case CancelPaymentIntentRequestCancellationReasonDuplicate:
+		return true
+	case CancelPaymentIntentRequestCancellationReasonFraudulent:
+		return true
+	case CancelPaymentIntentRequestCancellationReasonRequestedByCustomer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CompleteActionRequestOutcome.
+const (
+	CompleteActionRequestOutcomeFailed    CompleteActionRequestOutcome = "failed"
+	CompleteActionRequestOutcomeSucceeded CompleteActionRequestOutcome = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the CompleteActionRequestOutcome enum.
+func (e CompleteActionRequestOutcome) Valid() bool {
+	switch e {
+	case CompleteActionRequestOutcomeFailed:
+		return true
+	case CompleteActionRequestOutcomeSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreatePaymentIntentRequestCaptureMethod.
+const (
+	CreatePaymentIntentRequestCaptureMethodAutomatic CreatePaymentIntentRequestCaptureMethod = "automatic"
+	CreatePaymentIntentRequestCaptureMethodManual    CreatePaymentIntentRequestCaptureMethod = "manual"
+)
+
+// Valid indicates whether the value is a known member of the CreatePaymentIntentRequestCaptureMethod enum.
+func (e CreatePaymentIntentRequestCaptureMethod) Valid() bool {
+	switch e {
+	case CreatePaymentIntentRequestCaptureMethodAutomatic:
+		return true
+	case CreatePaymentIntentRequestCaptureMethodManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRefundRequestReason.
+const (
+	CreateRefundRequestReasonDuplicate           CreateRefundRequestReason = "duplicate"
+	CreateRefundRequestReasonFraudulent          CreateRefundRequestReason = "fraudulent"
+	CreateRefundRequestReasonRequestedByCustomer CreateRefundRequestReason = "requested_by_customer"
+)
+
+// Valid indicates whether the value is a known member of the CreateRefundRequestReason enum.
+func (e CreateRefundRequestReason) Valid() bool {
+	switch e {
+	case CreateRefundRequestReasonDuplicate:
+		return true
+	case CreateRefundRequestReasonFraudulent:
+		return true
+	case CreateRefundRequestReasonRequestedByCustomer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeletedObjectDeleted.
 const (
 	True DeletedObjectDeleted = true
@@ -90,6 +171,7 @@ func (e DeletedObjectDeleted) Valid() bool {
 const (
 	ApiError            ErrorType = "api_error"
 	AuthenticationError ErrorType = "authentication_error"
+	CardError           ErrorType = "card_error"
 	IdempotencyError    ErrorType = "idempotency_error"
 	InvalidRequestError ErrorType = "invalid_request_error"
 	PermissionError     ErrorType = "permission_error"
@@ -102,6 +184,8 @@ func (e ErrorType) Valid() bool {
 	case ApiError:
 		return true
 	case AuthenticationError:
+		return true
+	case CardError:
 		return true
 	case IdempotencyError:
 		return true
@@ -155,6 +239,138 @@ const (
 func (e ListMetaObject) Valid() bool {
 	switch e {
 	case ListMetaObjectList:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentIntentCaptureMethod.
+const (
+	PaymentIntentCaptureMethodAutomatic PaymentIntentCaptureMethod = "automatic"
+	PaymentIntentCaptureMethodManual    PaymentIntentCaptureMethod = "manual"
+)
+
+// Valid indicates whether the value is a known member of the PaymentIntentCaptureMethod enum.
+func (e PaymentIntentCaptureMethod) Valid() bool {
+	switch e {
+	case PaymentIntentCaptureMethodAutomatic:
+		return true
+	case PaymentIntentCaptureMethodManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentIntentObject.
+const (
+	PaymentIntentObjectPaymentIntent PaymentIntentObject = "payment_intent"
+)
+
+// Valid indicates whether the value is a known member of the PaymentIntentObject enum.
+func (e PaymentIntentObject) Valid() bool {
+	switch e {
+	case PaymentIntentObjectPaymentIntent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentIntentStatus.
+const (
+	PaymentIntentStatusCanceled              PaymentIntentStatus = "canceled"
+	PaymentIntentStatusProcessing            PaymentIntentStatus = "processing"
+	PaymentIntentStatusRequiresAction        PaymentIntentStatus = "requires_action"
+	PaymentIntentStatusRequiresCapture       PaymentIntentStatus = "requires_capture"
+	PaymentIntentStatusRequiresConfirmation  PaymentIntentStatus = "requires_confirmation"
+	PaymentIntentStatusRequiresPaymentMethod PaymentIntentStatus = "requires_payment_method"
+	PaymentIntentStatusSucceeded             PaymentIntentStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the PaymentIntentStatus enum.
+func (e PaymentIntentStatus) Valid() bool {
+	switch e {
+	case PaymentIntentStatusCanceled:
+		return true
+	case PaymentIntentStatusProcessing:
+		return true
+	case PaymentIntentStatusRequiresAction:
+		return true
+	case PaymentIntentStatusRequiresCapture:
+		return true
+	case PaymentIntentStatusRequiresConfirmation:
+		return true
+	case PaymentIntentStatusRequiresPaymentMethod:
+		return true
+	case PaymentIntentStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentIntentListObject.
+const (
+	PaymentIntentListObjectList PaymentIntentListObject = "list"
+)
+
+// Valid indicates whether the value is a known member of the PaymentIntentListObject enum.
+func (e PaymentIntentListObject) Valid() bool {
+	switch e {
+	case PaymentIntentListObjectList:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RefundObject.
+const (
+	RefundObjectRefund RefundObject = "refund"
+)
+
+// Valid indicates whether the value is a known member of the RefundObject enum.
+func (e RefundObject) Valid() bool {
+	switch e {
+	case RefundObjectRefund:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RefundStatus.
+const (
+	RefundStatusFailed    RefundStatus = "failed"
+	RefundStatusPending   RefundStatus = "pending"
+	RefundStatusSucceeded RefundStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the RefundStatus enum.
+func (e RefundStatus) Valid() bool {
+	switch e {
+	case RefundStatusFailed:
+		return true
+	case RefundStatusPending:
+		return true
+	case RefundStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RefundListObject.
+const (
+	RefundListObjectList RefundListObject = "list"
+)
+
+// Valid indicates whether the value is a known member of the RefundListObject enum.
+func (e RefundListObject) Valid() bool {
+	switch e {
+	case RefundListObjectList:
 		return true
 	default:
 		return false
@@ -260,11 +476,60 @@ type ApiKeyList struct {
 // ApiKeyListObject defines model for ApiKeyList.Object.
 type ApiKeyListObject string
 
+// CancelPaymentIntentRequest defines model for CancelPaymentIntentRequest.
+type CancelPaymentIntentRequest struct {
+	CancellationReason *CancelPaymentIntentRequestCancellationReason `json:"cancellation_reason,omitempty"`
+}
+
+// CancelPaymentIntentRequestCancellationReason defines model for CancelPaymentIntentRequest.CancellationReason.
+type CancelPaymentIntentRequestCancellationReason string
+
+// CapturePaymentIntentRequest defines model for CapturePaymentIntentRequest.
+type CapturePaymentIntentRequest struct {
+	AmountToCapture *int64 `json:"amount_to_capture,omitempty"`
+}
+
+// CompleteActionRequest defines model for CompleteActionRequest.
+type CompleteActionRequest struct {
+	Outcome CompleteActionRequestOutcome `json:"outcome"`
+}
+
+// CompleteActionRequestOutcome defines model for CompleteActionRequest.Outcome.
+type CompleteActionRequestOutcome string
+
+// ConfirmPaymentIntentRequest defines model for ConfirmPaymentIntentRequest.
+type ConfirmPaymentIntentRequest struct {
+	PaymentMethod *string `json:"payment_method,omitempty"`
+}
+
 // CreateApiKeyRequest defines model for CreateApiKeyRequest.
 type CreateApiKeyRequest struct {
 	Name   *string  `json:"name,omitempty"`
 	Scopes []string `json:"scopes"`
 }
+
+// CreatePaymentIntentRequest defines model for CreatePaymentIntentRequest.
+type CreatePaymentIntentRequest struct {
+	Amount        int64                                    `json:"amount"`
+	CaptureMethod *CreatePaymentIntentRequestCaptureMethod `json:"capture_method,omitempty"`
+	Confirm       *bool                                    `json:"confirm,omitempty"`
+	Currency      string                                   `json:"currency"`
+	Description   *string                                  `json:"description,omitempty"`
+	PaymentMethod *string                                  `json:"payment_method,omitempty"`
+}
+
+// CreatePaymentIntentRequestCaptureMethod defines model for CreatePaymentIntentRequest.CaptureMethod.
+type CreatePaymentIntentRequestCaptureMethod string
+
+// CreateRefundRequest defines model for CreateRefundRequest.
+type CreateRefundRequest struct {
+	Amount        *int64                     `json:"amount,omitempty"`
+	PaymentIntent string                     `json:"payment_intent"`
+	Reason        *CreateRefundRequestReason `json:"reason,omitempty"`
+}
+
+// CreateRefundRequestReason defines model for CreateRefundRequest.Reason.
+type CreateRefundRequestReason string
 
 // CreateWebhookEndpointRequest defines model for CreateWebhookEndpointRequest.
 type CreateWebhookEndpointRequest struct {
@@ -285,12 +550,14 @@ type DeletedObjectDeleted bool
 
 // Error defines model for Error.
 type Error struct {
-	Code      string    `json:"code"`
-	DocUrl    string    `json:"doc_url"`
-	Message   string    `json:"message"`
-	Param     *string   `json:"param,omitempty"`
-	RequestId string    `json:"request_id"`
-	Type      ErrorType `json:"type"`
+	Code          string         `json:"code"`
+	DeclineCode   *string        `json:"decline_code,omitempty"`
+	DocUrl        string         `json:"doc_url"`
+	Message       string         `json:"message"`
+	Param         *string        `json:"param,omitempty"`
+	PaymentIntent *PaymentIntent `json:"payment_intent,omitempty"`
+	RequestId     string         `json:"request_id"`
+	Type          ErrorType      `json:"type"`
 }
 
 // ErrorType defines model for Error.Type.
@@ -338,6 +605,94 @@ type ListMeta struct {
 // ListMetaObject defines model for ListMeta.Object.
 type ListMetaObject string
 
+// NextAction defines model for NextAction.
+type NextAction struct {
+	// Type use_test_authentication: complete it with the test helper.
+	Type string `json:"type"`
+}
+
+// PaymentError defines model for PaymentError.
+type PaymentError struct {
+	Code        string  `json:"code"`
+	DeclineCode *string `json:"decline_code,omitempty"`
+	Message     string  `json:"message"`
+}
+
+// PaymentIntent defines model for PaymentIntent.
+type PaymentIntent struct {
+	// Amount In the currency's minor unit, such as centavos.
+	Amount             int64                      `json:"amount"`
+	AmountCapturable   int64                      `json:"amount_capturable"`
+	AmountReceived     int64                      `json:"amount_received"`
+	AmountRefunded     int64                      `json:"amount_refunded"`
+	CancellationReason *string                    `json:"cancellation_reason"`
+	CaptureMethod      PaymentIntentCaptureMethod `json:"capture_method"`
+	Created            int64                      `json:"created"`
+
+	// Currency Lower-case ISO 4217 code.
+	Currency         string              `json:"currency"`
+	Description      string              `json:"description"`
+	Id               string              `json:"id"`
+	LastPaymentError *PaymentError       `json:"last_payment_error"`
+	LatestAttempt    *string             `json:"latest_attempt"`
+	Livemode         bool                `json:"livemode"`
+	NextAction       *NextAction         `json:"next_action"`
+	Object           PaymentIntentObject `json:"object"`
+	PaymentMethod    *string             `json:"payment_method"`
+	Status           PaymentIntentStatus `json:"status"`
+}
+
+// PaymentIntentCaptureMethod defines model for PaymentIntent.CaptureMethod.
+type PaymentIntentCaptureMethod string
+
+// PaymentIntentObject defines model for PaymentIntent.Object.
+type PaymentIntentObject string
+
+// PaymentIntentStatus defines model for PaymentIntent.Status.
+type PaymentIntentStatus string
+
+// PaymentIntentList defines model for PaymentIntentList.
+type PaymentIntentList struct {
+	Data    []PaymentIntent         `json:"data"`
+	HasMore bool                    `json:"has_more"`
+	Object  PaymentIntentListObject `json:"object"`
+	Url     string                  `json:"url"`
+}
+
+// PaymentIntentListObject defines model for PaymentIntentList.Object.
+type PaymentIntentListObject string
+
+// Refund defines model for Refund.
+type Refund struct {
+	Amount        int64        `json:"amount"`
+	Created       int64        `json:"created"`
+	Currency      string       `json:"currency"`
+	FailureReason *string      `json:"failure_reason"`
+	Id            string       `json:"id"`
+	Livemode      bool         `json:"livemode"`
+	Object        RefundObject `json:"object"`
+	PaymentIntent string       `json:"payment_intent"`
+	Reason        *string      `json:"reason"`
+	Status        RefundStatus `json:"status"`
+}
+
+// RefundObject defines model for Refund.Object.
+type RefundObject string
+
+// RefundStatus defines model for Refund.Status.
+type RefundStatus string
+
+// RefundList defines model for RefundList.
+type RefundList struct {
+	Data    []Refund         `json:"data"`
+	HasMore bool             `json:"has_more"`
+	Object  RefundListObject `json:"object"`
+	Url     string           `json:"url"`
+}
+
+// RefundListObject defines model for RefundList.Object.
+type RefundListObject string
+
 // RelatedObject What the event is about. Events are thin: fetch the object for its current state,
 // or ask for it inline with include[]=related_object.
 type RelatedObject struct {
@@ -357,6 +712,13 @@ type ResendEventRequest struct {
 // RollSecretRequest defines model for RollSecretRequest.
 type RollSecretRequest struct {
 	ExpireCurrentIn *int `json:"expire_current_in,omitempty"`
+}
+
+// UpdatePaymentIntentRequest defines model for UpdatePaymentIntentRequest.
+type UpdatePaymentIntentRequest struct {
+	Amount        *int64  `json:"amount,omitempty"`
+	Description   *string `json:"description,omitempty"`
+	PaymentMethod *string `json:"payment_method,omitempty"`
 }
 
 // UpdateWebhookEndpointRequest defines model for UpdateWebhookEndpointRequest.
@@ -471,6 +833,64 @@ type ResendEventParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
+// ListPaymentIntentsParams defines parameters for ListPaymentIntents.
+type ListPaymentIntentsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartingAfter An object id; the page starts with the next older object.
+	StartingAfter *StartingAfter `form:"starting_after,omitempty" json:"starting_after,omitempty"`
+
+	// EndingBefore An object id; the page ends with the next newer object.
+	EndingBefore *EndingBefore `form:"ending_before,omitempty" json:"ending_before,omitempty"`
+}
+
+// CreatePaymentIntentParams defines parameters for CreatePaymentIntent.
+type CreatePaymentIntentParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// UpdatePaymentIntentParams defines parameters for UpdatePaymentIntent.
+type UpdatePaymentIntentParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CancelPaymentIntentParams defines parameters for CancelPaymentIntent.
+type CancelPaymentIntentParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CapturePaymentIntentParams defines parameters for CapturePaymentIntent.
+type CapturePaymentIntentParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ConfirmPaymentIntentParams defines parameters for ConfirmPaymentIntent.
+type ConfirmPaymentIntentParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ListRefundsParams defines parameters for ListRefunds.
+type ListRefundsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartingAfter An object id; the page starts with the next older object.
+	StartingAfter *StartingAfter `form:"starting_after,omitempty" json:"starting_after,omitempty"`
+
+	// EndingBefore An object id; the page ends with the next newer object.
+	EndingBefore  *EndingBefore `form:"ending_before,omitempty" json:"ending_before,omitempty"`
+	PaymentIntent *string       `form:"payment_intent,omitempty" json:"payment_intent,omitempty"`
+}
+
+// CreateRefundParams defines parameters for CreateRefund.
+type CreateRefundParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CompletePaymentIntentActionParams defines parameters for CompletePaymentIntentAction.
+type CompletePaymentIntentActionParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // ListWebhookEndpointsParams defines parameters for ListWebhookEndpoints.
 type ListWebhookEndpointsParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
@@ -502,6 +922,27 @@ type CreateApiKeyJSONRequestBody = CreateApiKeyRequest
 
 // ResendEventJSONRequestBody defines body for ResendEvent for application/json ContentType.
 type ResendEventJSONRequestBody = ResendEventRequest
+
+// CreatePaymentIntentJSONRequestBody defines body for CreatePaymentIntent for application/json ContentType.
+type CreatePaymentIntentJSONRequestBody = CreatePaymentIntentRequest
+
+// UpdatePaymentIntentJSONRequestBody defines body for UpdatePaymentIntent for application/json ContentType.
+type UpdatePaymentIntentJSONRequestBody = UpdatePaymentIntentRequest
+
+// CancelPaymentIntentJSONRequestBody defines body for CancelPaymentIntent for application/json ContentType.
+type CancelPaymentIntentJSONRequestBody = CancelPaymentIntentRequest
+
+// CapturePaymentIntentJSONRequestBody defines body for CapturePaymentIntent for application/json ContentType.
+type CapturePaymentIntentJSONRequestBody = CapturePaymentIntentRequest
+
+// ConfirmPaymentIntentJSONRequestBody defines body for ConfirmPaymentIntent for application/json ContentType.
+type ConfirmPaymentIntentJSONRequestBody = ConfirmPaymentIntentRequest
+
+// CreateRefundJSONRequestBody defines body for CreateRefund for application/json ContentType.
+type CreateRefundJSONRequestBody = CreateRefundRequest
+
+// CompletePaymentIntentActionJSONRequestBody defines body for CompletePaymentIntentAction for application/json ContentType.
+type CompletePaymentIntentActionJSONRequestBody = CompleteActionRequest
 
 // CreateWebhookEndpointJSONRequestBody defines body for CreateWebhookEndpoint for application/json ContentType.
 type CreateWebhookEndpointJSONRequestBody = CreateWebhookEndpointRequest
@@ -535,6 +976,39 @@ type ServerInterface interface {
 
 	// (POST /v1/events/{id}/resend)
 	ResendEvent(w http.ResponseWriter, r *http.Request, id ID, params ResendEventParams)
+
+	// (GET /v1/payment_intents)
+	ListPaymentIntents(w http.ResponseWriter, r *http.Request, params ListPaymentIntentsParams)
+
+	// (POST /v1/payment_intents)
+	CreatePaymentIntent(w http.ResponseWriter, r *http.Request, params CreatePaymentIntentParams)
+
+	// (GET /v1/payment_intents/{id})
+	GetPaymentIntent(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (POST /v1/payment_intents/{id})
+	UpdatePaymentIntent(w http.ResponseWriter, r *http.Request, id ID, params UpdatePaymentIntentParams)
+
+	// (POST /v1/payment_intents/{id}/cancel)
+	CancelPaymentIntent(w http.ResponseWriter, r *http.Request, id ID, params CancelPaymentIntentParams)
+
+	// (POST /v1/payment_intents/{id}/capture)
+	CapturePaymentIntent(w http.ResponseWriter, r *http.Request, id ID, params CapturePaymentIntentParams)
+
+	// (POST /v1/payment_intents/{id}/confirm)
+	ConfirmPaymentIntent(w http.ResponseWriter, r *http.Request, id ID, params ConfirmPaymentIntentParams)
+
+	// (GET /v1/refunds)
+	ListRefunds(w http.ResponseWriter, r *http.Request, params ListRefundsParams)
+
+	// (POST /v1/refunds)
+	CreateRefund(w http.ResponseWriter, r *http.Request, params CreateRefundParams)
+
+	// (GET /v1/refunds/{id})
+	GetRefund(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (POST /v1/test_helpers/payment_intents/{id}/complete_action)
+	CompletePaymentIntentAction(w http.ResponseWriter, r *http.Request, id ID, params CompletePaymentIntentActionParams)
 
 	// (GET /v1/webhook_endpoints)
 	ListWebhookEndpoints(w http.ResponseWriter, r *http.Request, params ListWebhookEndpointsParams)
@@ -917,6 +1391,521 @@ func (siw *ServerInterfaceWrapper) ResendEvent(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListPaymentIntents operation middleware
+func (siw *ServerInterfaceWrapper) ListPaymentIntents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPaymentIntentsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "starting_after" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "starting_after", r.URL.Query(), &params.StartingAfter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "starting_after"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "starting_after", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "ending_before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "ending_before", r.URL.Query(), &params.EndingBefore, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ending_before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ending_before", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPaymentIntents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePaymentIntent operation middleware
+func (siw *ServerInterfaceWrapper) CreatePaymentIntent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreatePaymentIntentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePaymentIntent(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPaymentIntent operation middleware
+func (siw *ServerInterfaceWrapper) GetPaymentIntent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPaymentIntent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePaymentIntent operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePaymentIntent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdatePaymentIntentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePaymentIntent(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelPaymentIntent operation middleware
+func (siw *ServerInterfaceWrapper) CancelPaymentIntent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CancelPaymentIntentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelPaymentIntent(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CapturePaymentIntent operation middleware
+func (siw *ServerInterfaceWrapper) CapturePaymentIntent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CapturePaymentIntentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CapturePaymentIntent(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmPaymentIntent operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmPaymentIntent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ConfirmPaymentIntentParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmPaymentIntent(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRefunds operation middleware
+func (siw *ServerInterfaceWrapper) ListRefunds(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRefundsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "starting_after" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "starting_after", r.URL.Query(), &params.StartingAfter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "starting_after"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "starting_after", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "ending_before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "ending_before", r.URL.Query(), &params.EndingBefore, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ending_before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ending_before", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "payment_intent" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "payment_intent", r.URL.Query(), &params.PaymentIntent, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "payment_intent"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "payment_intent", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRefunds(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateRefund operation middleware
+func (siw *ServerInterfaceWrapper) CreateRefund(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateRefundParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateRefund(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRefund operation middleware
+func (siw *ServerInterfaceWrapper) GetRefund(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRefund(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompletePaymentIntentAction operation middleware
+func (siw *ServerInterfaceWrapper) CompletePaymentIntentAction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CompletePaymentIntentActionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompletePaymentIntentAction(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListWebhookEndpoints operation middleware
 func (siw *ServerInterfaceWrapper) ListWebhookEndpoints(w http.ResponseWriter, r *http.Request) {
 
@@ -1289,6 +2278,17 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/payment_intents", wrapper.ListPaymentIntents)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payment_intents", wrapper.CreatePaymentIntent)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/payment_intents/{id}", wrapper.GetPaymentIntent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payment_intents/{id}", wrapper.UpdatePaymentIntent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payment_intents/{id}/confirm", wrapper.ConfirmPaymentIntent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payment_intents/{id}/capture", wrapper.CapturePaymentIntent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payment_intents/{id}/cancel", wrapper.CancelPaymentIntent)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/refunds", wrapper.ListRefunds)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/refunds", wrapper.CreateRefund)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/refunds/{id}", wrapper.GetRefund)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/test_helpers/payment_intents/{id}/complete_action", wrapper.CompletePaymentIntentAction)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/api_keys", wrapper.ListApiKeys)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/api_keys", wrapper.CreateApiKey)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/api_keys/{id}", wrapper.GetApiKey)
@@ -1311,46 +2311,67 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"Nv8fAA==",
+	"7Fzrc9s2tv9XMLx3Ju0MIympm+aqcz+4Te4db7Mbj5Pdfog9CkQeWahJgAVA2dqM/vedA4BvUC9Ldjzp",
+	"N4kA8Tgv/M4D/BJEIs0EB65VMP4SZFTSFDRI8+8tjxm//gVmQgL+j0FFkmWaCR6Mg1NOxPQPiDRh8c9E",
+	"z4Fk9BoI8FiRW6bn5hGHO0043IJ0nQdBGDB8/c8c5DIIA05TCMYBmLkmUztZGKhoDinFWfUyww5KS8av",
+	"g9UqDM7e4HMzSkb1vBqExUEYSPgzZxLiYKxlDhtGiiHNhAYeLX+DZTnqHGgMshq31u059qsPmtK7d8Cv",
+	"9TwYv/zxx9A3CY+SPPZQ8AISqiF2lFFECyJB55ITxhPGYUDeLpAzhEYRZJpI239SURLuskTEUGzVR1hm",
+	"Z/901Vg105AqD03K9VMp6RL/K71M8MFMyBT/v2Mp0yWlWpMlprE+UQwzmic6GL8YhUgrluYp/sF/jLt/",
+	"5ayMa7gGacj2QVOpGb8+nWmQW4ufwrfaAiiSeKMAKjfdhJr51snNKgwkqExwBYaG/0dZklsViQTXwA19",
+	"aJYlLKK43OEfCtf8pTbmf0uYBePgv4aVAg5tqxq+lVLICzeDna+5949zICjmoDSZUZZAPDAkcwPg+KcZ",
+	"cxKdSZGB1MyuNZKAMoQ/kaNUW6q/Ogm6TAhRoXwycsO4aQCO7PsUKIgkIN+zfJowNafTBIwm4isRTncV",
+	"dkdJqNIn3vETtoBUxFBrnAqRAOXBqmCY5zXL4PrCaMYmN7D0Ti9hIW56KMHzJDGbcIrVpYyKRAZqN1Va",
+	"0CT3mAHk5g0sCdMKkllIMgkKuCaCJ0vCuBHjQt6InlNNHBMJM9LctTiVCfxkbaKjTI2yjomOmgUzyn2F",
+	"paBUpHODrEInXO+YsoKeJO9nwfjTeqHG3n8HTYNV2JbJmOqmUVo3jp27S97Wts2Y3bVfrcLgV8ojSM7p",
+	"MgWuz4y+XlhlMruJY4aMocl5bZEzmigI27pkBkqMik8kUKfkhfDFuTUAEITBTNI8zhPg2p1QoNCST5eT",
+	"KFdapMbi0CnlseBedVl52PArzXQu4QA7oanIuZ5oMYnsmF6t2GCwu+sTaZaAhtMIl7HfykSuI5FCna4q",
+	"jyKAGFB6rfXz06suDsUwV95l8hmT6QHImNkhJinouYj9kKM7vVE0K9b7TVsYxBoUMQdsxyBtY7RSxs9s",
+	"44sNKuZGu+rd08EEc2dpDAMnxzVWlGdCrkVKNYtwDMpzmniPh8hKhf8IinIpEQ16Kdiw7m2u+NiyjdjU",
+	"Ce+IUltGPw8uYJbz+IGJX2yIlWDIc/re01xuVPnWIvpJ9DtM50LcvOVxJti+gtrP9B+9PAeO+CKewKLw",
+	"vfZSyTDIZdJ2Q0YnrzcRB9/qLMJHojeQgIb4fQmt2ts2zTU+apnDVejRmR4sWYG2XXBMMa9vyQY+d5ca",
+	"NQFlXV8j9LYm/R1ENHFk7vIGlKLX/veMN93T0laQdZCnYUeDVakRkx6S2gdNFAyGKCFavzlw7RyT8nFE",
+	"ZVz+yUCmTKl6O+MLmrB4UsxcPq884/KZpBomxhN0jzaqqmkNLYcqkjb2WXGhl+Wlx9RhPRQSsdHr6iyt",
+	"vYPanAvHuiM4WOsdoK6fYxS4x8upxww20cBFJN6XmyxEaRfddNysuRoFTTrL6aXr4/gWlqX3cC3KhXTE",
+	"Yk7VJHVxtG04miABfAz1G6I23C14UU5rX/TR+x9wpy1C7666YH/TYc0VTDTqZdOYjEnkAD9huorAYE8y",
+	"hyQDudlbNa2+VTobeHDb3m+/WytrGac1azwrjXofnGqS88y6+AWYe6ZIyriQJOdMh0Tl0ZxQRSLgmi6E",
+	"QhpuYVicR2dhsA1lfNnhPQkRsAXEu76FYHPrt3r8557gSw2a3xvb72Sj62C/ybl34hbk84gqIGcf3pOT",
+	"ly9+IignHjnvuAWd9r6jgCo9KfBCeZBtZxcbSrO6ase1zOhWkbWGNNNbUX9DcA7u9ISW5mS7ddZMkHeV",
+	"XfPYC+7XeVUbt6Y01bmqz+MsgJq0RgurFucoGimuP3dEMI5CBErhHPXXrBAHYSOeYVVim4hGb1yv6x12",
+	"NKbcaYdKTTH1mZGuieiqf0euvGLcFBa/OVgfh2wY3MeBDB1svi90sI76ulNjG1O1t2Hr6MLMJjV2scsH",
+	"ArNWjNbq9FaBhT3UPbNpyJZSbhtk3EklW1spF17TzRYL1uuClZ/HUQI79/2kv+54dA7a3zHrgSDJODqE",
+	"KUKnItdVglRiZoTxMZmBjizutMOTmZCYWXHwSmOCUEN4iQCLqhvX7BKuFrSWGdP/bSVcL501r5FpY1DD",
+	"H0KyAtlNA9n3nrVXS27nwIt1xYRyTP0QpVmSELhjSqsa4hCbnLctfQgjzc6X6/MdLkABjw0T9gub3drY",
+	"2wRc8G3LmPmFSJIPJum437RwlzEJE0flCStidjam+Wp08rqRoB5tl+/4ZxY/ctT7KKHnnn0+7bBp1/a7",
+	"oYMwiJmyP9f431vEWzt0a1HMc9ZnbLIAqfpchN2O900Oxy60bJPvQEd9R/19FHfVBd68uWLXnPFrYvu0",
+	"cufWampySxX5I1dV3lxIIkViyia2ggW7icaeIMGG5Jvwu8WiGjaoi8p6YNCSusdBCG3R3xsqWHnIJdPL",
+	"Dzi2XcsUqAR5mut5WWVjZM88rng81zqz9TSMz0RXov6WZ0yDxAgMyGhOuSan52cGZchlVYNhX5qCMjjD",
+	"caEQNAk8BonFGdzAiUuOndzIz//lOtsKM6xbYorEIspTlNrmwAUGcBMMLvklP60ibg6tUCf7RqjLghtT",
+	"UEIVocTSgGhxA3xAfoOlQiWZsTuIL/lnG8f7TGiEOmNidc9RHgkywACNzxOU0clnbMZfVbOtutK3gnBY",
+	"gCQpuzNrtNQ6f//hoytcU4Ry0qqhcxQYkFMiQctlFS9UNLX1MDh78eCST0W8dOVxljwzJpWumILvi1zj",
+	"TtAg0GvK+M/NAR29YjabAVLWDcqQabNcQWwRnmbaVLw5nqEIBGFQ2uXg5ejlq+ej/3n+w8gYtQw4zVgw",
+	"Dn4YjAY/GGSv50Yqh4sXQ1eBZP5fWyuGSmSc3LMYY0hMaZv8t+54VYDZo5pVl6GtxVuFGzs2a+m2eKFR",
+	"+okxmUbB28vR6GDFbrVaIk+l26mt6hMzZKAKTSmp0pb3A3vIufpC/yzlsodFkR7Ooek10jc4PT8z4wbo",
+	"gmRCeQ4ZmyJGRWoq14CcaUVMRZcVIBRMiO3BY4q2zFM7Ox4zTa7Xiz52ZnuratWyx6CvX0S8PBhnfIUp",
+	"q6ahdvG5IwtHXwkkh1tkRejctoIfB5WLVdhQ4+EXFq96dfn/Qe/L0jcPoWV9hER5PjbRhrbeEscuNK1J",
+	"vAvTfg/6hfspzqNQ3BWfHovyFaTvPXPeFpDy6zxyQn+BuYtHrKnp3ywErhz/qNyvkthrDzXLp0Mfa461",
+	"LWnYaLrMa8fSvAcjep/GGSIclbZD43vGdQvXXMYbQAAtVS2SaWBqiDc/BDd3Z4x7hFheC+wil9VDlU+t",
+	"exBjIx53KPxdbFELyj2kHT08APFEF1fd2xdPXYKaiYD1RrsRW/w2/YVuzm+thXXUJY66hza1583ht3Ik",
+	"mksKjZ/rksgKowgUXfEIbPjKNaCPoWUO6C9jrZ65B3LJXXkLOtjqFi3Lyehl5UkXE3BxS6Y0ukG/pCeh",
+	"bT1fn4/SoPfX7ap4I+8P7LG08sF+S9KUgGNIod+2bIQA92T2mwdU/cejba+Gzym/9mg4sZdaTZpRFQpt",
+	"Y89NBnjyR0/7AF+TEPtLLVtqObTlL/3o0V5b8x0gC8Hw9DWQEEsyhWT/NkQibIZSN6cK4aUnCtW9Cfe0",
+	"BW7N1b4jI8cnIWDl1b4+CTMdFKFJgi5IRqVGDEV5U6x+Lq6kahv6TIAqnz3z3U986vLVf+PyLwGrXZnz",
+	"C9hHycB85iCjywH5WEJU+9GIOjp1skq+s1W8xP3/PiRlYdYl/64s9/0+JK26yxAFeAPoLRJCBjTPgdtU",
+	"nYHXBbAekN8RheNzSVnyrEDaKPiJUDq0hTh0aZZfVXqSnGuWXPIih5QALfJW7iqqxf2UuBQ4kZAJqdEB",
+	"8GJxzx3VJ65Ka27dflOqZMsd1/v9F67PE4vWdmoc++O2x/QbaqWRa2MFjhOHjhEUzOv3HFyPzrlbGbuO",
+	"OPqddTvQ1+2lN28kP7AfUFSq9mVlsPWQHG/q+Eb/e1/+HdnxfiSqmdoUe3NM9SEOe+GsduOkB3mgPpvK",
+	"FUzQD8h5Qpf2OMbjfm4+EPRMWc1j3GT7G3DC6d24Dj8kqDx1tToNfBy6j/I0ylUc0tGiGnqLEJzbX+PE",
+	"Oi0vljzl09/3aZBvISjwsboOWRP1diHkejjQqqb7NhMBvrrG9cnWglyHPuDdSqoJtkkD8LK7LSVqVrLu",
+	"X1PUIsvXjQV6asgf2A50ilP7y40KntVqjizDjiNFfdahBBL2OxhdK2E/23FvWTgyrmh+XKSH7GX+G6tr",
+	"7X7jY+lsHy772gm5pQSXFufIJs+X1jgECb+yxMaTsl65WXJ8ZBlYa7CGeOliUl3n8J+QZ0rlJouG9rZ5",
+	"Kg7Ir8W9OPNfkRuArOw0BcVik2ebCXnJO5e88C2BfvZ3bt/k9auT0SjEjHsqlCb24hcGGQVx15ulIhHl",
+	"RN0yHc0veVFlbr6Pg2XmaJGw29IH3/GaWos9H8pPZT7hupzO7bsjB+x2NG+1w9nI0DEP6Np9FMPH+k2U",
+	"T1fIAQVyUXDZ3BAy11DGw+GLlz8NRoPR4MX49ej1yHDLTVV80q8TNFyFZVPhLdceNVyL2vOyPrT2rLuZ",
+	"WqMrUVpdrf4zAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

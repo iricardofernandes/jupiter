@@ -28,4 +28,5 @@ type ApiIdempotencyKey struct {
 	ResponseBody   []byte
 	CreatedAt      pgtype.Timestamptz
 	LastRunAt      pgtype.Timestamptz
+	RecoveryState  []byte
 }

@@ -26,7 +26,8 @@ WHERE id = @id;
 SELECT recovery_point FROM api.idempotency_keys WHERE id = @id AND lock_token = @lock_token FOR UPDATE;
 
 -- name: AdvanceIdempotencyKey :exec
-UPDATE api.idempotency_keys SET recovery_point = @recovery_point WHERE id = @id AND lock_token = @lock_token;
+UPDATE api.idempotency_keys SET recovery_point = @recovery_point, recovery_state = @recovery_state
+WHERE id = @id AND lock_token = @lock_token;
 
 -- name: FinishIdempotencyKey :execrows
 UPDATE api.idempotency_keys

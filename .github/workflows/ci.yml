@@ -60,6 +60,16 @@ jobs:
           go-version-file: go.mod
       - run: make test-integration
 
+  simulation:
+    name: deterministic simulation (10,000 payments)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make test-simulation SIM_PAYMENTS=10000
+
   e2e:
     name: golden path
     runs-on: ubuntu-latest

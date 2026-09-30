@@ -8,6 +8,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 )
 
 func applyQueued(l *ledger.Ledger, pool *pgxpool.Pool) func(context.Context) error {
@@ -58,6 +59,26 @@ func reap(a *api.API, logger *slog.Logger) func(context.Context) error {
 		n, err := a.ReapIdempotencyKeys(ctx)
 		if n > 0 {
 			logger.InfoContext(ctx, "reaped idempotency keys", "count", n)
+		}
+		return err
+	}
+}
+
+func resolve(p *payments.Service, pool *pgxpool.Pool, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		n, err := p.Resolve(ctx, pool)
+		if n > 0 {
+			logger.InfoContext(ctx, "resolved payment operations", "count", n)
+		}
+		return err
+	}
+}
+
+func expireAuthorizations(p *payments.Service, pool *pgxpool.Pool, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		n, err := p.ExpireAuthorizations(ctx, pool)
+		if n > 0 {
+			logger.InfoContext(ctx, "voided expired authorizations", "count", n)
 		}
 		return err
 	}

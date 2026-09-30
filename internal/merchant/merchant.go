@@ -51,6 +51,10 @@ const (
 	ScopeWebhookEndpointWrite Scope = "webhook_endpoints:write"
 	ScopeEventsRead           Scope = "events:read"
 	ScopeEventsWrite          Scope = "events:write"
+	ScopePaymentIntentsRead   Scope = "payment_intents:read"
+	ScopePaymentIntentsWrite  Scope = "payment_intents:write"
+	ScopeRefundsRead          Scope = "refunds:read"
+	ScopeRefundsWrite         Scope = "refunds:write"
 )
 
 // AllScopes is what a secret key holds. A restricted key holds a subset; a publishable
@@ -59,6 +63,8 @@ var AllScopes = []Scope{
 	ScopeAPIKeysRead, ScopeAPIKeysWrite,
 	ScopeWebhookEndpointsRead, ScopeWebhookEndpointWrite,
 	ScopeEventsRead, ScopeEventsWrite,
+	ScopePaymentIntentsRead, ScopePaymentIntentsWrite,
+	ScopeRefundsRead, ScopeRefundsWrite,
 }
 
 type Merchant struct {
@@ -95,8 +101,10 @@ type Principal struct {
 	APIVersion string
 }
 
+// Can reports whether the key may act with scope. A secret key may do everything,
+// including what later versions add, so its stored scopes never go stale.
 func (p Principal) Can(scope Scope) bool {
-	return slices.Contains(p.Scopes, scope)
+	return p.Kind == Secret || slices.Contains(p.Scopes, scope)
 }
 
 type Service struct {

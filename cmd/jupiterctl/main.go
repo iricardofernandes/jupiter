@@ -17,6 +17,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 )
@@ -100,7 +101,7 @@ func check(ctx context.Context, pool *pgxpool.Pool) error {
 
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, m := range []func(context.Context, *pgxpool.Pool) error{
-		ledger.Migrate, merchant.Migrate, events.Migrate, api.Migrate, jobs.Migrate,
+		ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate,
 	} {
 		if err := m(ctx, pool); err != nil {
 			return err

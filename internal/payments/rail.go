@@ -1,0 +1,80 @@
+package payments
+
+import (
+	"context"
+	"slices"
+
+	"github.com/iricardofernandes/jupiter/internal/money"
+)
+
+type Outcome string
+
+const (
+	Approved       Outcome = "approved"
+	Declined       Outcome = "declined"
+	ActionRequired Outcome = "requires_action"
+	// Unknown means the call may or may not have taken effect: a timeout, a lost
+	// response, a broken connection. It is never treated as a decline.
+	Unknown Outcome = "unknown"
+	// Pending answers a query about a request the rail has received but not finished.
+	Pending Outcome = "pending"
+	// NotFound answers a query about a request the rail never received.
+	NotFound Outcome = "not_found"
+)
+
+type Result struct {
+	Outcome     Outcome
+	Reference   string
+	DeclineCode string
+}
+
+type AuthorizeRequest struct {
+	Key           string
+	Amount        money.Amount
+	PaymentMethod string
+	Authenticated bool
+}
+
+// OperationRequest acts on an earlier authorization, named by the key it was sent with,
+// so a void can reverse an authorization whose answer never arrived.
+type OperationRequest struct {
+	Key              string
+	AuthorizationKey string
+	Reference        string
+	Amount           money.Amount
+}
+
+// Rail is what a payment method implements to move money: the test rail today, card
+// networks and Pix in later phases. Every call carries an idempotency key derived from
+// the attempt or refund it serves, so repeating a call, which recovery does, is safe.
+// Query reports what became of the request sent with a key.
+type Rail interface {
+	Authorize(ctx context.Context, r AuthorizeRequest) Result
+	Capture(ctx context.Context, r OperationRequest) Result
+	Void(ctx context.Context, r OperationRequest) Result
+	Refund(ctx context.Context, r OperationRequest) Result
+	Query(ctx context.Context, key string) Result
+}
+
+// Test payment methods stand for cards until the vault (phase 4) accepts real test card
+// numbers. Amounts whose last two minor digits are 91 to 93 make the rail misbehave:
+// see TestRail.
+const (
+	TestCardVisa                   = "pm_card_visa"
+	TestCardMastercard             = "pm_card_mastercard"
+	TestCardDeclined               = "pm_card_declined"
+	TestCardInsufficientFunds      = "pm_card_insufficient_funds"
+	TestCardAuthenticationRequired = "pm_card_authentication_required"
+)
+
+var TestPaymentMethods = []string{
+	TestCardVisa, TestCardMastercard, TestCardDeclined, TestCardInsufficientFunds, TestCardAuthenticationRequired,
+}
+
+func knownPaymentMethod(pm string) bool {
+	return slices.Contains(TestPaymentMethods, pm)
+}
+
+func captureKey(attemptID string) string { return attemptID + ":capture" }
+
+func voidKey(attemptID string) string { return attemptID + ":void" }

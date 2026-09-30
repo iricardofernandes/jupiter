@@ -28,6 +28,7 @@ func (a *API) registerOperations() map[string]operation {
 		{name: "roll_webhook_endpoint_secret", scope: merchant.ScopeWebhookEndpointWrite, phases: []phase{{point: pointStarted, atomic: a.rollWebhookEndpointSecret}}},
 		{name: "resend_event", scope: merchant.ScopeEventsWrite, phases: []phase{{point: pointStarted, atomic: a.resendEvent}}},
 	}
+	ops = append(ops, a.paymentOperations()...)
 	out := make(map[string]operation, len(ops))
 	for _, op := range ops {
 		out[op.name] = op

@@ -1,14 +1,57 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/iricardofernandes/jupiter/internal/api/openapi"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 )
 
 var objectPaths = map[string]string{
 	"api_key":          "/v1/api_keys/",
 	"webhook_endpoint": "/v1/webhook_endpoints/",
+	"payment_intent":   "/v1/payment_intents/",
+	"refund":           "/v1/refunds/",
+}
+
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func paymentIntentJSON(it payments.Intent) openapi.PaymentIntent {
+	out := openapi.PaymentIntent{
+		Id: it.ID.String(), Object: "payment_intent", Livemode: it.Owner.Livemode,
+		Amount: it.Amount.Minor(), Currency: strings.ToLower(it.Amount.Currency().Code()),
+		CaptureMethod: openapi.PaymentIntentCaptureMethod(it.CaptureMethod), Status: openapi.PaymentIntentStatus(it.Status),
+		PaymentMethod: optional(it.PaymentMethod), Description: it.Description,
+		AmountCapturable: it.AmountCapturable.Minor(), AmountReceived: it.AmountReceived.Minor(),
+		AmountRefunded: it.AmountRefunded.Minor(), CancellationReason: optional(it.CancellationReason),
+		Created: it.CreatedAt.Unix(),
+	}
+	if !it.LatestAttempt.IsZero() {
+		out.LatestAttempt = optional(it.LatestAttempt.String())
+	}
+	if it.LastError != nil {
+		out.LastPaymentError = &openapi.PaymentError{Code: it.LastError.Code, Message: it.LastError.Message, DeclineCode: optional(it.LastError.DeclineCode)}
+	}
+	if it.NextAction != "" {
+		out.NextAction = &openapi.NextAction{Type: it.NextAction}
+	}
+	return out
+}
+
+func refundJSON(r payments.Refund) openapi.Refund {
+	return openapi.Refund{
+		Id: r.ID.String(), Object: "refund", Livemode: r.Owner.Livemode, Amount: r.Amount.Minor(),
+		Currency: strings.ToLower(r.Amount.Currency().Code()), PaymentIntent: r.Intent.String(),
+		Reason: optional(r.Reason), Status: openapi.RefundStatus(r.Status), FailureReason: optional(r.FailureReason),
+		Created: r.CreatedAt.Unix(),
+	}
 }
 
 func apiKeyJSON(k merchant.Key, value *string) openapi.ApiKey {

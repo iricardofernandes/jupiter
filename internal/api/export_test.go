@@ -25,7 +25,7 @@ func NewTestPhase(point string, foreign func(context.Context) error, atomic func
 			return outcome{}, err
 		}
 		if next != "" {
-			return outcome{next: next}, nil
+			return proceed(next)
 		}
 		return respond(body)
 	}
