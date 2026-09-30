@@ -108,3 +108,27 @@ confirming answers `livemode_unsupported`. The network's issuer answers by card 
 | `4000000000000150` | Approved by the network in stand-in up to R$ 500.00; `issuer_not_available` above |
 
 The simulator's [README](../../internal/sim/cardnetwork/README.md) has the details.
+
+## 3-D Secure
+
+`request_three_d_secure: "any"` asks the cardholder to authenticate; `automatic`, the
+default, leaves it to the risk engine. In live mode the directory server simulator
+answers by card number ([README](../../internal/sim/3ds/README.md)). Any card not below is
+authenticated frictionless, and liability for fraud moves to the issuer.
+
+| Number | Result |
+|---|---|
+| `4000000000003220` | Challenge: `requires_action` with `next_action.redirect_to_url`. Send the customer there; the code is `123456`. They return to your `return_url` with `?payment_intent=pi_…`, and the payment goes on by itself: watch for `payment_intent.succeeded` |
+| `4000000000003238`, `4000000000003246` | Not authenticated or rejected: `payment_intent_authentication_failure` |
+| `4000000000003253` | Unavailable: paid without authentication |
+| `4000000000003261` | Attempted: paid, liability moved |
+
+In test mode there is no directory server: a payment that asks for 3-D Secure waits in
+`requires_action` for the test helper below.
+
+## Risk
+
+The risk engine decides on every payment; the intent's `risk_decision` says what it
+decided. Send the customer's `customer_ip` for its address rules. [Risk](risk.md)
+describes the rules, the lists and card-testing detection; `go run ./cmd/loadgen
+-scenario card-testing` sends a burst that trips it.

@@ -6,15 +6,16 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **5 — card network over ISO 8583** · milestone M1 reached
+> ### Current phase: **6 — 3-D Secure, network tokens and risk** · milestone M1 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
-> kept in a separate vault, and now live payments over ISO 8583 to a card network and
-> issuer simulator: installments, stored credentials, reversals when the network does not
-> answer, late answers ignored, and the network's daily clearing file imported. A
-> deterministic simulation runs 10,000 payments with faults in the rail, the vault and the
-> network on every push. Next are 3-D Secure, network tokens and risk rules (phase 6);
-> see [`docs/plan.md`](docs/plan.md).
+> kept in a separate vault, live payments over ISO 8583 to a card network and issuer
+> simulator, and now the decisions around them: a risk engine with velocity rules,
+> merchant rules and card-testing detection, 3-D Secure 2 authentication against a
+> simulated directory server and ACS, frictionless or with a challenge, and network
+> tokens with their lifecycle. A deterministic simulation runs 10,000 payments with faults
+> on every push. Next is Pix (phase 7), which reaches milestone M2; see
+> [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -58,7 +59,7 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, and test cards and amounts |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, and the risk engine |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
@@ -102,7 +103,8 @@ stacks:
 Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
 
 To run the binaries, start the vault first (`go run ./cmd/vault`) and, for live mode, the
-card network (`go run ./cmd/sim-card-network`), then the API and the worker
+card network and 3-D Secure simulators (`go run ./cmd/sim-card-network`,
+`go run ./cmd/sim-3ds`), then the API and the worker
 (`go run ./cmd/api`, `go run ./cmd/worker`). [`.env.example`](.env.example) lists
 what each reads: databases, keys (`openssl rand -base64 32`) and the certificates from
 `make certs`. Then save a card and pay with it:
@@ -128,11 +130,12 @@ internal/money/      amounts, currencies, rates, rounding and allocation
 internal/id/         prefixed, time-ordered identifiers
 internal/platform/   process lifecycle, PostgreSQL and other shared infrastructure
 internal/sim/<name>/ a simulator's code, isolated from Jupiter's domain
-pkg/                 libraries meant for other projects too: webhook verification, the card network protocol; later BR Code, CNAB 240
+pkg/                 libraries meant for other projects too: webhook verification, the card network and 3-D Secure protocols, the load generator; later BR Code, CNAB 240
 test/architecture/   the test that enforces these boundaries
 test/e2e/            the golden path
 test/pci/            the test that the API database never holds a card number
-test/cardrail/       live payments through the card network simulator
+test/cardrail/       live payments through the card network and 3-D Secure simulators
+test/risk/           a card-testing burst from the load generator
 test/simulation/     the deterministic simulation
 deploy/              configuration for the local infrastructure
 tools/               pinned development tools

@@ -28,6 +28,9 @@ point at its replacement.
 | [0019](0019-acquirer-connector-over-iso8583.md) | The acquirer connector: every message recorded, requests reversed, advices repeated | Accepted |
 | [0020](0020-rule-tables-as-embedded-dated-files.md) | Rule tables are versioned files, embedded in the binary, with effective dates | Accepted |
 | [0021](0021-live-mode-installments-stored-credentials-clearing.md) | Live mode goes over the card network, with installments, stored credentials and clearing | Accepted |
+| [0022](0022-risk-engine-rules-velocity-card-testing.md) | A rules-based risk engine, with velocity in PostgreSQL and a decision log | Accepted |
+| [0023](0023-three-d-secure-server.md) | Jupiter runs its own 3-D Secure server against a simulated directory server | Accepted |
+| [0024](0024-network-tokens.md) | Network tokens are provisioned in the background and kept in the vault | Accepted |
 
 ## Template
 

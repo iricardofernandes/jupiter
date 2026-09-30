@@ -34,7 +34,11 @@ requirement numbers come from the research's background knowledge and are
   meant to write a number anywhere, and the canary test checks their database and logs;
   a card number held in memory can still reach a crash dump.
 - **The network between them and the vault**, which carries numbers inside mTLS, and the
-  link to the card network, which carries them in authorization requests (DE 2).
+  links that carry them onwards: to the card network, in authorization requests (DE 2),
+  in token provisioning requests, and to the 3-D Secure directory server, in
+  authentication requests.
+- **Network tokens.** The DPAN the network issues for a card is kept in the vault,
+  encrypted under the card's data key; Jupiter's database holds only its reference.
 
 ## Out of scope
 

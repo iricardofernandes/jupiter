@@ -86,8 +86,15 @@ The payment was declined. `decline_code` says why:
 | `network_unavailable` | Jupiter could not reach the card network; nothing was sent |
 | `test_mode_live_card` | A real card number in test mode |
 | `invalid_account` | The saved card is gone from the vault |
+| `blocked_by_risk` | The risk engine blocked it: the decision log says which rule |
 
 The error carries the payment intent, back in `requires_payment_method`.
+
+### payment_intent_authentication_failure
+The cardholder failed 3-D Secure authentication, or the issuer rejected it. The payment
+intent is back in `requires_payment_method`. It is also what a payment gets when 3-D
+Secure could not be reached for 15 minutes: the payment waits, in `processing`, rather
+than going on without the authentication that was asked for.
 
 ### incorrect_number
 The card number fails its check digit, or has a length its brand does not use. `param` is
