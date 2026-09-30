@@ -6,12 +6,13 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **0 — foundation**
+> ### Current phase: **1 — ledger**
 >
-> The repository layout, tooling, local infrastructure, CI, the money and identifier
-> packages and the first architecture decisions are in place. No payment behaviour exists
-> yet; the ledger is phase 1. What each phase delivers, and what must be true before the
-> next begins, is in [`docs/plan.md`](docs/plan.md).
+> The double-entry ledger is in place: append-only entries, two-phase transfers, separate
+> books for client and own funds, invariants enforced by PostgreSQL and verified
+> continuously, and batched balances for hot accounts. No payment exists yet; payment
+> intents are phase 3. What each phase delivers, and what must be true before the next
+> begins, is in [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -55,6 +56,7 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
+| [`docs/benchmarks/`](docs/benchmarks/) | Measurements, with the command and hardware that produced them |
 | [`docs/research/`](docs/research/) | How the payments market works, globally and in Brazil, and what it implies for Jupiter |
 
 ## Getting started
@@ -67,6 +69,8 @@ install.
 make check             # format, vet, lint, vulnerabilities, unit and architecture tests
 make test-integration  # tests against a real PostgreSQL in Docker
 make up                # local infrastructure; returns once every service is healthy
+make migrate           # apply database migrations to it
+make ledger-check      # verify the ledger's invariants on it
 make down
 make help              # every target
 ```
@@ -88,7 +92,7 @@ Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
 ## Repository layout
 
 ```
-cmd/                 one binary each: api, worker, vault, and (from phase 5) sim-<name>
+cmd/                 one binary each: api, worker, vault, jupiterctl, and (from phase 5) sim-<name>
 internal/<module>/   a domain module; its root package is its only public interface
 internal/money/      amounts, currencies, rates, rounding and allocation
 internal/id/         prefixed, time-ordered identifiers

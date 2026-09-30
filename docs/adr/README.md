@@ -14,6 +14,9 @@ point at its replacement.
 | [0005](0005-simulators-as-separate-binaries.md) | Every counterparty is a simulator in its own binary | Accepted |
 | [0006](0006-regulatory-rules-as-dated-configuration.md) | Rules regulation can change are configuration with effective dates | Accepted |
 | [0007](0007-prefixed-time-ordered-identifiers.md) | Identifiers are a type prefix and a UUIDv7 | Accepted |
+| [0008](0008-hot-accounts-with-batched-balances.md) | Hot accounts keep synchronous entries and batched balances | Accepted |
+| [0009](0009-immutable-two-phase-transfers.md) | Two-phase transfers as immutable transactions, with invariants in the database | Accepted |
+| [0010](0010-per-module-migrations.md) | Each module migrates its own schema with goose | Accepted |
 
 ## Template
 
