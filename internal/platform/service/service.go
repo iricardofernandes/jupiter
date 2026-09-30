@@ -1,6 +1,3 @@
-// Package service runs a Jupiter process: it reads configuration from the environment,
-// logs structured JSON, serves health endpoints and shuts down gracefully on SIGINT or
-// SIGTERM. Every binary under cmd/ starts through Main.
 package service
 
 import (
@@ -27,16 +24,12 @@ const (
 	shutdownTimeout   = 10 * time.Second
 )
 
-// Config is what every process needs before it can do anything else.
 type Config struct {
 	Name     string
 	HTTPAddr string
 	LogLevel slog.Level
 }
 
-// ConfigFromEnv reads the configuration for the process called name, falling back to
-// defaultAddr when JUPITER_HTTP_ADDR is unset. Invalid values are errors, so a
-// misconfigured process fails at startup rather than running with a guess.
 func ConfigFromEnv(name, defaultAddr string, getenv func(string) string) (Config, error) {
 	cfg := Config{Name: name, HTTPAddr: defaultAddr, LogLevel: slog.LevelInfo}
 	if addr := getenv(envHTTPAddr); addr != "" {
@@ -53,8 +46,6 @@ func ConfigFromEnv(name, defaultAddr string, getenv func(string) string) (Config
 	return cfg, nil
 }
 
-// Main runs the process called name until it receives SIGINT or SIGTERM, and exits with
-// a non-zero status if it fails.
 func Main(name, defaultAddr string) {
 	cfg, err := ConfigFromEnv(name, defaultAddr, os.Getenv)
 	if err != nil {
@@ -74,7 +65,6 @@ func Main(name, defaultAddr string) {
 	}
 }
 
-// Run listens on cfg.HTTPAddr and serves handler until ctx is done.
 func Run(ctx context.Context, cfg Config, handler http.Handler, logger *slog.Logger) error {
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", cfg.HTTPAddr)
@@ -84,10 +74,6 @@ func Run(ctx context.Context, cfg Config, handler http.Handler, logger *slog.Log
 	return Serve(ctx, ln, handler, logger)
 }
 
-// Serve answers health checks, and passes every other request to handler (which may be
-// nil), on ln until ctx is done. It then stops accepting connections and drains
-// in-flight requests for up to the shutdown timeout, returning nil after a clean
-// shutdown.
 func Serve(ctx context.Context, ln net.Listener, handler http.Handler, logger *slog.Logger) error {
 	server := &http.Server{
 		Handler:           routes(handler),
@@ -132,8 +118,6 @@ func routes(handler http.Handler) http.Handler {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok\n"))
 	}
-	// Liveness: the process is running. Readiness: it can take traffic. They answer
-	// the same until the process has dependencies to check.
 	mux.HandleFunc("GET /healthz", ok)
 	mux.HandleFunc("GET /readyz", ok)
 	return mux

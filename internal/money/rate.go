@@ -8,24 +8,15 @@ import (
 )
 
 var (
-	// ErrInvalidRate is returned when a string is not a plain decimal rate, and for the
-	// zero value of Rate.
-	ErrInvalidRate = errors.New("money: invalid rate")
-	// ErrRoundingMode is returned when an operation is given no valid rounding mode.
+	ErrInvalidRate  = errors.New("money: invalid rate")
 	ErrRoundingMode = errors.New("money: invalid rounding mode")
 )
 
-// Rate is an exact decimal multiplier, such as a fee of "0.0249" or a split percentage.
-// It is held as an exact rational, so multiplying by it loses nothing until the one
-// rounding step that the caller names. The zero value is invalid.
 type Rate struct {
 	value *big.Rat // never mutated after construction
-	scale int      // decimal places of the parsed string, kept for String
+	scale int
 }
 
-// ParseRate reads a plain decimal string such as "0.0249", "1" or "-0.5". Fractions,
-// exponents and explicit plus signs are rejected, so a rate is always written the way a
-// contract or a regulation writes it.
 func ParseRate(s string) (Rate, error) {
 	unsigned, _ := strings.CutPrefix(s, "-")
 	whole, fraction, hasPoint := strings.Cut(unsigned, ".")
@@ -39,7 +30,6 @@ func ParseRate(s string) (Rate, error) {
 	return Rate{value: value, scale: len(fraction)}, nil
 }
 
-// String returns the rate with the decimal places it was parsed with.
 func (r Rate) String() string {
 	if r.value == nil {
 		return "<invalid rate>"
@@ -47,11 +37,9 @@ func (r Rate) String() string {
 	return r.value.FloatString(r.scale)
 }
 
-// RoundingMode names how an exact result is brought to a whole number of minor units.
 // The zero value is deliberately not a mode, so a caller cannot round by omission.
 type RoundingMode int
 
-// Rounding modes. "Half" modes round to the nearest unit and differ only on exact ties.
 const (
 	_        RoundingMode = iota
 	HalfEven              // nearest; ties to the even unit (banker's rounding)
@@ -86,7 +74,6 @@ func (m RoundingMode) String() string {
 	}
 }
 
-// MulRate returns the amount multiplied by rate, rounded to a minor unit with mode.
 func (a Amount) MulRate(rate Rate, mode RoundingMode) (Amount, error) {
 	if err := a.currency.validate(); err != nil {
 		return Amount{}, err
@@ -110,7 +97,6 @@ func (a Amount) MulRate(rate Rate, mode RoundingMode) (Amount, error) {
 	return Amount{minor: rounded.Int64(), currency: a.currency}, nil
 }
 
-// round brings an exact rational to an integer according to mode.
 func round(x *big.Rat, mode RoundingMode) (*big.Int, error) {
 	// Truncated division gives the quotient toward zero and a remainder with x's sign.
 	quotient, remainder := new(big.Int).QuoRem(x.Num(), x.Denom(), new(big.Int))

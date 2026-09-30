@@ -43,8 +43,6 @@ func TestNewHasPrefixAndLength(t *testing.T) {
 	}
 }
 
-// The suffix encodes a UUID as 26 Crockford base32 characters, as the TypeID
-// specification does; these vectors follow from that encoding.
 func TestEncodingVectors(t *testing.T) {
 	tests := []struct {
 		uuid, suffix string
@@ -149,8 +147,6 @@ func TestZeroValue(t *testing.T) {
 	}
 }
 
-// IDs generated later sort after earlier ones as plain strings, which is what keeps
-// database indexes append-mostly and cursor pagination stable.
 func TestPropertyGenerationOrderIsStringOrder(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		n := rapid.IntRange(2, 500).Draw(t, "n")
@@ -165,7 +161,6 @@ func TestPropertyGenerationOrderIsStringOrder(t *testing.T) {
 	})
 }
 
-// Every UUID round-trips through its string form.
 func TestPropertyRoundTrip(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		var u uuid.UUID

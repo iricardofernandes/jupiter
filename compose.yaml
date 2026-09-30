@@ -1,9 +1,4 @@
-# Local infrastructure for Jupiter: `make up` starts it and waits until every service
-# reports healthy; `make down` stops it. It is for development only.
-#
-# Host ports sit in a 5xxxx range of their own so Jupiter can run beside other stacks
-# that use the defaults, and bind to 127.0.0.1 only. Each can be overridden from the
-# environment or a .env file (see .env.example).
+# Host ports use a 5xxxx range so Jupiter runs beside stacks that use the defaults.
 
 name: jupiter
 

@@ -7,15 +7,10 @@ import (
 	"slices"
 )
 
-// ErrInvalidWeights is returned when allocation weights are empty, negative or all zero.
 var ErrInvalidWeights = errors.New("money: invalid allocation weights")
 
-// Allocate splits the amount into one share per weight, in proportion to the weights,
-// using the largest-remainder method: every share first receives the floor of its exact
-// proportion, and the minor units left over go one each to the shares with the largest
-// fractional remainders, earliest weight first on a tie. The shares always sum to the
-// amount, a zero weight always receives zero, and a negative amount is split as its
-// magnitude and negated, so its shares mirror those of the positive amount.
+// Allocate uses the largest-remainder method. Ties go to the earliest weight, and a
+// negative amount is split as its magnitude so its shares mirror the positive case.
 func (a Amount) Allocate(weights ...int64) ([]Amount, error) {
 	if err := a.currency.validate(); err != nil {
 		return nil, err
@@ -68,8 +63,6 @@ func totalWeight(weights []int64) (*big.Int, error) {
 	return total, nil
 }
 
-// byLargestRemainder returns the indices of remainders ordered from the largest remainder
-// to the smallest, with ties kept in index order.
 func byLargestRemainder(remainders []*big.Int) []int {
 	order := make([]int, len(remainders))
 	for i := range order {

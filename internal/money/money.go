@@ -1,10 +1,3 @@
-// Package money represents amounts of money as integer minor units with an explicit
-// currency.
-//
-// Amounts never pass through floating point. Arithmetic between different currencies is
-// an error rather than a coercion, overflow is an error rather than a wrap, and every
-// conversion that can lose precision names its rounding mode. Splitting an amount uses
-// largest-remainder allocation, so a minor unit is never lost or invented.
 package money
 
 import (
@@ -16,26 +9,17 @@ import (
 )
 
 var (
-	// ErrUnknownCurrency is returned for a currency Jupiter does not know, including the
-	// zero value of Currency.
-	ErrUnknownCurrency = errors.New("money: unknown currency")
-	// ErrCurrencyMismatch is returned when an operation combines two currencies.
+	ErrUnknownCurrency  = errors.New("money: unknown currency")
 	ErrCurrencyMismatch = errors.New("money: currency mismatch")
-	// ErrOverflow is returned when a result does not fit in 64-bit minor units.
-	ErrOverflow = errors.New("money: overflow")
-	// ErrInvalidAmount is returned when a decimal string is not a valid amount.
-	ErrInvalidAmount = errors.New("money: invalid amount")
+	ErrOverflow         = errors.New("money: overflow")
+	ErrInvalidAmount    = errors.New("money: invalid amount")
 )
 
-// Amount is a quantity of money in a currency's minor unit (centavos for BRL). It is an
-// immutable value: every operation returns a new Amount. The zero value is invalid,
-// because it has no currency.
 type Amount struct {
 	minor    int64
 	currency Currency
 }
 
-// New returns an amount of minor units in currency c.
 func New(minor int64, c Currency) (Amount, error) {
 	if err := c.validate(); err != nil {
 		return Amount{}, err
@@ -43,25 +27,18 @@ func New(minor int64, c Currency) (Amount, error) {
 	return Amount{minor: minor, currency: c}, nil
 }
 
-// Zero returns a zero amount in currency c.
 func Zero(c Currency) (Amount, error) { return New(0, c) }
 
-// Minor returns the amount in minor units.
 func (a Amount) Minor() int64 { return a.minor }
 
-// Currency returns the amount's currency.
 func (a Amount) Currency() Currency { return a.currency }
 
-// IsZero reports whether the amount is zero.
 func (a Amount) IsZero() bool { return a.minor == 0 }
 
-// IsPositive reports whether the amount is greater than zero.
 func (a Amount) IsPositive() bool { return a.minor > 0 }
 
-// IsNegative reports whether the amount is less than zero.
 func (a Amount) IsNegative() bool { return a.minor < 0 }
 
-// Add returns a + b.
 func (a Amount) Add(b Amount) (Amount, error) {
 	if err := a.sameCurrency(b); err != nil {
 		return Amount{}, err
@@ -74,7 +51,6 @@ func (a Amount) Add(b Amount) (Amount, error) {
 	return Amount{minor: sum, currency: a.currency}, nil
 }
 
-// Sub returns a - b.
 func (a Amount) Sub(b Amount) (Amount, error) {
 	if err := a.sameCurrency(b); err != nil {
 		return Amount{}, err
@@ -87,7 +63,6 @@ func (a Amount) Sub(b Amount) (Amount, error) {
 	return Amount{minor: diff, currency: a.currency}, nil
 }
 
-// Neg returns -a.
 func (a Amount) Neg() (Amount, error) {
 	if err := a.currency.validate(); err != nil {
 		return Amount{}, err
@@ -98,7 +73,6 @@ func (a Amount) Neg() (Amount, error) {
 	return Amount{minor: -a.minor, currency: a.currency}, nil
 }
 
-// Cmp returns -1, 0 or +1 as a is less than, equal to or greater than b.
 func (a Amount) Cmp(b Amount) (int, error) {
 	if err := a.sameCurrency(b); err != nil {
 		return 0, err
@@ -126,8 +100,6 @@ func (a Amount) sameCurrency(b Amount) error {
 	return nil
 }
 
-// Decimal formats the amount in major units with exactly the currency's number of
-// decimal places, such as "600.00" or "-0.05". It is the form wire protocols use.
 func (a Amount) Decimal() string {
 	// Formatting the unsigned magnitude handles math.MinInt64, whose negation overflows.
 	magnitude := uint64(a.minor) //nolint:gosec // two's complement reinterpretation is the point
@@ -154,14 +126,11 @@ func (a Amount) Decimal() string {
 	return b.String()
 }
 
-// String formats the amount for people and logs, such as "BRL 600.00".
 func (a Amount) String() string {
 	return a.currency.code + " " + a.Decimal()
 }
 
-// Parse reads a decimal string in major units, such as "600.00", "600.5" or "-0.01".
-// A string with more decimal places than the currency's minor unit is rejected rather
-// than rounded. Signs other than a leading "-", exponents and separators are rejected.
+// Parse rejects more decimal places than the currency has instead of rounding them.
 func Parse(s string, c Currency) (Amount, error) {
 	if err := c.validate(); err != nil {
 		return Amount{}, err
@@ -184,7 +153,6 @@ func Parse(s string, c Currency) (Amount, error) {
 	}
 }
 
-// parseDigits validates s and returns its digits scaled to exponent decimal places.
 func parseDigits(s string, exponent int) (digits string, negative bool, err error) {
 	invalid := fmt.Errorf("%w: %q", ErrInvalidAmount, s)
 	unsigned, negative := strings.CutPrefix(s, "-")

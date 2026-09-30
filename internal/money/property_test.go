@@ -45,7 +45,6 @@ func hasPositive(weights []int64) bool {
 	return false
 }
 
-// Allocation never loses or invents a minor unit, whatever the amount and weights.
 func TestPropertyAllocationSumsToInput(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		c := genCurrency().Draw(t, "currency")
@@ -72,8 +71,6 @@ func TestPropertyAllocationSumsToInput(t *testing.T) {
 	})
 }
 
-// Each share is within one minor unit of its exact proportional value, and a zero weight
-// receives nothing.
 func TestPropertyAllocationIsProportional(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		a := genAmount(money.BRL).Draw(t, "amount")
@@ -100,7 +97,6 @@ func TestPropertyAllocationIsProportional(t *testing.T) {
 	})
 }
 
-// Arithmetic across currencies is always an error, never a coercion.
 func TestPropertyMixingCurrenciesIsAnError(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		ca := genCurrency().Draw(t, "currency a")
@@ -120,8 +116,6 @@ func TestPropertyMixingCurrenciesIsAnError(t *testing.T) {
 	})
 }
 
-// Add and Sub agree with unbounded integer arithmetic: they return the exact result or
-// ErrOverflow, never a wrapped value.
 func TestPropertyAddSubMatchBigInt(t *testing.T) {
 	minInt64, maxInt64 := big.NewInt(-1<<63), big.NewInt(1<<63-1)
 	fits := func(v *big.Int) bool { return v.Cmp(minInt64) >= 0 && v.Cmp(maxInt64) <= 0 }
@@ -152,7 +146,6 @@ func TestPropertyAddSubMatchBigInt(t *testing.T) {
 	})
 }
 
-// Formatting and parsing are inverses.
 func TestPropertyDecimalRoundTrips(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		c := genCurrency().Draw(t, "currency")
@@ -168,7 +161,6 @@ func TestPropertyDecimalRoundTrips(t *testing.T) {
 	})
 }
 
-// Rounding never moves a result by a whole minor unit or more from the exact product.
 func TestPropertyMulRateStaysWithinOneUnit(t *testing.T) {
 	modes := []money.RoundingMode{
 		money.HalfEven, money.HalfUp, money.HalfDown, money.Down, money.Up, money.Floor, money.Ceiling,

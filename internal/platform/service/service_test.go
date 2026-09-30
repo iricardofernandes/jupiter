@@ -97,8 +97,6 @@ func TestServeRoutesToTheHandlerBesideHealthChecks(t *testing.T) {
 	}
 }
 
-// A shutdown signal must let an in-flight request finish, with its context still live,
-// instead of cancelling it mid-way.
 func TestShutdownDrainsInFlightRequests(t *testing.T) {
 	ln := listen(t)
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -125,7 +123,7 @@ func TestShutdownDrainsInFlightRequests(t *testing.T) {
 	}()
 
 	<-entered
-	cancel() // the shutdown signal arrives while the request is in flight
+	cancel()
 	time.Sleep(100 * time.Millisecond)
 	close(release)
 

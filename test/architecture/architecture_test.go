@@ -7,7 +7,6 @@ import (
 	"github.com/iricardofernandes/jupiter/test/architecture"
 )
 
-// TestRepository is the check that guards Jupiter itself.
 func TestRepository(t *testing.T) {
 	pkgs, err := architecture.Load(t.Context(), "../..")
 	if err != nil {
@@ -21,9 +20,6 @@ func TestRepository(t *testing.T) {
 	}
 }
 
-// TestCatchesAForbiddenImport runs the same loader and rules against a fixture module
-// that reaches past another module's public interface, once in plain code and once in a
-// test file behind a build tag.
 func TestCatchesAForbiddenImport(t *testing.T) {
 	pkgs, err := architecture.Load(t.Context(), "testdata/violating")
 	if err != nil {
@@ -44,7 +40,6 @@ func TestRules(t *testing.T) {
 		from, to string
 		rule     string // "" when the import is allowed
 	}{
-		// module-boundary
 		{"internal/payments", "internal/ledger", ""},
 		{"internal/payments", "internal/ledger/store", "module-boundary"},
 		{"internal/ledger/store", "internal/ledger/store/queries", ""},
@@ -56,12 +51,10 @@ func TestRules(t *testing.T) {
 		{"internal/payments/intents", "internal/money", ""},
 		{"internal/payments/intents", "internal/platform/postgres", ""},
 
-		// shared-kernel
 		{"internal/money", "internal/ledger", "shared-kernel"},
 		{"internal/platform/service", "internal/vault", "shared-kernel"},
 		{"internal/platform/service", "internal/id", ""},
 
-		// vault-isolation
 		{"internal/vault/server", "internal/ledger", "vault-isolation"},
 		{"cmd/vault", "internal/vault/server", ""},
 		{"internal/vault/server", "internal/platform/service", ""},
@@ -70,7 +63,6 @@ func TestRules(t *testing.T) {
 		{"internal/vault/server", "test/e2e", "vault-isolation"},
 		{"cmd/vault", "internal/vault", ""},
 
-		// simulator-isolation
 		{"internal/sim/pix/spi", "internal/sim/pix/dict", ""},
 		{"cmd/sim-pix", "internal/sim/pix", ""},
 		{"cmd/sim-pix", "internal/sim/bank", "simulator-isolation"},
@@ -83,11 +75,9 @@ func TestRules(t *testing.T) {
 		{"internal/payments/pix", "internal/sim/pix", "simulator-isolation"},
 		{"cmd/api", "internal/sim/pix", "simulator-isolation"},
 
-		// pkg-independence
 		{"pkg/cnab240", "internal/money", "pkg-independence"},
 		{"pkg/cnab240", "pkg/cnab240/segments", ""},
 
-		// test/ composes everything
 		{"test/e2e", "internal/sim/pix", ""},
 		{"test/e2e", "internal/ledger/store", ""},
 	}

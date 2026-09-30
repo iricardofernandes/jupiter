@@ -1,26 +1,12 @@
-// Package architecture enforces Jupiter's module boundaries mechanically.
-//
-// Jupiter is a modular monolith (ADR 0001). The Go compiler's internal/ rule stops other
-// repositories from importing Jupiter's packages, but not one module from reaching into
-// another inside this repository. These rules do, and a test in this package fails the
-// build on any violation:
-//
-//   - module-boundary: a domain module is the package internal/<module>. Its
-//     subpackages, internal/<module>/..., are private to it. Another module, or a
-//     binary under cmd/, may import only the module's root package.
-//   - shared-kernel: internal/money, internal/id and internal/platform/... are shared by
-//     every module and must not import any domain module, the vault or a simulator.
-//   - vault-isolation: the vault (internal/vault/..., cmd/vault) keeps card data in PCI
-//     scope apart from everything else, so it imports only itself, the shared kernel
-//     and pkg/.
-//   - simulator-isolation: a simulator (internal/sim/<name>/..., cmd/sim-<name>) stands
-//     for another company. It imports only itself, internal/platform/... and pkg/, and
-//     nothing but tests under test/ may import it: Jupiter reaches simulators over the
-//     wire only.
-//   - pkg-independence: pkg/ is meant to be imported by other repositories, so it never
-//     imports internal/.
-//
-// Packages under test/ compose the whole system for end-to-end tests and are exempt.
+// Package architecture enforces the module boundaries Go's internal/ rule cannot:
+//   - module-boundary: from outside a module, only its root package internal/<module>
+//     may be imported.
+//   - shared-kernel: money, id and platform import no domain module, vault or simulator.
+//   - vault-isolation: the vault imports only itself, the shared kernel and pkg/, which
+//     keeps PCI scope small.
+//   - simulator-isolation: a simulator imports only itself, platform and pkg/, and only
+//     test/ imports it; Jupiter reaches simulators over the wire.
+//   - pkg-independence: pkg/ never imports internal/.
 package architecture
 
 import (
@@ -34,14 +20,11 @@ import (
 	"strings"
 )
 
-// Package is a package of the module under check with its intra-module imports, both
-// given relative to the module path (such as "internal/ledger").
 type Package struct {
 	Path    string
 	Imports []string
 }
 
-// Violation is one forbidden import.
 type Violation struct {
 	Rule string
 	From string
@@ -56,8 +39,6 @@ func (v Violation) String() string {
 // from the check. Keep it in step with the Makefile's vet target.
 const buildTags = "integration,e2e"
 
-// Load lists the packages of the Go module in dir, including test-only imports and files
-// behind Jupiter's build tags.
 func Load(ctx context.Context, dir string) ([]Package, error) {
 	cmd := exec.CommandContext(ctx, "go", "list", "-e", "-tags="+buildTags,
 		"-json=ImportPath,Module,Imports,TestImports,XTestImports,Error", "./...")
@@ -110,7 +91,6 @@ func relative(module, path string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(path, module), "/")
 }
 
-// Check returns every import in pkgs that breaks a rule.
 func Check(pkgs []Package) []Violation {
 	var violations []Violation
 	for _, pkg := range pkgs {

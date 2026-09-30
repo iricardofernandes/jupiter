@@ -1,4 +1,3 @@
-// Package postgrestest starts a disposable PostgreSQL for integration tests.
 package postgrestest
 
 import (
@@ -8,11 +7,9 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-// Image is the PostgreSQL image tests run against. Keep it in step with compose.yaml.
+// Keep in step with compose.yaml.
 const Image = "postgres:18.6-alpine"
 
-// URL starts a PostgreSQL container that is removed when the test ends, and returns a
-// connection URL for it.
 func URL(t testing.TB) string {
 	t.Helper()
 	ctx := t.Context()

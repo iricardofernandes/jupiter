@@ -36,8 +36,6 @@ func TestZeroValueRateIsInvalid(t *testing.T) {
 	}
 }
 
-// Each row multiplies an amount by a rate whose exact product has a known fractional
-// part, so every rounding mode is checked on ties, non-ties and both signs.
 func TestMulRateRoundingModes(t *testing.T) {
 	type want struct{ halfEven, halfUp, halfDown, down, up, floor, ceiling int64 }
 	tests := []struct {

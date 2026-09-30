@@ -1,4 +1,3 @@
-// Package postgres opens Jupiter's connection pools to PostgreSQL.
 package postgres
 
 import (
@@ -9,12 +8,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// connectTimeout bounds the first round trip, so a process with an unreachable database
-// fails at startup instead of hanging.
+// Bounds the first ping, so an unreachable database fails startup instead of hanging.
 const connectTimeout = 10 * time.Second
 
-// Connect opens a pool for the connection URL and checks that the database answers.
-// Pool settings such as pool_max_conns are read from the URL.
 func Connect(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {

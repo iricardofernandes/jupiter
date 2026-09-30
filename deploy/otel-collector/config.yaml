@@ -1,5 +1,3 @@
-# Jupiter's processes send traces and metrics here over OTLP. Traces go on to Jaeger;
-# metrics are exposed for Prometheus to scrape.
 extensions:
   health_check:
     endpoint: 0.0.0.0:13133

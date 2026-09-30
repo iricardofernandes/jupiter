@@ -5,21 +5,18 @@ import "strings"
 type kind int
 
 const (
-	kindOther  kind = iota // the module root and anything unclassified
-	kindDomain             // internal/<module>/...
-	kindShared             // internal/money, internal/id, internal/platform/...
-	kindVault              // internal/vault/..., cmd/vault
-	kindSim                // internal/sim/<name>/..., cmd/sim-<name>
-	kindCmd                // cmd/<binary>, a composition root
-	kindPkg                // pkg/...
-	kindTest               // test/...
+	kindOther kind = iota
+	kindDomain
+	kindShared
+	kindVault
+	kindSim
+	kindCmd
+	kindPkg
+	kindTest
 )
 
-// sharedKernel lists the internal packages every module may use.
 var sharedKernel = map[string]bool{"money": true, "id": true, "platform": true}
 
-// unit is a package placed in the architecture: its kind, the module or simulator it
-// belongs to, and whether it is that module's root package (its public interface).
 type unit struct {
 	kind   kind
 	name   string
@@ -67,7 +64,7 @@ func classifyInternal(segments []string) unit {
 		return unit{kind: kindShared, name: module}
 	case module == "sim":
 		if len(segments) < 3 {
-			return unit{kind: kindSim} // internal/sim itself belongs to no simulator
+			return unit{kind: kindSim}
 		}
 		return unit{kind: kindSim, name: segments[2]}
 	case module == "vault":
@@ -77,7 +74,6 @@ func classifyInternal(segments []string) unit {
 	}
 }
 
-// broken returns the name of the rule an import from one unit to another breaks, or "".
 func broken(from, to unit) string {
 	switch {
 	case from.kind == kindTest:
@@ -116,7 +112,6 @@ func simMayImport(from, to unit) bool {
 	}
 }
 
-// crossesModuleBoundary reports whether from reaches past another module's root package.
 func crossesModuleBoundary(from, to unit) bool {
 	if to.kind != kindDomain && to.kind != kindVault {
 		return false

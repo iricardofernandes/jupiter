@@ -67,8 +67,6 @@ linters:
       require-specific: true
     revive:
       rules:
-        - name: exported
-        - name: package-comments
         - name: var-naming
         - name: error-strings
         - name: error-naming
@@ -88,10 +86,6 @@ linters:
         linters:
           - funlen
           - gocognit
-      # Fixtures are code the architecture test must see, not code to lint.
-      - path: testdata/
-        linters:
-          - revive
 
 formatters:
   enable:
