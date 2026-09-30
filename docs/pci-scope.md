@@ -33,7 +33,8 @@ requirement numbers come from the research's background knowledge and are
   detokenizes a saved card in the API or worker process to authorize with it. Neither is
   meant to write a number anywhere, and the canary test checks their database and logs;
   a card number held in memory can still reach a crash dump.
-- **The network between them and the vault**, which carries numbers inside mTLS.
+- **The network between them and the vault**, which carries numbers inside mTLS, and the
+  link to the card network, which carries them in authorization requests (DE 2).
 
 ## Out of scope
 
@@ -90,6 +91,12 @@ numbers, would assess against SAQ D for service providers or with a Report on Co
   vault to forward authorizations to the card network itself, holding the connector phase
   5 builds inside Jupiter ([ADR 0018](adr/0018-how-card-numbers-enter-and-leave.md)).
 - **No deletion.** A saved card cannot yet be removed from the vault.
+- **The card network link is plain TCP.** The connector refuses an address off this
+  machine unless `JUPITER_CARDNET_PRIVATE_LINK=true` says it is a private circuit; a real
+  link would also use TLS, which the connection library supports. Only authorizations
+  carry the number: reversals, completions and refunds name the transaction instead, so
+  the store-and-forward queue holds none. Messages print with the card masked to its
+  last four digits.
 - **Development keys and certificates** come from environment variables and
   `jupiterctl dev-certs`. Split knowledge, dual control and certificate rotation belong to
   the real KMS and CA.

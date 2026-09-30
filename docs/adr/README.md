@@ -25,6 +25,9 @@ point at its replacement.
 | [0016](0016-card-vault-behind-mtls.md) | The card vault: its own process and database, reached only over mTLS | Accepted |
 | [0017](0017-envelope-encryption-and-key-rotation.md) | Envelope encryption with a data key per card, rotated by rewrapping | Accepted |
 | [0018](0018-how-card-numbers-enter-and-leave.md) | How a card number enters Jupiter, and how it reaches the rail | Accepted |
+| [0019](0019-acquirer-connector-over-iso8583.md) | The acquirer connector: every message recorded, requests reversed, advices repeated | Accepted |
+| [0020](0020-rule-tables-as-embedded-dated-files.md) | Rule tables are versioned files, embedded in the binary, with effective dates | Accepted |
+| [0021](0021-live-mode-installments-stored-credentials-clearing.md) | Live mode goes over the card network, with installments, stored credentials and clearing | Accepted |
 
 ## Template
 

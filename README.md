@@ -6,15 +6,15 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **4 — card vault** · milestone M1 reached
+> ### Current phase: **5 — card network over ISO 8583** · milestone M1 reached
 >
-> A correct ledger, a Stripe-grade API with idempotency and signed webhooks, and a payment
-> state machine that survives timeouts, now with real card numbers: they enter through a
-> separate vault, over mTLS, encrypted under a key per card, and Jupiter's own database
-> never holds one, which a test proves by scanning it for a canary number. Keys rotate
-> while payments carry on. A deterministic simulation runs 10,000 payments with injected
-> faults, in the rail and the vault, on every push. Next is the card network and issuer
-> simulator over ISO 8583 (phase 5); see [`docs/plan.md`](docs/plan.md).
+> A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
+> kept in a separate vault, and now live payments over ISO 8583 to a card network and
+> issuer simulator: installments, stored credentials, reversals when the network does not
+> answer, late answers ignored, and the network's daily clearing file imported. A
+> deterministic simulation runs 10,000 payments with faults in the rail, the vault and the
+> network on every push. Next are 3-D Secure, network tokens and risk rules (phase 6);
+> see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -60,6 +60,7 @@ primary source, its documentation says so.
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
 | [`docs/api/`](docs/api/) | Error codes, receiving webhooks, and test cards and amounts |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
+| [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
 | [`docs/benchmarks/`](docs/benchmarks/) | Measurements, with the command and hardware that produced them |
 | [`docs/research/`](docs/research/) | How the payments market works, globally and in Brazil, and what it implies for Jupiter |
@@ -100,8 +101,9 @@ stacks:
 
 Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
 
-To run the binaries, start the vault first (`go run ./cmd/vault`), then the API and the
-worker (`go run ./cmd/api`, `go run ./cmd/worker`). [`.env.example`](.env.example) lists
+To run the binaries, start the vault first (`go run ./cmd/vault`) and, for live mode, the
+card network (`go run ./cmd/sim-card-network`), then the API and the worker
+(`go run ./cmd/api`, `go run ./cmd/worker`). [`.env.example`](.env.example) lists
 what each reads: databases, keys (`openssl rand -base64 32`) and the certificates from
 `make certs`. Then save a card and pay with it:
 
@@ -126,10 +128,11 @@ internal/money/      amounts, currencies, rates, rounding and allocation
 internal/id/         prefixed, time-ordered identifiers
 internal/platform/   process lifecycle, PostgreSQL and other shared infrastructure
 internal/sim/<name>/ a simulator's code, isolated from Jupiter's domain
-pkg/                 libraries meant for other projects too (webhook verification; later BR Code, CNAB 240)
+pkg/                 libraries meant for other projects too: webhook verification, the card network protocol; later BR Code, CNAB 240
 test/architecture/   the test that enforces these boundaries
 test/e2e/            the golden path
 test/pci/            the test that the API database never holds a card number
+test/cardrail/       live payments through the card network simulator
 test/simulation/     the deterministic simulation
 deploy/              configuration for the local infrastructure
 tools/               pinned development tools

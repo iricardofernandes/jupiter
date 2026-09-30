@@ -82,7 +82,29 @@ curl -X POST http://127.0.0.1:8080/v1/test_helpers/payment_intents/pi_…/comple
 `succeeded` resumes the authorization; `failed` returns the intent to
 `requires_payment_method`. Test helpers refuse live-mode keys.
 
+## Installments and stored cards
+
+`installments: {"count": 6, "financed_by": "merchant"}` on a payment intent in BRL pays in
+2 to 12 installments, financed by the merchant (parcelado lojista) or the issuer
+(parcelado emissor). `setup_future_usage: "off_session"` on a payment with a saved card
+stores it for later payments made without the customer; confirm those with
+`off_session: true`. Both work in test and live mode.
+
 ## Live mode
 
-Live mode has no rail until the card network connector (phase 5); confirming answers
-`livemode_unsupported`.
+Live keys (`sk_live_…`) pay over ISO 8583 through the card network, which in this
+repository is the simulator (`go run ./cmd/sim-card-network`, then set
+`JUPITER_CARDNET_ADDR`). Live mode takes saved cards only; without a network configured,
+confirming answers `livemode_unsupported`. The network's issuer answers by card number:
+
+| Number | Result |
+|---|---|
+| any valid number, such as `4242424242424242` | Approved up to a limit of R$ 100,000.00 |
+| `4000000000000002` | Declined: `do_not_honor` |
+| `4000000000009995` | Declined: `insufficient_funds` |
+| `4000000000000069` | Declined: `expired_card` |
+| `4000000000000119`, `4000000000000168`, `4000000000000127` | No answer in time, or a late one: reversed and declined with `issuer_timeout` |
+| `4000000000000135` | Approved, answered twice: charged once |
+| `4000000000000150` | Approved by the network in stand-in up to R$ 500.00; `issuer_not_available` above |
+
+The simulator's [README](../../internal/sim/cardnetwork/README.md) has the details.

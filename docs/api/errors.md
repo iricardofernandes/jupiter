@@ -73,10 +73,21 @@ The key was already used for a different request: another endpoint, another obje
 another body. A key names one request; use a new key for a new request.
 
 ### card_declined
-The issuer declined the payment. `decline_code` says why, when the issuer did:
-`generic_decline`, `insufficient_funds`, `test_mode_live_card` (a real card number in test
-mode), `invalid_account` (the saved card is gone from the vault). The error carries the
-payment intent, back in `requires_payment_method`.
+The payment was declined. `decline_code` says why:
+
+| decline_code | Meaning |
+|---|---|
+| `generic_decline`, `do_not_honor` | The issuer declined without saying why |
+| `insufficient_funds` | Not enough credit or balance |
+| `expired_card`, `incorrect_number` | The card is expired or its number is wrong |
+| `transaction_not_allowed` | The issuer refuses this kind of payment, such as an off-session one on a card it has no agreement for |
+| `issuer_not_available` | The issuer was down and the network could not stand in |
+| `issuer_timeout` | No answer in time: the authorization was reversed, and the customer can pay again at once |
+| `network_unavailable` | Jupiter could not reach the card network; nothing was sent |
+| `test_mode_live_card` | A real card number in test mode |
+| `invalid_account` | The saved card is gone from the vault |
+
+The error carries the payment intent, back in `requires_payment_method`.
 
 ### incorrect_number
 The card number fails its check digit, or has a length its brand does not use. `param` is
