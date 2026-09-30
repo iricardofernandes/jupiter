@@ -6,14 +6,14 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **2 — API foundation**
+> ### Current phase: **3 — payment intents · milestone M1 reached**
 >
-> The ledger (phase 1) and the merchant API's foundation are in place: API keys with
-> test and live modes and scopes, idempotency keys that survive a crash between phases,
-> date-named versions, typed errors, cursor pagination, and signed webhooks delivered at
-> least once. No payment exists yet; payment intents are phase 3. What each phase
-> delivers, and what must be true before the next begins, is in
-> [`docs/plan.md`](docs/plan.md).
+> A correct ledger, a Stripe-grade API with idempotency and signed webhooks, and a payment
+> state machine that survives timeouts: card payments in test mode are authorized,
+> captured (in full or in part), canceled, expired and refunded, every step mirrored on
+> the ledger. Lost answers leave a payment in `processing` until Jupiter finds out what
+> happened. A deterministic simulation runs 10,000 payments with injected faults on every
+> push. Next is the card vault (phase 4); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -57,7 +57,7 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes and how to receive webhooks |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, and test cards and amounts |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
 | [`docs/benchmarks/`](docs/benchmarks/) | Measurements, with the command and hardware that produced them |
 | [`docs/research/`](docs/research/) | How the payments market works, globally and in Brazil, and what it implies for Jupiter |
@@ -75,6 +75,8 @@ make up                # local infrastructure; returns once every service is hea
 make migrate           # apply database migrations to it
 make merchant NAME=x   # create a merchant; prints its API keys once
 make ledger-check      # verify the ledger's invariants on it
+make demo              # walk through the golden path, step by step
+make test-simulation   # the deterministic simulation (SIM_PAYMENTS, SIM_SEED)
 make down
 make help              # every target
 ```
@@ -98,9 +100,9 @@ To run the API and the worker against it, export `JUPITER_DATABASE_URL` and a
 `go run ./cmd/worker`:
 
 ```sh
-curl -X POST http://127.0.0.1:8080/v1/webhook_endpoints \
+curl -X POST http://127.0.0.1:8080/v1/payment_intents \
   -H "Authorization: Bearer $SK_TEST" -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"url": "https://example.com/hooks", "enabled_events": ["*"]}'
+  -d '{"amount": 60000, "currency": "brl", "payment_method": "pm_card_visa", "confirm": true}'
 ```
 
 ## Repository layout
@@ -115,6 +117,7 @@ internal/sim/<name>/ a simulator's code, isolated from Jupiter's domain
 pkg/                 libraries meant for other projects too (webhook verification; later BR Code, CNAB 240)
 test/architecture/   the test that enforces these boundaries
 test/e2e/            the golden path
+test/simulation/     the deterministic simulation
 deploy/              configuration for the local infrastructure
 tools/               pinned development tools
 ```

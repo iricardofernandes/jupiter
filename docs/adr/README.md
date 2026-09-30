@@ -20,6 +20,8 @@ point at its replacement.
 | [0011](0011-api-conventions.md) | API conventions: keys and modes, versions, errors, lists | Accepted |
 | [0012](0012-idempotency-keys-with-recovery-points.md) | Idempotency keys with atomic phases and recovery points | Accepted |
 | [0013](0013-thin-events-and-webhook-delivery.md) | Thin events written with the change, delivered at least once by River | Accepted |
+| [0014](0014-payment-intents-attempts-and-unknown-outcomes.md) | Payment intents, attempts, and unknown outcomes as a state | Accepted |
+| [0015](0015-deterministic-simulation.md) | Correctness under faults is tested by deterministic simulation | Accepted |
 
 ## Template
 
