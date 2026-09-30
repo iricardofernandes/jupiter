@@ -12,7 +12,7 @@ import (
 )
 
 const cardByRequestKey = `-- name: CardByRequestKey :one
-SELECT token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at FROM vault.cards WHERE owner = $1 AND request_key = $2
+SELECT token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at, network_token, network_token_month, network_token_year, network_token_reference FROM vault.cards WHERE owner = $1 AND request_key = $2
 `
 
 type CardByRequestKeyParams struct {
@@ -39,6 +39,10 @@ func (q *Queries) CardByRequestKey(ctx context.Context, arg CardByRequestKeyPara
 		&i.WrappedKey,
 		&i.KeyID,
 		&i.CreatedAt,
+		&i.NetworkToken,
+		&i.NetworkTokenMonth,
+		&i.NetworkTokenYear,
+		&i.NetworkTokenReference,
 	)
 	return i, err
 }
@@ -85,7 +89,7 @@ func (q *Queries) CardsToRewrap(ctx context.Context, arg CardsToRewrapParams) ([
 const claimCard = `-- name: ClaimCard :one
 UPDATE vault.cards SET owner = $1, claim_expires_at = NULL
 WHERE token = $2 AND owner IS NULL AND claim_expires_at > $3
-RETURNING token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at
+RETURNING token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at, network_token, network_token_month, network_token_year, network_token_reference
 `
 
 type ClaimCardParams struct {
@@ -113,6 +117,10 @@ func (q *Queries) ClaimCard(ctx context.Context, arg ClaimCardParams) (VaultCard
 		&i.WrappedKey,
 		&i.KeyID,
 		&i.CreatedAt,
+		&i.NetworkToken,
+		&i.NetworkTokenMonth,
+		&i.NetworkTokenYear,
+		&i.NetworkTokenReference,
 	)
 	return i, err
 }
@@ -129,7 +137,7 @@ func (q *Queries) CountCardsUnderKey(ctx context.Context, keyID string) (int64, 
 }
 
 const getCard = `-- name: GetCard :one
-SELECT token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at FROM vault.cards WHERE token = $1
+SELECT token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at, network_token, network_token_month, network_token_year, network_token_reference FROM vault.cards WHERE token = $1
 `
 
 func (q *Queries) GetCard(ctx context.Context, token string) (VaultCard, error) {
@@ -151,6 +159,10 @@ func (q *Queries) GetCard(ctx context.Context, token string) (VaultCard, error) 
 		&i.WrappedKey,
 		&i.KeyID,
 		&i.CreatedAt,
+		&i.NetworkToken,
+		&i.NetworkTokenMonth,
+		&i.NetworkTokenYear,
+		&i.NetworkTokenReference,
 	)
 	return i, err
 }
@@ -164,7 +176,7 @@ INSERT INTO vault.cards (
     $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 ON CONFLICT (owner, request_key) DO NOTHING
-RETURNING token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at
+RETURNING token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4, exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at, network_token, network_token_month, network_token_year, network_token_reference
 `
 
 type InsertCardParams struct {
@@ -222,6 +234,10 @@ func (q *Queries) InsertCard(ctx context.Context, arg InsertCardParams) (VaultCa
 		&i.WrappedKey,
 		&i.KeyID,
 		&i.CreatedAt,
+		&i.NetworkToken,
+		&i.NetworkTokenMonth,
+		&i.NetworkTokenYear,
+		&i.NetworkTokenReference,
 	)
 	return i, err
 }
@@ -280,4 +296,35 @@ type RewrapCardParams struct {
 func (q *Queries) RewrapCard(ctx context.Context, arg RewrapCardParams) error {
 	_, err := q.db.Exec(ctx, rewrapCard, arg.WrappedKey, arg.KeyID, arg.Token)
 	return err
+}
+
+const storeNetworkToken = `-- name: StoreNetworkToken :execrows
+UPDATE vault.cards
+SET network_token = $1, network_token_month = $2, network_token_year = $3,
+    network_token_reference = $4
+WHERE token = $5 AND owner = $6
+`
+
+type StoreNetworkTokenParams struct {
+	NetworkToken          []byte
+	NetworkTokenMonth     pgtype.Int4
+	NetworkTokenYear      pgtype.Int4
+	NetworkTokenReference string
+	Token                 string
+	Owner                 pgtype.Text
+}
+
+func (q *Queries) StoreNetworkToken(ctx context.Context, arg StoreNetworkTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, storeNetworkToken,
+		arg.NetworkToken,
+		arg.NetworkTokenMonth,
+		arg.NetworkTokenYear,
+		arg.NetworkTokenReference,
+		arg.Token,
+		arg.Owner,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

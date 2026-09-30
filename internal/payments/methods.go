@@ -14,6 +14,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/payments/db"
 	"github.com/iricardofernandes/jupiter/internal/vault"
+	"github.com/iricardofernandes/jupiter/pkg/cardnet"
 )
 
 var PaymentMethodPrefix = id.MustPrefix("pm")
@@ -116,7 +117,66 @@ func (s *Service) cardFor(ctx context.Context, q db.DBTX, owner Owner, pm string
 	if err != nil {
 		return nil, err
 	}
-	return &CardReference{Token: row.VaultToken, Owner: VaultOwner(owner)}, nil
+	return &CardReference{Token: row.VaultToken, Owner: VaultOwner(owner), NetworkToken: row.NetworkTokenStatus == "active"}, nil
+}
+
+// TokenizationCandidate is a live card waiting for a network token, claimed at ClaimedAt.
+type TokenizationCandidate struct {
+	PaymentMethod string
+	Card          CardReference
+	ClaimedAt     time.Time
+}
+
+// ClaimForNetworkTokens takes up to n live cards to provision network tokens for, and
+// those whose provisioning stopped more than stale ago.
+func (s *Service) ClaimForNetworkTokens(ctx context.Context, q db.DBTX, n int32, stale time.Duration) ([]TokenizationCandidate, error) {
+	now := s.cfg.Now().UTC().Truncate(time.Microsecond)
+	rows, err := db.New(q).ClaimPaymentMethodsToTokenize(ctx, db.ClaimPaymentMethodsToTokenizeParams{
+		Now: ts(now), StaleBefore: ts(now.Add(-stale)), MaxCount: n,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("claiming cards to tokenize: %w", err)
+	}
+	out := make([]TokenizationCandidate, 0, len(rows))
+	for _, r := range rows {
+		merchant, err := id.Parse(r.MerchantID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, TokenizationCandidate{
+			PaymentMethod: r.ID, Card: CardReference{Token: r.VaultToken, Owner: VaultOwner(Owner{Merchant: merchant, Livemode: r.Livemode})},
+			ClaimedAt: now,
+		})
+	}
+	return out, nil
+}
+
+// SetNetworkToken records how provisioning a card's network token ended. Only the claim
+// that is still current records it: one that outlived provisioningStale and was claimed
+// again leaves it to the newer.
+func (s *Service) SetNetworkToken(ctx context.Context, q db.DBTX, c TokenizationCandidate, reference string, active bool) error {
+	status := "failed"
+	if active {
+		status = "active"
+	}
+	return db.New(q).SetNetworkToken(ctx, db.SetNetworkTokenParams{
+		ID: c.PaymentMethod, NetworkTokenReference: reference, NetworkTokenStatus: status, Now: ts(s.cfg.Now().UTC()),
+		ClaimedAt: ts(c.ClaimedAt),
+	})
+}
+
+// UpdateFromNetworkToken applies what the card network says of a token: the card behind
+// it was replaced (a new last four and expiry), or the token was suspended. An event
+// older than the last one applied is ignored.
+func (s *Service) UpdateFromNetworkToken(ctx context.Context, q db.DBTX, e cardnet.TokenEvent) (bool, error) {
+	if !e.Valid() {
+		return false, fmt.Errorf("%w: not a token event", ErrInvalid)
+	}
+	n, err := db.New(q).UpdateCardFromNetworkToken(ctx, db.UpdateCardFromNetworkTokenParams{
+		NetworkTokenReference: e.Reference, Last4: e.Last4, ExpMonth: int32(e.ExpMonth), ExpYear: int32(e.ExpYear), //nolint:gosec // an expiry
+		NetworkTokenStatus: e.Status, Now: ts(s.cfg.Now().UTC()), OccurredAt: ts(e.OccurredAt),
+	})
+	return n > 0, err
 }
 
 // checkStoredCredential enforces the stored credential rules: a card is stored for

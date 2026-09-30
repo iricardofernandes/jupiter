@@ -124,7 +124,18 @@ func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.
 		background = append(background,
 			service.Every(logger, "acquirer.retry_forwards", forwardEvery, retryForwards(network, logger)),
 			service.Every(logger, "acquirer.import_clearing", clearingEvery, importClearing(network, p, logger)),
+			service.Every(logger, "acquirer.provision_network_tokens", tokensEvery, provisionTokens(network, p, logger)),
 		)
 	}
 	return background
+}
+
+func provisionTokens(c *acquirer.Connector, p *payments.Service, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		n, err := c.ProvisionNetworkTokens(ctx, p, tokensBatch)
+		if n > 0 {
+			logger.InfoContext(ctx, "provisioned network tokens", "count", n)
+		}
+		return err
+	}
 }

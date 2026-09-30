@@ -63,3 +63,21 @@ sql:
         out: internal/acquirer/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/risk/migrations
+    queries: internal/risk/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/risk/db
+        sql_package: pgx/v5
+        emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/authentication/migrations
+    queries: internal/authentication/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/authentication/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

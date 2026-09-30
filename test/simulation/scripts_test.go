@@ -14,6 +14,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
+	"github.com/iricardofernandes/jupiter/pkg/loadgen"
 )
 
 // script is one payment's life, chosen from the seed when it starts. It advances one
@@ -27,6 +28,7 @@ type script struct {
 	amount    int64
 	method    string
 	card      string // a card number to save in the vault first, and then pay with
+	threeDS   bool   // ask for 3-D Secure
 	manual    bool
 	capture   int64 // 0 captures everything
 	cancel    bool
@@ -76,8 +78,16 @@ func (s *sim) newScript(n int) *script {
 		sc.card = savedCards[sc.method]
 	}
 	if live {
-		// Live mode takes saved cards only, and has no authentication step yet (phase 6).
+		// Live mode takes saved cards only. Approved cards are numbers of their own, as
+		// customers' cards are, so the risk engine's velocity rules see ordinary traffic;
+		// some payments ask for 3-D Secure, which authenticates them frictionless.
 		sc.key, sc.card = s.liveKeys[merchant], liveCards[sc.method]
+		if sc.method == payments.TestCardVisa || sc.method == payments.TestCardAuthenticationRequired {
+			// Visa numbers: the jumps past authorization expiry stay short of the ledger's
+			// backstop only for Visa's ten days of validity.
+			sc.card = loadgen.RandomCardNumber(r, "49")
+		}
+		sc.threeDS = r.IntN(10) < 3
 		s.stats.live++
 	}
 	sc.manual = r.IntN(2) == 0
@@ -184,6 +194,9 @@ func (s *sim) next(sc *script) *pendingRequest {
 		body := map[string]any{"amount": sc.amount, "currency": "brl", "payment_method": sc.method, "confirm": true}
 		if sc.manual {
 			body["capture_method"] = "manual"
+		}
+		if sc.threeDS {
+			body["request_three_d_secure"] = "any"
 		}
 		return s.request(sc, "/v1/payment_intents", body)
 	}
@@ -395,6 +408,7 @@ func (s *sim) check(final bool) {
 	if final {
 		s.checkRail()
 		s.checkNetwork()
+		s.checkRisk()
 	}
 	if s.t.Failed() {
 		s.t.FailNow()
@@ -498,5 +512,33 @@ func (s *sim) checkNetwork() {
 	var waiting int
 	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM acquirer.exchanges WHERE next_forward_at IS NOT NULL").Scan(&waiting); err != nil || waiting > 0 {
 		s.t.Errorf("%d reversals or advices never acknowledged (%v)", waiting, err)
+	}
+}
+
+// checkRisk verifies the risk engine's part: it decided on every attempt, every block
+// says which rules made it, and no blocked attempt reached a rail.
+func (s *sim) checkRisk() {
+	checks := []struct{ what, query string }{
+		{"attempts without a risk decision", `
+			SELECT count(*) FROM payments.attempts a LEFT JOIN risk.decisions d ON d.attempt_id = a.id WHERE d.id IS NULL`},
+		{"blocked attempts whose decision names no rule", `
+			SELECT count(*) FROM payments.attempts a JOIN risk.decisions d ON d.attempt_id = a.id
+			WHERE a.decline_code = 'blocked_by_risk' AND (d.action <> 'block' OR jsonb_array_length(d.rules) = 0)`},
+		{"blocked attempts that reached a rail", `
+			SELECT count(*) FROM payments.attempts a
+			WHERE a.decline_code = 'blocked_by_risk'
+			  AND (EXISTS (SELECT 1 FROM payments.test_rail r WHERE r.key = a.id) OR EXISTS (SELECT 1 FROM acquirer.exchanges e WHERE e.key = a.id))`},
+		{"live payments authenticated without an authentication value", `
+			SELECT count(*) FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+			WHERE i.livemode AND a.three_ds_status IN ('Y', 'A') AND a.authentication_value = ''`},
+	}
+	for _, c := range checks {
+		var n int
+		if err := s.pool.QueryRow(s.t.Context(), c.query).Scan(&n); err != nil {
+			s.t.Fatalf("%s: %v", c.what, err)
+		}
+		if n > 0 {
+			s.t.Errorf("%d %s", n, c.what)
+		}
 	}
 }

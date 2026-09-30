@@ -65,7 +65,7 @@ func TestClearingRecordsMustMatchWhatWasSent(t *testing.T) {
 	var file cardnet.ClearingFile
 	files := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(file.Encode()) }))
 	defer files.Close()
-	reader, err := acquirer.New(acquirer.Config{Pool: h.pool, Addr: h.network.Addr(), ClearingURL: files.URL, Cards: nopCards{}})
+	reader, err := acquirer.New(acquirer.Config{Pool: h.pool, Addr: h.network.Addr(), NetworkURL: files.URL, Cards: nopCards{}})
 	if err != nil {
 		t.Fatal(err)
 	}

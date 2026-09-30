@@ -479,6 +479,19 @@ func TestTheWorkerMayReadCardsButNotSaveThem(t *testing.T) {
 	}
 }
 
+func TestOnlyTheWorkerStoresNetworkTokens(t *testing.T) {
+	v, _ := start(t)
+	c := tokenize(t, v, "req-1", card(visa, ""))
+	nt := vault.NetworkToken{Number: "4895370000000013", ExpMonth: 12, ExpYear: 2030, Reference: "DNITHE1"}
+	if err := v.Client.StoreNetworkToken(t.Context(), c.Token, owner, nt); err == nil || !strings.Contains(err.Error(), "may not") {
+		t.Fatalf("the API stored a network token: %v", err)
+	}
+	worker := vaulttest.ClientFor(t, v.PKI, v.URL, vault.WorkerIdentity)
+	if err := worker.StoreNetworkToken(t.Context(), c.Token, owner, nt); err != nil {
+		t.Fatalf("the worker's StoreNetworkToken: %v", err)
+	}
+}
+
 func TestARepeatedRequestKeyAnswersFromTheFirstCard(t *testing.T) {
 	v, clk := start(t)
 	thisMonth := vault.CardData{Number: visa, ExpMonth: 9, ExpYear: 2026}

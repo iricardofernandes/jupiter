@@ -1,0 +1,26 @@
+[
+  {
+    "id": "card_velocity",
+    "action": "block",
+    "description": "The same card was tried ten or more times in the last hour, at any merchant.",
+    "expression": "card_attempts_1h >= 10"
+  },
+  {
+    "id": "ip_many_cards",
+    "action": "block",
+    "description": "Five or more different cards were tried from this address in the last day.",
+    "expression": "ip != '' && ip_cards_24h >= 5"
+  },
+  {
+    "id": "card_declines",
+    "action": "request_3ds",
+    "description": "The card was declined three or more times in the last day: ask the cardholder to authenticate.",
+    "expression": "card_declines_24h >= 3 && !off_session"
+  },
+  {
+    "id": "large_amount",
+    "action": "review",
+    "description": "R$ 10,000.00 or more.",
+    "expression": "amount >= 1000000"
+  }
+]

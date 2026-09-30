@@ -24,6 +24,7 @@ var errInvalidRequest = errors.New("vault: invalid request")
 func (s *Service) InternalHandler() http.Handler {
 	mux := http.NewServeMux()
 	api := []string{vault.APIIdentity}
+	worker := []string{vault.WorkerIdentity}
 	both := []string{vault.APIIdentity, vault.WorkerIdentity}
 	handle := func(pattern string, callers []string, h http.HandlerFunc) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
@@ -54,15 +55,27 @@ func (s *Service) InternalHandler() http.Handler {
 		c, err := s.Claim(r.Context(), r.PathValue("token"), body.Owner)
 		s.answer(w, r, c, err)
 	})
-	handle("POST "+vault.CardsPath+"/{token}/detokenize", both, func(w http.ResponseWriter, r *http.Request) {
-		var body vault.OwnerBody
+	handle("POST "+vault.CardsPath+"/{token}/network_token", worker, func(w http.ResponseWriter, r *http.Request) {
+		var body vault.NetworkTokenBody
 		if !s.decode(w, r, &body) {
 			return
 		}
-		c, err := s.Detokenize(r.Context(), r.PathValue("token"), body.Owner)
+		c, err := s.StoreNetworkToken(r.Context(), r.PathValue("token"), body.Owner, body.NetworkToken)
+		s.answer(w, r, c, err)
+	})
+	handle("POST "+vault.CardsPath+"/{token}/detokenize", both, func(w http.ResponseWriter, r *http.Request) {
+		var body vault.DetokenizeBody
+		if !s.decode(w, r, &body) {
+			return
+		}
+		detokenize := s.Detokenize
+		if body.KeepCVC {
+			detokenize = s.ReadCard
+		}
+		c, err := detokenize(r.Context(), r.PathValue("token"), body.Owner)
 		// The audit trail of who read which card: never the card itself.
-		s.cfg.Logger.InfoContext(r.Context(), "card detokenized", "caller", callerOf(r),
-			"token", r.PathValue("token"), "owner", body.Owner, "succeeded", err == nil)
+		s.cfg.Logger.InfoContext(r.Context(), "card detokenized", "caller", callerOf(r), "route", r.Pattern,
+			"token", r.PathValue("token"), "owner", body.Owner, "keep_cvc", body.KeepCVC, "succeeded", err == nil)
 		s.answer(w, r, vault.WireCardOf(c), err)
 	})
 	return s.logged(mux)

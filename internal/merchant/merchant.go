@@ -55,6 +55,8 @@ const (
 	ScopePaymentMethodsWrite  Scope = "payment_methods:write"
 	ScopePaymentIntentsRead   Scope = "payment_intents:read"
 	ScopePaymentIntentsWrite  Scope = "payment_intents:write"
+	ScopeRiskRead             Scope = "risk:read"
+	ScopeRiskWrite            Scope = "risk:write"
 	ScopeRefundsRead          Scope = "refunds:read"
 	ScopeRefundsWrite         Scope = "refunds:write"
 )
@@ -68,6 +70,7 @@ var AllScopes = []Scope{
 	ScopePaymentMethodsRead, ScopePaymentMethodsWrite,
 	ScopePaymentIntentsRead, ScopePaymentIntentsWrite,
 	ScopeRefundsRead, ScopeRefundsWrite,
+	ScopeRiskRead, ScopeRiskWrite,
 }
 
 type Merchant struct {

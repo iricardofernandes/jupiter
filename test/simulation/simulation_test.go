@@ -30,6 +30,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/authentication"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -38,6 +39,8 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/risk"
+	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
@@ -48,7 +51,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, acquirer.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate},
 		vaulttest.Template:           {vaulttest.Migrate},
 	}))
 }
@@ -188,13 +191,17 @@ func newSim(t *testing.T, seed uint64) *sim {
 	t.Cleanup(vaultPool.Close)
 	cards := &faultyVault{sim: s, inner: vaulttest.Start(t, vaultPool, vaulttest.Options{Now: s.clock.Now}).Client}
 	s.startNetwork(t, pool, cards)
+	authenticator := s.startDirectory(t, pool, cards)
+	// The simulation's merchants decline far more than real ones, so card-testing
+	// detection is set where their traffic does not trip it.
+	engine := risk.New(risk.Config{Now: s.clock.Now, CardTesting: risk.CardTesting{MinAttempts: 50, Ratio: 0.6, Throttle: 30 * time.Minute, Rate: 3}})
 	s.payments = payments.New(payments.Config{
-		Ledger: s.ledger, Events: eventService, Now: s.clock.Now, LiveRail: s.acquirer,
+		Ledger: s.ledger, Events: eventService, Now: s.clock.Now, LiveRail: s.acquirer, Authenticator: authenticator, Risk: engine,
 		TestRail: &faultyRail{sim: s, inner: payments.NewTestRail(pool, s.clock.Now, nil).WithCards(cards)},
 	})
 	merchants := merchant.New(s.clock.Now)
 	s.api = api.New(api.Deps{
-		Pool: pool, Merchants: merchants, Events: eventService, Payments: s.payments, Vault: cards, Box: box, Now: s.clock.Now,
+		Pool: pool, Merchants: merchants, Events: eventService, Payments: s.payments, Vault: cards, Risk: engine, Box: box, Now: s.clock.Now,
 		// A retry of a request that died finds its key locked until the completer runs;
 		// waiting in real time for it would only slow the run down.
 		IdempotencyWait: time.Nanosecond,
@@ -206,6 +213,7 @@ func newSim(t *testing.T, seed uint64) *sim {
 			}
 		},
 	})
+	authenticator.Attach(s.payments, s.api.ResumePayment)
 	s.handler = s.api.Handler()
 	for i := range 3 {
 		err := postgres.InTx(t.Context(), pool, func(tx pgx.Tx) error {
@@ -291,7 +299,7 @@ const networkTimeout = 200 * time.Millisecond
 // messages as the seed decides, and the acquirer connector live payments go through.
 func (s *sim) startNetwork(t *testing.T, pool *pgxpool.Pool, cards payments.CardSource) {
 	t.Helper()
-	s.network = cardnetwork.New(cardnetwork.Config{Now: s.clock.Now, LateAfter: 2 * networkTimeout, Faults: s.networkFault})
+	s.network = cardnetwork.New(cardnetwork.Config{Now: s.clock.Now, LateAfter: 2 * networkTimeout, Faults: s.networkFault, AuthenticationKey: schemeKey})
 	if err := s.network.Start("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
@@ -310,6 +318,23 @@ func (s *sim) startNetwork(t *testing.T, pool *pgxpool.Pool, cards payments.Card
 // networkFault is drawn from the seed and the message, not from the run's generator:
 // the network's goroutines answer it, and its STANs come from a sequence the run
 // advances in its own order.
+var schemeKey = []byte("simulation scheme key")
+
+// startDirectory runs the 3-D Secure simulator and Jupiter's 3DS server: live payments
+// that ask for 3-D Secure authenticate there, frictionless.
+func (s *sim) startDirectory(t *testing.T, pool *pgxpool.Pool, cards authentication.CardReader) *authentication.Server {
+	t.Helper()
+	directory := httptest.NewServer(threedssim.New(threedssim.Config{AuthenticationKey: schemeKey, ResultsSecret: "simulation"}).Handler())
+	t.Cleanup(directory.Close)
+	authenticator, err := authentication.New(authentication.Config{
+		Pool: pool, DirectoryURL: directory.URL + "/ds/areq", PublicURL: "http://jupiter.invalid", ResultsSecret: "simulation", Cards: cards,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return authenticator
+}
+
 func (s *sim) networkFault(m cardnet.Message) cardnetwork.Fault {
 	h := fnv.New64a()
 	_ = binary.Write(h, binary.LittleEndian, s.seed)
@@ -386,6 +411,13 @@ func (f *faultyVault) Detokenize(ctx context.Context, token, owner string) (vaul
 		return vault.CardData{}, vault.ErrUnavailable
 	}
 	return f.inner.Detokenize(ctx, token, owner)
+}
+
+func (f *faultyVault) ReadCard(ctx context.Context, token, owner string) (vault.CardData, error) {
+	if lost, _ := f.fail("read card", false); lost {
+		return vault.CardData{}, vault.ErrUnavailable
+	}
+	return f.inner.ReadCard(ctx, token, owner)
 }
 
 type response struct {

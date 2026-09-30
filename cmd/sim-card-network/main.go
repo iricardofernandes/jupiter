@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"log/slog"
 	"os"
 	"time"
@@ -22,7 +23,14 @@ func main() {
 		if addr == "" {
 			addr = "127.0.0.1:8583"
 		}
-		network := cardnetwork.New(cardnetwork.Config{Logger: logger})
+		key, err := base64.StdEncoding.DecodeString(os.Getenv("JUPITER_SIM_AUTHENTICATION_KEY"))
+		if err != nil {
+			return service.App{}, err
+		}
+		network := cardnetwork.New(cardnetwork.Config{
+			Logger: logger, AuthenticationKey: key,
+			TokenEventsURL: os.Getenv("JUPITER_CARDNET_EVENTS_URL"), TokenEventsSecret: os.Getenv("JUPITER_CARDNET_EVENTS_SECRET"),
+		})
 		if err := network.Start(addr); err != nil {
 			return service.App{}, err
 		}

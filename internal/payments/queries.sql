@@ -1,9 +1,10 @@
 -- name: InsertIntent :exec
 INSERT INTO payments.intents (id, merchant_id, livemode, amount, currency, capture_method, status, payment_method,
                               description, installments, installments_financed_by, setup_future_usage,
-                              created_at, updated_at)
+                              request_three_d_secure, created_at, updated_at)
 VALUES (@id, @merchant_id, @livemode, @amount, @currency, @capture_method, @status, @payment_method, @description,
-        sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @setup_future_usage, @created_at, @created_at);
+        sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @setup_future_usage, @request_three_d_secure,
+        @created_at, @created_at);
 
 -- name: GetIntent :one
 SELECT * FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3;
@@ -36,14 +37,15 @@ SET amount = @amount, status = @status, payment_method = @payment_method, descri
     last_error_message = @last_error_message, next_action = @next_action,
     cancellation_reason = @cancellation_reason, installments = sqlc.narg('installments'),
     installments_financed_by = sqlc.narg('installments_financed_by'), setup_future_usage = @setup_future_usage,
-    updated_at = @updated_at
+    request_three_d_secure = @request_three_d_secure, next_action_url = @next_action_url,
+    risk_decision = @risk_decision, risk_decision_id = @risk_decision_id, updated_at = @updated_at
 WHERE id = @id;
 
 -- name: InsertAttempt :exec
 INSERT INTO payments.attempts (id, intent_id, number, payment_method, amount, status, initiator, stores_credential,
-                              installments, installments_financed_by, created_at, updated_at)
+                              installments, installments_financed_by, ip, created_at, updated_at)
 VALUES (@id, @intent_id, @number, @payment_method, @amount, @status, @initiator, @stores_credential,
-        sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @created_at, @created_at);
+        sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @ip, @created_at, @created_at);
 
 -- name: NextAttemptNumber :one
 SELECT (coalesce(max(number), 0) + 1)::integer FROM payments.attempts WHERE intent_id = $1;
@@ -60,12 +62,16 @@ SET status = @status, authenticated = @authenticated, rail_reference = @rail_ref
     decline_code = @decline_code, ledger_hold = @ledger_hold, capture_amount = @capture_amount,
     amount_captured = @amount_captured, authorization_expires_at = @authorization_expires_at,
     unknown_since = @unknown_since, resolutions = @resolutions, network_transaction_id = @network_transaction_id,
-    cleared_on = @cleared_on, amount_cleared = @amount_cleared, updated_at = @updated_at
+    cleared_on = @cleared_on, amount_cleared = @amount_cleared, risk_decision = @risk_decision,
+    risk_decision_id = @risk_decision_id, three_ds_server_trans_id = @three_ds_server_trans_id,
+    three_ds_version = @three_ds_version, three_ds_status = @three_ds_status, ds_trans_id = @ds_trans_id,
+    acs_trans_id = @acs_trans_id, acs_url = @acs_url, eci = @eci, authentication_value = @authentication_value,
+    liability_shift = @liability_shift, updated_at = @updated_at
 WHERE id = @id;
 
 -- name: AttemptsToResolve :many
 SELECT id FROM payments.attempts
-WHERE status IN ('authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown')
+WHERE status IN ('authenticating', 'authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown')
   AND updated_at <= @before::timestamptz
 ORDER BY updated_at, id
 LIMIT @max_count::integer;
@@ -148,7 +154,7 @@ LEFT JOIN payments.attempts a ON a.id = i.latest_attempt
 WHERE NOT CASE i.status
     WHEN 'requires_capture' THEN coalesce(a.status = 'authorized' AND i.amount_capturable = a.amount, false)
     WHEN 'succeeded' THEN coalesce(a.status = 'captured' AND i.amount_received = a.amount_captured, false)
-    WHEN 'processing' THEN coalesce(a.status IN ('authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown'), false)
+    WHEN 'processing' THEN coalesce(a.status IN ('authenticating', 'authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown'), false)
     WHEN 'requires_action' THEN coalesce(a.status = 'requires_action', false)
     WHEN 'canceled' THEN a.status IS NULL OR a.status IN ('voided', 'declined', 'failed')
     ELSE a.status IS NULL OR a.status IN ('declined', 'failed')
@@ -194,3 +200,31 @@ WHERE id = @id AND network_transaction_id = '';
 -- name: ClearRefund :execrows
 UPDATE payments.refunds SET cleared_on = @cleared_on
 WHERE id = @id AND status = 'succeeded' AND amount = @amount AND cleared_on IS NULL;
+
+-- name: AttemptByServerTransaction :one
+SELECT * FROM payments.attempts WHERE three_ds_server_trans_id = @three_ds_server_trans_id;
+
+-- name: ClaimPaymentMethodsToTokenize :many
+-- Live cards without a network token yet, or whose provisioning stopped half-way.
+UPDATE payments.payment_methods SET network_token_status = 'provisioning', network_token_since = @now
+WHERE id IN (
+    SELECT c.id FROM payments.payment_methods c
+    WHERE c.livemode AND (c.network_token_status = '' OR (c.network_token_status = 'provisioning' AND c.network_token_since < @stale_before))
+    ORDER BY c.id
+    LIMIT @max_count
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING id, merchant_id, livemode, vault_token;
+
+-- name: SetNetworkToken :exec
+UPDATE payments.payment_methods
+SET network_token_reference = @network_token_reference, network_token_status = @network_token_status, network_token_since = @now
+WHERE id = @id AND network_token_status = 'provisioning' AND network_token_since = @claimed_at;
+
+-- name: UpdateCardFromNetworkToken :execrows
+UPDATE payments.payment_methods
+SET last4 = @last4, exp_month = @exp_month, exp_year = @exp_year, network_token_status = @network_token_status,
+    network_token_since = @now, network_token_event_at = @occurred_at
+WHERE network_token_reference = @network_token_reference
+  AND network_token_status IN ('active', 'suspended')
+  AND (network_token_event_at IS NULL OR network_token_event_at <= @occurred_at);

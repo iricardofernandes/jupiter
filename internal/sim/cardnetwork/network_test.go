@@ -16,6 +16,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	"github.com/iricardofernandes/jupiter/pkg/cardnet"
+	"github.com/iricardofernandes/jupiter/pkg/threeds"
 )
 
 const (
@@ -400,4 +401,26 @@ func TestAdminCloseDay(t *testing.T) {
 			t.Errorf("close-day%s = %d, want %d", tt.query, res.StatusCode, tt.status)
 		}
 	}
+}
+
+func TestAnAuthenticationValueMustCheckOut(t *testing.T) {
+	key := []byte("scheme key")
+	n := cardnetwork.New(cardnetwork.Config{AuthenticationKey: key, Now: func() time.Time { return time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC) }})
+	if err := n.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(n.Close)
+	a := &acquirerSide{t: t, net: n, received: make(chan cardnet.Message, 10)}
+	conn, err := connection.New(n.Addr(), cardnet.Spec, cardnet.ReadLength, cardnet.WriteLength, connection.SendTimeout(timeout))
+	if err != nil || conn.Connect() != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	a.conn = conn
+	good := auth("4242424242424242", 5000)
+	good.Private = &cardnet.PrivateData{DSTransID: "ds-1", ECI: "05", AuthenticationValue: threeds.AuthenticationValue(key, "4242424242424242", 5000, "ds-1")}
+	wantRC(t, a.send(good), cardnet.Approved)
+	forged := auth("4242424242424242", 5000)
+	forged.Private = &cardnet.PrivateData{DSTransID: "ds-1", ECI: "05", AuthenticationValue: threeds.AuthenticationValue(key, "4242424242424242", 9000, "ds-1")}
+	wantRC(t, a.send(forged), cardnet.DoNotHonour)
 }

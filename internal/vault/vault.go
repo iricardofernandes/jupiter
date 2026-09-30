@@ -70,6 +70,17 @@ type CardData struct {
 	ExpMonth int
 	ExpYear  int
 	CVC      string
+	// NetworkToken is the card network's token for the card, when it issued one.
+	NetworkToken *NetworkToken
+}
+
+// NetworkToken is a token a card network issued for a card: a number of its own that
+// it maps to the card, and the reference it names it by.
+type NetworkToken struct {
+	Number    string `json:"number"`
+	ExpMonth  int    `json:"exp_month"`
+	ExpYear   int    `json:"exp_year"`
+	Reference string `json:"reference"`
 }
 
 func (c CardData) String() string {

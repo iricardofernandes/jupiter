@@ -15,10 +15,11 @@ const (
 
 // WireCard carries a card number over the wire and is never logged.
 type WireCard struct {
-	Number   string `json:"number"`
-	ExpMonth int    `json:"exp_month"`
-	ExpYear  int    `json:"exp_year"`
-	CVC      string `json:"cvc,omitempty"`
+	Number       string        `json:"number"`
+	ExpMonth     int           `json:"exp_month"`
+	ExpYear      int           `json:"exp_year"`
+	CVC          string        `json:"cvc,omitempty"`
+	NetworkToken *NetworkToken `json:"network_token,omitempty"`
 }
 
 func (w WireCard) String() string { return w.Data().String() }
@@ -45,6 +46,18 @@ type TokenizeBody struct {
 
 type OwnerBody struct {
 	Owner string `json:"owner"`
+}
+
+// DetokenizeBody asks for a card; KeepCVC reads it without taking the security code,
+// which stays for the authorization it is meant for.
+type DetokenizeBody struct {
+	Owner   string `json:"owner"`
+	KeepCVC bool   `json:"keep_cvc,omitempty"`
+}
+
+type NetworkTokenBody struct {
+	Owner        string       `json:"owner"`
+	NetworkToken NetworkToken `json:"network_token"`
 }
 
 // PublicToken is the answer to a web page: enough to show the customer which card they

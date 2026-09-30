@@ -77,6 +77,9 @@ func (s *Service) resolveAttempt(ctx context.Context, pool *pgxpool.Pool, attemp
 	if err != nil {
 		return false, err
 	}
+	if inStatus(attempt, attemptAuthenticating) {
+		return s.resumeAuthentication(ctx, pool, owner, intentID)
+	}
 	rail, err := s.rail(owner.Livemode)
 	if err != nil {
 		return false, err
@@ -297,4 +300,23 @@ func (s *Service) overdue(attempt db.PaymentsAttempt) bool {
 
 func definitive(r Result) bool {
 	return r.Outcome == Approved || r.Outcome == Declined || r.Outcome == ActionRequired
+}
+
+// resumeAuthentication takes up an attempt whose request stopped while authenticating:
+// 3-D Secure answers again (a repeat answers from the first request), and the attempt
+// goes on as its request would have; the next pass authorizes it.
+func (s *Service) resumeAuthentication(ctx context.Context, pool *pgxpool.Pool, owner Owner, intentID id.ID) (bool, error) {
+	a, err := s.Authenticate(ctx, pool, owner, intentID, "")
+	if err != nil || a.Outcome == "" {
+		return false, err
+	}
+	if a.Outcome == AuthenticationError {
+		err := postgres.InTx(ctx, pool, func(tx pgx.Tx) error { return s.giveUpAuthentication(ctx, tx, owner, intentID) })
+		return false, err
+	}
+	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		_, _, err := s.FinishAuthentication(ctx, tx, owner, intentID, a)
+		return err
+	})
+	return err == nil, err
 }

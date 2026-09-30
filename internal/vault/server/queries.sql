@@ -40,3 +40,9 @@ SELECT count(*)::bigint FROM vault.cards WHERE key_id = @key_id;
 
 -- name: PurgeUnclaimed :execrows
 DELETE FROM vault.cards WHERE owner IS NULL AND claim_expires_at <= @now;
+
+-- name: StoreNetworkToken :execrows
+UPDATE vault.cards
+SET network_token = @network_token, network_token_month = @network_token_month, network_token_year = @network_token_year,
+    network_token_reference = @network_token_reference
+WHERE token = @token AND owner = @owner;

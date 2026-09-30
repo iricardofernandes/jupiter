@@ -228,7 +228,7 @@ func (s *Service) encrypt(ctx context.Context, token, keyID, number string) (enc
 	return encrypted, wrapped, nil
 }
 
-func (s *Service) decrypt(ctx context.Context, row db.VaultCard) (string, error) {
+func (s *Service) decrypt(ctx context.Context, row db.VaultCard, sealed []byte, ad string) (string, error) {
 	dataKey, err := s.cfg.KMS.Unwrap(ctx, row.KeyID, row.WrappedKey, []byte(row.Token))
 	if err != nil {
 		return "", fmt.Errorf("unwrapping the data key of %s: %w", row.Token, err)
@@ -238,7 +238,7 @@ func (s *Service) decrypt(ctx context.Context, row db.VaultCard) (string, error)
 	if err != nil {
 		return "", err
 	}
-	number, err := box.Open(row.EncryptedNumber, []byte(row.Token))
+	number, err := box.Open(sealed, []byte(row.Token+ad))
 	if err != nil {
 		return "", fmt.Errorf("decrypting %s: %w", row.Token, err)
 	}
@@ -285,6 +285,16 @@ func (s *Service) Claim(ctx context.Context, token, owner string) (vault.Card, e
 
 // Detokenize returns the card to its owner, with the security code the first time.
 func (s *Service) Detokenize(ctx context.Context, token, owner string) (vault.CardData, error) {
+	c, err := s.ReadCard(ctx, token, owner)
+	if err != nil {
+		return vault.CardData{}, err
+	}
+	c.CVC = s.cvcs.take(token)
+	return c, nil
+}
+
+// ReadCard returns the card to its owner without taking its security code.
+func (s *Service) ReadCard(ctx context.Context, token, owner string) (vault.CardData, error) {
 	row, err := s.get(ctx, token)
 	if err != nil {
 		return vault.CardData{}, err
@@ -292,11 +302,61 @@ func (s *Service) Detokenize(ctx context.Context, token, owner string) (vault.Ca
 	if owner == "" || row.Owner.String != owner {
 		return vault.CardData{}, vault.ErrNotFound
 	}
-	number, err := s.decrypt(ctx, row)
+	number, err := s.decrypt(ctx, row, row.EncryptedNumber, "")
 	if err != nil {
 		return vault.CardData{}, err
 	}
-	return vault.CardData{Number: number, ExpMonth: int(row.ExpMonth), ExpYear: int(row.ExpYear), CVC: s.cvcs.take(token)}, nil
+	c := vault.CardData{Number: number, ExpMonth: int(row.ExpMonth), ExpYear: int(row.ExpYear)}
+	if row.NetworkToken != nil {
+		dpan, err := s.decrypt(ctx, row, row.NetworkToken, networkTokenAD)
+		if err != nil {
+			return vault.CardData{}, err
+		}
+		c.NetworkToken = &vault.NetworkToken{
+			Number: dpan, ExpMonth: int(row.NetworkTokenMonth.Int32), ExpYear: int(row.NetworkTokenYear.Int32),
+			Reference: row.NetworkTokenReference,
+		}
+	}
+	return c, nil
+}
+
+// networkTokenAD sets a network token's ciphertext apart from the card number's, though
+// both are under the card's data key.
+const networkTokenAD = "/network_token"
+
+// StoreNetworkToken keeps a network token for a card, encrypted under the card's data key.
+func (s *Service) StoreNetworkToken(ctx context.Context, token, owner string, nt vault.NetworkToken) (vault.Card, error) {
+	if len(nt.Number) < 12 || len(nt.Number) > 19 || nt.Reference == "" || nt.ExpMonth < 1 || nt.ExpMonth > 12 {
+		return vault.Card{}, fmt.Errorf("%w: a network token needs a number, an expiry and a reference", errInvalidRequest)
+	}
+	row, err := s.get(ctx, token)
+	if err != nil {
+		return vault.Card{}, err
+	}
+	if owner == "" || row.Owner.String != owner {
+		return vault.Card{}, vault.ErrNotFound
+	}
+	dataKey, err := s.cfg.KMS.Unwrap(ctx, row.KeyID, row.WrappedKey, []byte(row.Token))
+	if err != nil {
+		return vault.Card{}, fmt.Errorf("unwrapping the data key of %s: %w", row.Token, err)
+	}
+	defer clear(dataKey)
+	box, err := secretbox.New(dataKey)
+	if err != nil {
+		return vault.Card{}, err
+	}
+	sealed, err := box.Seal([]byte(nt.Number), []byte(row.Token+networkTokenAD))
+	if err != nil {
+		return vault.Card{}, err
+	}
+	if _, err := db.New(s.cfg.Pool).StoreNetworkToken(ctx, db.StoreNetworkTokenParams{
+		NetworkToken: sealed, NetworkTokenMonth: pgtype.Int4{Int32: int32(nt.ExpMonth), Valid: true},
+		NetworkTokenYear: pgtype.Int4{Int32: int32(nt.ExpYear), Valid: true}, NetworkTokenReference: nt.Reference, //nolint:gosec // a year
+		Token: token, Owner: text(owner),
+	}); err != nil {
+		return vault.Card{}, fmt.Errorf("storing network token: %w", err)
+	}
+	return cardOf(row), nil
 }
 
 func (s *Service) get(ctx context.Context, token string) (db.VaultCard, error) {

@@ -116,12 +116,16 @@ type Message struct {
 }
 
 type PrivateData struct {
+	AuthenticationValue  string `iso8583:"AV"`
 	CVC                  string `iso8583:"CV"`
+	DSTransID            string `iso8583:"DS"`
+	ECI                  string `iso8583:"EC"`
 	InstallmentFinancing string `iso8583:"IF"`
 	NetworkTransactionID string `iso8583:"NT"`
 	PartialApproval      string `iso8583:"PA"`
 	StoredCredential     string `iso8583:"SC"`
 	StandIn              string `iso8583:"SI"`
+	TokenCryptogram      string `iso8583:"TC"`
 }
 
 func (p PrivateData) String() string {
@@ -129,8 +133,8 @@ func (p PrivateData) String() string {
 	if p.CVC != "" {
 		cvc = "***"
 	}
-	return fmt.Sprintf("CV=%s IF=%s NT=%s PA=%s SC=%s SI=%s", cvc, p.InstallmentFinancing, p.NetworkTransactionID,
-		p.PartialApproval, p.StoredCredential, p.StandIn)
+	return fmt.Sprintf("AV=%s CV=%s DS=%s EC=%s IF=%s NT=%s PA=%s SC=%s SI=%s TC=%s", p.AuthenticationValue, cvc, p.DSTransID, p.ECI,
+		p.InstallmentFinancing, p.NetworkTransactionID, p.PartialApproval, p.StoredCredential, p.StandIn, p.TokenCryptogram)
 }
 
 func (p PrivateData) GoString() string { return p.String() }

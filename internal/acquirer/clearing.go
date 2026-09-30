@@ -188,7 +188,7 @@ func (c *Connector) RetryExceptions(ctx context.Context, p *payments.Service) (i
 }
 
 func (c *Connector) fetchClearing(ctx context.Context, day time.Time) ([]byte, error) {
-	url := fmt.Sprintf("%s/v1/acquirers/%s/clearing/%s", c.cfg.ClearingURL, cardnet.PadAcquirer(c.cfg.AcquirerID), day.Format(time.DateOnly))
+	url := fmt.Sprintf("%s/v1/acquirers/%s/clearing/%s", c.cfg.NetworkURL, cardnet.PadAcquirer(c.cfg.AcquirerID), day.Format(time.DateOnly))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

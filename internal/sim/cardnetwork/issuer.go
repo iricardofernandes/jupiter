@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/iricardofernandes/jupiter/pkg/cardnet"
+	"github.com/iricardofernandes/jupiter/pkg/threeds"
 )
 
 const (
@@ -36,6 +37,7 @@ type authorization struct {
 	Installments int
 	Status       holdStatus
 	StandIn      bool
+	ViaToken     bool
 }
 
 type refund struct {
@@ -58,11 +60,12 @@ type issuer struct {
 	pending      map[string][]cardnet.ClearingRecord
 	acquirers    map[string]bool
 	sequence     int64
+	authKey      []byte
 }
 
-func newIssuer(now func() time.Time) *issuer {
+func newIssuer(now func() time.Time, authKey []byte) *issuer {
 	return &issuer{
-		now: now, creditLimit: defaultCreditLimit, standInLimit: defaultStandInLimit,
+		authKey: authKey, now: now, creditLimit: defaultCreditLimit, standInLimit: defaultStandInLimit,
 		used: map[string]int64{}, byNTI: map[string]*authorization{}, byOriginal: map[string]*authorization{},
 		refunds: map[string]*refund{}, pending: map[string][]cardnet.ClearingRecord{}, acquirers: map[string]bool{},
 	}
@@ -113,6 +116,7 @@ func (s *issuer) authorize(req cardnet.Message) cardnet.Message {
 	a := &authorization{
 		NTI: fmt.Sprintf("8%014d", s.sequence), PAN: req.PAN, RRN: req.RRN, AuthCode: fmt.Sprintf("A%05d", s.sequence%100000),
 		AcquirerID: cardnet.PadAcquirer(req.AcquirerID), MerchantID: req.MerchantID, Amount: amount, Status: held, StandIn: standIn,
+		ViaToken: req.Private != nil && req.Private.TokenCryptogram != "",
 	}
 	if n, err := strconv.Atoi(req.Installments); err == nil {
 		a.Installments = n
@@ -141,6 +145,11 @@ func (s *issuer) check(req cardnet.Message, b behaviour) string {
 		return cardnet.ExpiredCard
 	case responseFor(b) != cardnet.Approved:
 		return responseFor(b)
+	}
+	if req.Private != nil && req.Private.AuthenticationValue != "" &&
+		req.Private.AuthenticationValue != threeds.AuthenticationValue(s.authKey, req.PAN, req.Amount, req.Private.DSTransID) {
+		// An authentication value that does not check out is treated as fraud.
+		return cardnet.DoNotHonour
 	}
 	if req.Private != nil && req.Private.StoredCredential == cardnet.StoredCredentialMerchant {
 		first, ok := s.byNTI[req.Private.NetworkTransactionID]
@@ -313,6 +322,8 @@ type Completion struct {
 	Authorized           int64
 	Completed            int64
 	Refunded             int64
+	ViaToken             bool
+	PAN                  string
 }
 
 func (s *issuer) completions() []Completion {
@@ -321,7 +332,9 @@ func (s *issuer) completions() []Completion {
 	var out []Completion
 	for _, a := range s.byNTI {
 		if a.Status == completed {
-			out = append(out, Completion{NetworkTransactionID: a.NTI, Authorized: a.Amount, Completed: a.Completed, Refunded: a.Refunded})
+			out = append(out, Completion{
+				NetworkTransactionID: a.NTI, Authorized: a.Amount, Completed: a.Completed, Refunded: a.Refunded, ViaToken: a.ViaToken, PAN: a.PAN,
+			})
 		}
 	}
 	return out

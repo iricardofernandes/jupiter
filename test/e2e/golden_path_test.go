@@ -21,6 +21,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/authentication"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
@@ -31,6 +32,8 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/risk"
+	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
@@ -41,14 +44,15 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, acquirer.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate},
 		vaulttest.Template:           {vaulttest.Migrate},
 	}))
 }
 
-// The golden path, as far as phase 5 reaches: a customer's card goes from their browser
-// to the vault; the customer pays R$ 600.00 in six installments, authorized by the
-// issuer over ISO 8583; the merchant captures it; the ledger and a signed webhook say so;
+// The golden path, as far as phase 6 reaches: a customer's card goes from their browser
+// to the vault; the customer pays R$ 600.00 in six installments, passes the risk engine,
+// is authenticated with 3-D Secure without a challenge, and is authorized by the issuer
+// over ISO 8583; the merchant captures it; the ledger and a signed webhook say so;
 // and the network's clearing file for the day confirms it. Later phases extend this test
 // with receivables, split, settlement and payout.
 func TestGoldenPath(t *testing.T) {
@@ -80,14 +84,15 @@ func TestGoldenPath(t *testing.T) {
 	defer receiver.Close()
 	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent, HTTPClient: receiver.Client()})
 	cardVault := vaulttest.Start(t, server.PoolFrom(t, vaulttest.Template), vaulttest.Options{})
-	network := cardnetwork.New(cardnetwork.Config{})
+	schemeKey := []byte("golden path scheme key")
+	network := cardnetwork.New(cardnetwork.Config{AuthenticationKey: schemeKey})
 	if err := network.Start("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
 	defer network.Close()
 	networkFiles := httptest.NewServer(network.Handler())
 	defer networkFiles.Close()
-	connector, err := acquirer.New(acquirer.Config{Pool: pool, Addr: network.Addr(), ClearingURL: networkFiles.URL, Cards: cardVault.Client})
+	connector, err := acquirer.New(acquirer.Config{Pool: pool, Addr: network.Addr(), NetworkURL: networkFiles.URL, Cards: cardVault.Client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,16 +100,32 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = connector.Close() }()
+	var jupiterHandler http.Handler
+	jupiter := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { jupiterHandler.ServeHTTP(w, r) }))
+	defer jupiter.Close()
+	directory := httptest.NewServer(threedssim.New(threedssim.Config{AuthenticationKey: schemeKey, ResultsSecret: "golden"}).Handler())
+	defer directory.Close()
+	authenticator, err := authentication.New(authentication.Config{
+		Pool: pool, DirectoryURL: directory.URL + "/ds/areq", PublicURL: jupiter.URL, ResultsSecret: "golden", Cards: cardVault.Client,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	l := ledger.New()
+	riskEngine := risk.New(risk.Config{})
 	paymentService := payments.New(payments.Config{
-		Ledger: l, Events: eventService, LiveRail: connector,
+		Ledger: l, Events: eventService, LiveRail: connector, Authenticator: authenticator, Risk: riskEngine,
 		TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client),
 	})
 	merchants := merchant.New(nil)
-	jupiter := httptest.NewServer(api.New(api.Deps{
-		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Box: box,
-	}).Handler())
-	defer jupiter.Close()
+	jupiterAPI := api.New(api.Deps{
+		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Risk: riskEngine, Box: box,
+	})
+	authenticator.Attach(paymentService, jupiterAPI.ResumePayment)
+	mux := http.NewServeMux()
+	mux.Handle("/3ds/", authenticator.Handler())
+	mux.Handle("/", jupiterAPI.Handler())
+	jupiterHandler = mux
 
 	workers := river.NewWorkers()
 	eventService.RegisterWorkers(workers, pool)
@@ -164,7 +185,7 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatalf("payment method = %+v", method)
 	}
 
-	t.Log("5. the customer pays R$ 600.00 in six installments; the issuer authorizes it over ISO 8583")
+	t.Log("5. the customer pays R$ 600.00 in six installments: the issuer authenticates them with 3-D Secure, frictionless, and authorizes it over ISO 8583")
 	var intent struct {
 		ID               string `json:"id"`
 		Status           string `json:"status"`
@@ -174,7 +195,8 @@ func TestGoldenPath(t *testing.T) {
 	client.post("/v1/payment_intents", map[string]any{
 		"amount": 60000, "currency": "brl", "capture_method": "manual",
 		"payment_method": method.ID, "confirm": true,
-		"installments": map[string]any{"count": 6, "financed_by": "merchant"},
+		"installments": map[string]any{"count": 6, "financed_by": "merchant"}, "request_three_d_secure": "any",
+		"customer_ip": "189.40.12.7",
 	}, &intent)
 	if intent.Status != "requires_capture" || intent.AmountCapturable != 60000 {
 		t.Fatalf("after authorization: %+v", intent)
@@ -188,7 +210,12 @@ func TestGoldenPath(t *testing.T) {
 	if err != nil || attempt.NetworkTransactionID == "" || attempt.Installments == nil || attempt.Installments.Count != 6 {
 		t.Fatalf("the authorization: %+v, %v", attempt, err)
 	}
-	t.Logf("   network transaction %s, 6 installments financed by the merchant", attempt.NetworkTransactionID)
+	var eci string
+	var liabilityShift bool
+	if err := pool.QueryRow(ctx, "SELECT eci, liability_shift FROM payments.attempts WHERE id = $1", attempt.ID.String()).Scan(&eci, &liabilityShift); err != nil || eci != "05" || !liabilityShift {
+		t.Fatalf("3-D Secure: eci %q, liability shift %t, %v", eci, liabilityShift, err)
+	}
+	t.Logf("   authenticated (ECI %s, liability shifted to the issuer); network transaction %s; 6 installments financed by the merchant", eci, attempt.NetworkTransactionID)
 	if posted, held := balance(t, paymentService, pool, owner); posted != 0 || held != 60000 {
 		t.Fatalf("ledger after authorization: posted %d, held %d; want 0 and 60000", posted, held)
 	}

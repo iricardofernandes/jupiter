@@ -67,12 +67,16 @@ var Spec = &iso8583.MessageSpec{
 			Length: 999, Description: "Additional Data, Private", Pref: prefix.ASCII.LLL,
 			Tag: &field.TagSpec{Length: 2, Enc: encoding.ASCII, Sort: sort.Strings},
 			Subfields: map[string]field.Field{
+				TagAuthenticationValue:  llvar(40, "3-D Secure authentication value (CAVV, AAV)"),
 				TagCVC:                  llvar(4, "Card verification code"),
+				TagDSTransID:            llvar(36, "3-D Secure directory server transaction id"),
+				TagECI:                  llvar(2, "Electronic commerce indicator"),
 				TagInstallmentFinancing: llvar(1, "Installment financing: M merchant, I issuer"),
 				TagNetworkTransactionID: llvar(15, "Network transaction identifier"),
 				TagPartialApproval:      llvar(1, "Partial approval capable: 1"),
 				TagStoredCredential:     llvar(1, "Stored credential: I initial, C customer-initiated, M merchant-initiated"),
 				TagStandIn:              llvar(1, "Approved in stand-in by the network: 1"),
+				TagTokenCryptogram:      llvar(40, "Network token cryptogram, for DE 2 holding a token"),
 			},
 		}),
 		49: numeric(3, "Currency Code, Transaction (ISO 4217)"),
@@ -84,12 +88,16 @@ var Spec = &iso8583.MessageSpec{
 
 // The tags of the TLV subfields of DE 48.
 const (
+	TagAuthenticationValue  = "AV"
 	TagCVC                  = "CV"
+	TagDSTransID            = "DS"
+	TagECI                  = "EC"
 	TagInstallmentFinancing = "IF"
 	TagNetworkTransactionID = "NT"
 	TagPartialApproval      = "PA"
 	TagStoredCredential     = "SC"
 	TagStandIn              = "SI"
+	TagTokenCryptogram      = "TC"
 )
 
 // ReadLength and WriteLength frame each message with its length as two bytes, big-endian.

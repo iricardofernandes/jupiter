@@ -18,6 +18,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/risk"
 )
 
 const (
@@ -33,6 +34,7 @@ type Deps struct {
 	Events    *events.Service
 	Payments  *payments.Service
 	Vault     Vault
+	Risk      *risk.Service
 	Box       *secretbox.Box
 	Logger    *slog.Logger
 	Now       func() time.Time

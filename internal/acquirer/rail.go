@@ -125,6 +125,17 @@ func (c *Connector) Authorize(ctx context.Context, r payments.AuthorizeRequest) 
 		return c.unsent(ctx, ex, err)
 	}
 	m := c.authorization(ex, r, card)
+	if r.Card.NetworkToken && card.NetworkToken != nil {
+		// With a network token the authorization carries the token and a fresh
+		// cryptogram instead of the number; without a cryptogram, the number.
+		if cryptogram, err := c.cryptogram(ctx, card.NetworkToken.Reference, ex.Amount); err == nil {
+			m.PAN = card.NetworkToken.Number
+			m.Expiry = fmt.Sprintf("%02d%02d", card.NetworkToken.ExpYear%100, card.NetworkToken.ExpMonth)
+			m.Private.CVC, m.Private.TokenCryptogram = "", cryptogram
+		} else {
+			c.cfg.Logger.WarnContext(ctx, "no cryptogram for a network token; paying with the number", "key", ex.Key, "error", err)
+		}
+	}
 	resp, err := c.send(m)
 	return c.finishRequest(ctx, ex, resp, err)
 }
@@ -156,6 +167,9 @@ func (c *Connector) authorization(ex db.AcquirerExchange, r payments.AuthorizeRe
 		private.StoredCredential, private.NetworkTransactionID = cardnet.StoredCredentialMerchant, r.FirstTransaction
 	case r.StoresCredential:
 		private.StoredCredential = cardnet.StoredCredentialInitial
+	}
+	if a := r.Authentication; a != nil {
+		private.AuthenticationValue, private.ECI, private.DSTransID = a.Value, a.ECI, a.DSTransID
 	}
 	if r.Installments != nil {
 		m.Installments = fmt.Sprintf("%02d", r.Installments.Count)

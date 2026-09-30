@@ -11,6 +11,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/authentication"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -19,6 +20,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
+	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
@@ -36,12 +38,25 @@ const (
 	forwardBatch      = 500
 	clearingEvery     = 15 * time.Minute
 	clearingDays      = 7
+	tokensEvery       = 30 * time.Second
+	tokensBatch       = 100
 )
 
 var checkOptions = ledger.CheckOptions{
 	ClearingGrace: 24 * time.Hour,
 	ExpiryGrace:   5 * time.Minute,
 	MarkDrift:     true,
+}
+
+// newPayments adds the card network and 3-D Secure to cfg when they are configured.
+func newPayments(cfg payments.Config, network *acquirer.Connector, authenticator *authentication.Server) *payments.Service {
+	if network != nil {
+		cfg.LiveRail = network
+	}
+	if authenticator != nil {
+		cfg.Authenticator = authenticator
+	}
+	return payments.New(cfg)
 }
 
 func main() {
@@ -87,21 +102,22 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		return service.App{}, err
 	}
 	l := ledger.New()
-	paymentsConfig := payments.Config{
-		Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
+	authenticator, err := authentication.FromEnv(os.Getenv, pool, cards, logger)
+	if err != nil {
+		pool.Close()
+		return service.App{}, err
 	}
-	if network != nil {
-		paymentsConfig.LiveRail = network
-	}
-	paymentService := payments.New(paymentsConfig)
+	riskEngine := risk.New(risk.Config{})
+	paymentService := newPayments(payments.Config{
+		Ledger: l, Events: eventService, Risk: riskEngine, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
+	}, network, authenticator)
 	a := api.New(api.Deps{
-		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Vault: cards, Box: box, Logger: logger,
+		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Vault: cards, Risk: riskEngine, Box: box, Logger: logger,
 	})
 
-	background := tasks(jobClient, l, pool, a, paymentService, network, logger)
 	return service.App{
 		Ready:      pool.Ping,
-		Background: background,
+		Background: tasks(jobClient, l, pool, a, paymentService, network, logger),
 		Close: func() {
 			if network != nil {
 				_ = network.Close()

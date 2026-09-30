@@ -3,6 +3,7 @@ module github.com/iricardofernandes/jupiter
 go 1.27.1
 
 require (
+	github.com/expr-lang/expr v1.17.8
 	github.com/getkin/kin-openapi v0.149.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/moov-io/iso8583 v0.26.1

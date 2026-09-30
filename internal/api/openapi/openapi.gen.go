@@ -131,6 +131,24 @@ func (e CreatePaymentIntentRequestCaptureMethod) Valid() bool {
 	}
 }
 
+// Defines values for CreatePaymentIntentRequestRequestThreeDSecure.
+const (
+	CreatePaymentIntentRequestRequestThreeDSecureAny       CreatePaymentIntentRequestRequestThreeDSecure = "any"
+	CreatePaymentIntentRequestRequestThreeDSecureAutomatic CreatePaymentIntentRequestRequestThreeDSecure = "automatic"
+)
+
+// Valid indicates whether the value is a known member of the CreatePaymentIntentRequestRequestThreeDSecure enum.
+func (e CreatePaymentIntentRequestRequestThreeDSecure) Valid() bool {
+	switch e {
+	case CreatePaymentIntentRequestRequestThreeDSecureAny:
+		return true
+	case CreatePaymentIntentRequestRequestThreeDSecureAutomatic:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreatePaymentIntentRequestSetupFutureUsage.
 const (
 	CreatePaymentIntentRequestSetupFutureUsageOffSession CreatePaymentIntentRequestSetupFutureUsage = "off_session"
@@ -176,6 +194,69 @@ func (e CreateRefundRequestReason) Valid() bool {
 	case CreateRefundRequestReasonFraudulent:
 		return true
 	case CreateRefundRequestReasonRequestedByCustomer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRiskListItemRequestKind.
+const (
+	CreateRiskListItemRequestKindBin             CreateRiskListItemRequestKind = "bin"
+	CreateRiskListItemRequestKindCardFingerprint CreateRiskListItemRequestKind = "card_fingerprint"
+	CreateRiskListItemRequestKindIp              CreateRiskListItemRequestKind = "ip"
+)
+
+// Valid indicates whether the value is a known member of the CreateRiskListItemRequestKind enum.
+func (e CreateRiskListItemRequestKind) Valid() bool {
+	switch e {
+	case CreateRiskListItemRequestKindBin:
+		return true
+	case CreateRiskListItemRequestKindCardFingerprint:
+		return true
+	case CreateRiskListItemRequestKindIp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRiskListItemRequestList.
+const (
+	CreateRiskListItemRequestListAllow CreateRiskListItemRequestList = "allow"
+	CreateRiskListItemRequestListBlock CreateRiskListItemRequestList = "block"
+)
+
+// Valid indicates whether the value is a known member of the CreateRiskListItemRequestList enum.
+func (e CreateRiskListItemRequestList) Valid() bool {
+	switch e {
+	case CreateRiskListItemRequestListAllow:
+		return true
+	case CreateRiskListItemRequestListBlock:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRiskRuleRequestAction.
+const (
+	CreateRiskRuleRequestActionAllow      CreateRiskRuleRequestAction = "allow"
+	CreateRiskRuleRequestActionBlock      CreateRiskRuleRequestAction = "block"
+	CreateRiskRuleRequestActionRequest3ds CreateRiskRuleRequestAction = "request_3ds"
+	CreateRiskRuleRequestActionReview     CreateRiskRuleRequestAction = "review"
+)
+
+// Valid indicates whether the value is a known member of the CreateRiskRuleRequestAction enum.
+func (e CreateRiskRuleRequestAction) Valid() bool {
+	switch e {
+	case CreateRiskRuleRequestActionAllow:
+		return true
+	case CreateRiskRuleRequestActionBlock:
+		return true
+	case CreateRiskRuleRequestActionRequest3ds:
+		return true
+	case CreateRiskRuleRequestActionReview:
 		return true
 	default:
 		return false
@@ -260,6 +341,30 @@ func (e EventListObject) Valid() bool {
 	}
 }
 
+// Defines values for FiredRuleAction.
+const (
+	FiredRuleActionAllow      FiredRuleAction = "allow"
+	FiredRuleActionBlock      FiredRuleAction = "block"
+	FiredRuleActionRequest3ds FiredRuleAction = "request_3ds"
+	FiredRuleActionReview     FiredRuleAction = "review"
+)
+
+// Valid indicates whether the value is a known member of the FiredRuleAction enum.
+func (e FiredRuleAction) Valid() bool {
+	switch e {
+	case FiredRuleActionAllow:
+		return true
+	case FiredRuleActionBlock:
+		return true
+	case FiredRuleActionRequest3ds:
+		return true
+	case FiredRuleActionReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InstallmentsFinancedBy.
 const (
 	Issuer   InstallmentsFinancedBy = "issuer"
@@ -320,6 +425,24 @@ const (
 func (e PaymentIntentObject) Valid() bool {
 	switch e {
 	case PaymentIntentObjectPaymentIntent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentIntentRequestThreeDSecure.
+const (
+	PaymentIntentRequestThreeDSecureAny       PaymentIntentRequestThreeDSecure = "any"
+	PaymentIntentRequestThreeDSecureAutomatic PaymentIntentRequestThreeDSecure = "automatic"
+)
+
+// Valid indicates whether the value is a known member of the PaymentIntentRequestThreeDSecure enum.
+func (e PaymentIntentRequestThreeDSecure) Valid() bool {
+	switch e {
+	case PaymentIntentRequestThreeDSecureAny:
+		return true
+	case PaymentIntentRequestThreeDSecureAutomatic:
 		return true
 	default:
 		return false
@@ -500,6 +623,225 @@ func (e RefundListObject) Valid() bool {
 	}
 }
 
+// Defines values for RiskDecisionAction.
+const (
+	RiskDecisionActionAllow      RiskDecisionAction = "allow"
+	RiskDecisionActionBlock      RiskDecisionAction = "block"
+	RiskDecisionActionRequest3ds RiskDecisionAction = "request_3ds"
+	RiskDecisionActionReview     RiskDecisionAction = "review"
+)
+
+// Valid indicates whether the value is a known member of the RiskDecisionAction enum.
+func (e RiskDecisionAction) Valid() bool {
+	switch e {
+	case RiskDecisionActionAllow:
+		return true
+	case RiskDecisionActionBlock:
+		return true
+	case RiskDecisionActionRequest3ds:
+		return true
+	case RiskDecisionActionReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskDecisionObject.
+const (
+	RiskDecisionObjectRiskDecision RiskDecisionObject = "risk_decision"
+)
+
+// Valid indicates whether the value is a known member of the RiskDecisionObject enum.
+func (e RiskDecisionObject) Valid() bool {
+	switch e {
+	case RiskDecisionObjectRiskDecision:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskDecisionListObject.
+const (
+	RiskDecisionListObjectList RiskDecisionListObject = "list"
+)
+
+// Valid indicates whether the value is a known member of the RiskDecisionListObject enum.
+func (e RiskDecisionListObject) Valid() bool {
+	switch e {
+	case RiskDecisionListObjectList:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskDecisionRefAction.
+const (
+	RiskDecisionRefActionAllow      RiskDecisionRefAction = "allow"
+	RiskDecisionRefActionBlock      RiskDecisionRefAction = "block"
+	RiskDecisionRefActionRequest3ds RiskDecisionRefAction = "request_3ds"
+	RiskDecisionRefActionReview     RiskDecisionRefAction = "review"
+)
+
+// Valid indicates whether the value is a known member of the RiskDecisionRefAction enum.
+func (e RiskDecisionRefAction) Valid() bool {
+	switch e {
+	case RiskDecisionRefActionAllow:
+		return true
+	case RiskDecisionRefActionBlock:
+		return true
+	case RiskDecisionRefActionRequest3ds:
+		return true
+	case RiskDecisionRefActionReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskListItemKind.
+const (
+	RiskListItemKindBin             RiskListItemKind = "bin"
+	RiskListItemKindCardFingerprint RiskListItemKind = "card_fingerprint"
+	RiskListItemKindIp              RiskListItemKind = "ip"
+)
+
+// Valid indicates whether the value is a known member of the RiskListItemKind enum.
+func (e RiskListItemKind) Valid() bool {
+	switch e {
+	case RiskListItemKindBin:
+		return true
+	case RiskListItemKindCardFingerprint:
+		return true
+	case RiskListItemKindIp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskListItemList.
+const (
+	RiskListItemListAllow RiskListItemList = "allow"
+	RiskListItemListBlock RiskListItemList = "block"
+)
+
+// Valid indicates whether the value is a known member of the RiskListItemList enum.
+func (e RiskListItemList) Valid() bool {
+	switch e {
+	case RiskListItemListAllow:
+		return true
+	case RiskListItemListBlock:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskListItemObject.
+const (
+	RiskListItemObjectRiskListItem RiskListItemObject = "risk_list_item"
+)
+
+// Valid indicates whether the value is a known member of the RiskListItemObject enum.
+func (e RiskListItemObject) Valid() bool {
+	switch e {
+	case RiskListItemObjectRiskListItem:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskListItemPageObject.
+const (
+	RiskListItemPageObjectList RiskListItemPageObject = "list"
+)
+
+// Valid indicates whether the value is a known member of the RiskListItemPageObject enum.
+func (e RiskListItemPageObject) Valid() bool {
+	switch e {
+	case RiskListItemPageObjectList:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskRuleAction.
+const (
+	RiskRuleActionAllow      RiskRuleAction = "allow"
+	RiskRuleActionBlock      RiskRuleAction = "block"
+	RiskRuleActionRequest3ds RiskRuleAction = "request_3ds"
+	RiskRuleActionReview     RiskRuleAction = "review"
+)
+
+// Valid indicates whether the value is a known member of the RiskRuleAction enum.
+func (e RiskRuleAction) Valid() bool {
+	switch e {
+	case RiskRuleActionAllow:
+		return true
+	case RiskRuleActionBlock:
+		return true
+	case RiskRuleActionRequest3ds:
+		return true
+	case RiskRuleActionReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskRuleObject.
+const (
+	RiskRuleObjectRiskRule RiskRuleObject = "risk_rule"
+)
+
+// Valid indicates whether the value is a known member of the RiskRuleObject enum.
+func (e RiskRuleObject) Valid() bool {
+	switch e {
+	case RiskRuleObjectRiskRule:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RiskRulePageObject.
+const (
+	RiskRulePageObjectList RiskRulePageObject = "list"
+)
+
+// Valid indicates whether the value is a known member of the RiskRulePageObject enum.
+func (e RiskRulePageObject) Valid() bool {
+	switch e {
+	case RiskRulePageObjectList:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdatePaymentIntentRequestRequestThreeDSecure.
+const (
+	UpdatePaymentIntentRequestRequestThreeDSecureAny       UpdatePaymentIntentRequestRequestThreeDSecure = "any"
+	UpdatePaymentIntentRequestRequestThreeDSecureAutomatic UpdatePaymentIntentRequestRequestThreeDSecure = "automatic"
+)
+
+// Valid indicates whether the value is a known member of the UpdatePaymentIntentRequestRequestThreeDSecure enum.
+func (e UpdatePaymentIntentRequestRequestThreeDSecure) Valid() bool {
+	switch e {
+	case UpdatePaymentIntentRequestRequestThreeDSecureAny:
+		return true
+	case UpdatePaymentIntentRequestRequestThreeDSecureAutomatic:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdatePaymentIntentRequestSetupFutureUsage.
 const (
 	UpdatePaymentIntentRequestSetupFutureUsageOffSession UpdatePaymentIntentRequestSetupFutureUsage = "off_session"
@@ -581,6 +923,30 @@ func (e WebhookEndpointListObject) Valid() bool {
 	}
 }
 
+// Defines values for ListRiskDecisionsParamsAction.
+const (
+	ListRiskDecisionsParamsActionAllow      ListRiskDecisionsParamsAction = "allow"
+	ListRiskDecisionsParamsActionBlock      ListRiskDecisionsParamsAction = "block"
+	ListRiskDecisionsParamsActionRequest3ds ListRiskDecisionsParamsAction = "request_3ds"
+	ListRiskDecisionsParamsActionReview     ListRiskDecisionsParamsAction = "review"
+)
+
+// Valid indicates whether the value is a known member of the ListRiskDecisionsParamsAction enum.
+func (e ListRiskDecisionsParamsAction) Valid() bool {
+	switch e {
+	case ListRiskDecisionsParamsActionAllow:
+		return true
+	case ListRiskDecisionsParamsActionBlock:
+		return true
+	case ListRiskDecisionsParamsActionRequest3ds:
+		return true
+	case ListRiskDecisionsParamsActionReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // ApiKey defines model for ApiKey.
 type ApiKey struct {
 	Created  int64        `json:"created"`
@@ -646,8 +1012,12 @@ type CompleteActionRequestOutcome string
 
 // ConfirmPaymentIntentRequest defines model for ConfirmPaymentIntentRequest.
 type ConfirmPaymentIntentRequest struct {
+	CustomerIp    *string `json:"customer_ip,omitempty"`
 	OffSession    *bool   `json:"off_session,omitempty"`
 	PaymentMethod *string `json:"payment_method,omitempty"`
+
+	// ReturnUrl Where to send the customer after a 3-D Secure challenge: an absolute https URL.
+	ReturnUrl *string `json:"return_url,omitempty"`
 }
 
 // CreateApiKeyRequest defines model for CreateApiKeyRequest.
@@ -662,7 +1032,10 @@ type CreatePaymentIntentRequest struct {
 	CaptureMethod *CreatePaymentIntentRequestCaptureMethod `json:"capture_method,omitempty"`
 	Confirm       *bool                                    `json:"confirm,omitempty"`
 	Currency      string                                   `json:"currency"`
-	Description   *string                                  `json:"description,omitempty"`
+
+	// CustomerIp The customer's IP address, for the risk engine.
+	CustomerIp  *string `json:"customer_ip,omitempty"`
+	Description *string `json:"description,omitempty"`
 
 	// Installments Parcelado: the payment is authorized once, for the whole amount, and the cardholder
 	// pays it in count monthly installments. financed_by merchant is parcelado lojista,
@@ -673,12 +1046,21 @@ type CreatePaymentIntentRequest struct {
 	OffSession    *bool   `json:"off_session,omitempty"`
 	PaymentMethod *string `json:"payment_method,omitempty"`
 
+	// RequestThreeDSecure automatic lets the risk engine decide when to authenticate the cardholder; any always does.
+	RequestThreeDSecure *CreatePaymentIntentRequestRequestThreeDSecure `json:"request_three_d_secure,omitempty"`
+
+	// ReturnUrl Where to send the customer after a 3-D Secure challenge: an absolute https URL.
+	ReturnUrl *string `json:"return_url,omitempty"`
+
 	// SetupFutureUsage Store the card, with this customer-initiated payment, for later off_session ones.
 	SetupFutureUsage *CreatePaymentIntentRequestSetupFutureUsage `json:"setup_future_usage,omitempty"`
 }
 
 // CreatePaymentIntentRequestCaptureMethod defines model for CreatePaymentIntentRequest.CaptureMethod.
 type CreatePaymentIntentRequestCaptureMethod string
+
+// CreatePaymentIntentRequestRequestThreeDSecure automatic lets the risk engine decide when to authenticate the cardholder; any always does.
+type CreatePaymentIntentRequestRequestThreeDSecure string
 
 // CreatePaymentIntentRequestSetupFutureUsage Store the card, with this customer-initiated payment, for later off_session ones.
 type CreatePaymentIntentRequestSetupFutureUsage string
@@ -702,6 +1084,29 @@ type CreateRefundRequest struct {
 
 // CreateRefundRequestReason defines model for CreateRefundRequest.Reason.
 type CreateRefundRequestReason string
+
+// CreateRiskListItemRequest defines model for CreateRiskListItemRequest.
+type CreateRiskListItemRequest struct {
+	Kind  CreateRiskListItemRequestKind `json:"kind"`
+	List  CreateRiskListItemRequestList `json:"list"`
+	Value string                        `json:"value"`
+}
+
+// CreateRiskListItemRequestKind defines model for CreateRiskListItemRequest.Kind.
+type CreateRiskListItemRequestKind string
+
+// CreateRiskListItemRequestList defines model for CreateRiskListItemRequest.List.
+type CreateRiskListItemRequestList string
+
+// CreateRiskRuleRequest defines model for CreateRiskRuleRequest.
+type CreateRiskRuleRequest struct {
+	Action      CreateRiskRuleRequestAction `json:"action"`
+	Description *string                     `json:"description,omitempty"`
+	Expression  string                      `json:"expression"`
+}
+
+// CreateRiskRuleRequestAction defines model for CreateRiskRuleRequest.Action.
+type CreateRiskRuleRequestAction string
 
 // CreateWebhookEndpointRequest defines model for CreateWebhookEndpointRequest.
 type CreateWebhookEndpointRequest struct {
@@ -767,6 +1172,17 @@ type EventList struct {
 // EventListObject defines model for EventList.Object.
 type EventListObject string
 
+// FiredRule defines model for FiredRule.
+type FiredRule struct {
+	Action      FiredRuleAction `json:"action"`
+	Description string          `json:"description"`
+	Expression  *string         `json:"expression,omitempty"`
+	Id          string          `json:"id"`
+}
+
+// FiredRuleAction defines model for FiredRule.Action.
+type FiredRuleAction string
+
 // Installments Parcelado: the payment is authorized once, for the whole amount, and the cardholder
 // pays it in count monthly installments. financed_by merchant is parcelado lojista,
 // without interest to the cardholder; issuer is parcelado emissor, with interest.
@@ -790,7 +1206,12 @@ type ListMetaObject string
 
 // NextAction defines model for NextAction.
 type NextAction struct {
-	// Type use_test_authentication: complete it with the test helper.
+	RedirectToUrl *struct {
+		Url string `json:"url"`
+	} `json:"redirect_to_url,omitempty"`
+
+	// Type redirect_to_url: send the customer to redirect_to_url.url to complete 3-D Secure.
+	// use_test_authentication: in test mode, complete it with the test helper.
 	Type string `json:"type"`
 }
 
@@ -813,18 +1234,20 @@ type PaymentIntent struct {
 	Created            int64                      `json:"created"`
 
 	// Currency Lower-case ISO 4217 code.
-	Currency         string                         `json:"currency"`
-	Description      string                         `json:"description"`
-	Id               string                         `json:"id"`
-	Installments     *Installments                  `json:"installments"`
-	LastPaymentError *PaymentError                  `json:"last_payment_error"`
-	LatestAttempt    *string                        `json:"latest_attempt"`
-	Livemode         bool                           `json:"livemode"`
-	NextAction       *NextAction                    `json:"next_action"`
-	Object           PaymentIntentObject            `json:"object"`
-	PaymentMethod    *string                        `json:"payment_method"`
-	SetupFutureUsage *PaymentIntentSetupFutureUsage `json:"setup_future_usage"`
-	Status           PaymentIntentStatus            `json:"status"`
+	Currency            string                           `json:"currency"`
+	Description         string                           `json:"description"`
+	Id                  string                           `json:"id"`
+	Installments        *Installments                    `json:"installments"`
+	LastPaymentError    *PaymentError                    `json:"last_payment_error"`
+	LatestAttempt       *string                          `json:"latest_attempt"`
+	Livemode            bool                             `json:"livemode"`
+	NextAction          *NextAction                      `json:"next_action"`
+	Object              PaymentIntentObject              `json:"object"`
+	PaymentMethod       *string                          `json:"payment_method"`
+	RequestThreeDSecure PaymentIntentRequestThreeDSecure `json:"request_three_d_secure"`
+	RiskDecision        *RiskDecisionRef                 `json:"risk_decision"`
+	SetupFutureUsage    *PaymentIntentSetupFutureUsage   `json:"setup_future_usage"`
+	Status              PaymentIntentStatus              `json:"status"`
 }
 
 // PaymentIntentCaptureMethod defines model for PaymentIntent.CaptureMethod.
@@ -832,6 +1255,9 @@ type PaymentIntentCaptureMethod string
 
 // PaymentIntentObject defines model for PaymentIntent.Object.
 type PaymentIntentObject string
+
+// PaymentIntentRequestThreeDSecure defines model for PaymentIntent.RequestThreeDSecure.
+type PaymentIntentRequestThreeDSecure string
 
 // PaymentIntentSetupFutureUsage defines model for PaymentIntent.SetupFutureUsage.
 type PaymentIntentSetupFutureUsage string
@@ -929,6 +1355,105 @@ type ResendEventRequest struct {
 	WebhookEndpoint *string `json:"webhook_endpoint,omitempty"`
 }
 
+// RiskDecision defines model for RiskDecision.
+type RiskDecision struct {
+	Action  RiskDecisionAction `json:"action"`
+	Attempt string             `json:"attempt"`
+	Created int64              `json:"created"`
+
+	// Features What the rules saw.
+	Features      map[string]interface{} `json:"features"`
+	Id            string                 `json:"id"`
+	Livemode      bool                   `json:"livemode"`
+	Object        RiskDecisionObject     `json:"object"`
+	PaymentIntent string                 `json:"payment_intent"`
+
+	// Rules The rules and list entries that fired; the decision is the most severe of their actions.
+	Rules []FiredRule `json:"rules"`
+}
+
+// RiskDecisionAction defines model for RiskDecision.Action.
+type RiskDecisionAction string
+
+// RiskDecisionObject defines model for RiskDecision.Object.
+type RiskDecisionObject string
+
+// RiskDecisionList defines model for RiskDecisionList.
+type RiskDecisionList struct {
+	Data    []RiskDecision         `json:"data"`
+	HasMore bool                   `json:"has_more"`
+	Object  RiskDecisionListObject `json:"object"`
+	Url     string                 `json:"url"`
+}
+
+// RiskDecisionListObject defines model for RiskDecisionList.Object.
+type RiskDecisionListObject string
+
+// RiskDecisionRef defines model for RiskDecisionRef.
+type RiskDecisionRef struct {
+	Action RiskDecisionRefAction `json:"action"`
+	Id     string                `json:"id"`
+}
+
+// RiskDecisionRefAction defines model for RiskDecisionRef.Action.
+type RiskDecisionRefAction string
+
+// RiskListItem defines model for RiskListItem.
+type RiskListItem struct {
+	Created int64              `json:"created"`
+	Id      string             `json:"id"`
+	Kind    RiskListItemKind   `json:"kind"`
+	List    RiskListItemList   `json:"list"`
+	Object  RiskListItemObject `json:"object"`
+	Value   string             `json:"value"`
+}
+
+// RiskListItemKind defines model for RiskListItem.Kind.
+type RiskListItemKind string
+
+// RiskListItemList defines model for RiskListItem.List.
+type RiskListItemList string
+
+// RiskListItemObject defines model for RiskListItem.Object.
+type RiskListItemObject string
+
+// RiskListItemPage defines model for RiskListItemPage.
+type RiskListItemPage struct {
+	Data   []RiskListItem         `json:"data"`
+	Object RiskListItemPageObject `json:"object"`
+}
+
+// RiskListItemPageObject defines model for RiskListItemPage.Object.
+type RiskListItemPageObject string
+
+// RiskRule defines model for RiskRule.
+type RiskRule struct {
+	Action      RiskRuleAction `json:"action"`
+	Created     *int64         `json:"created,omitempty"`
+	Description string         `json:"description"`
+	Expression  string         `json:"expression"`
+	Id          string         `json:"id"`
+	Object      RiskRuleObject `json:"object"`
+
+	// Platform A platform rule, which applies to every merchant and cannot be deleted.
+	Platform bool `json:"platform"`
+}
+
+// RiskRuleAction defines model for RiskRule.Action.
+type RiskRuleAction string
+
+// RiskRuleObject defines model for RiskRule.Object.
+type RiskRuleObject string
+
+// RiskRulePage defines model for RiskRulePage.
+type RiskRulePage struct {
+	Data   []RiskRule         `json:"data"`
+	Object RiskRulePageObject `json:"object"`
+}
+
+// RiskRulePageObject defines model for RiskRulePage.Object.
+type RiskRulePageObject string
+
 // RollSecretRequest defines model for RollSecretRequest.
 type RollSecretRequest struct {
 	ExpireCurrentIn *int `json:"expire_current_in,omitempty"`
@@ -942,10 +1467,14 @@ type UpdatePaymentIntentRequest struct {
 	// Installments Parcelado: the payment is authorized once, for the whole amount, and the cardholder
 	// pays it in count monthly installments. financed_by merchant is parcelado lojista,
 	// without interest to the cardholder; issuer is parcelado emissor, with interest.
-	Installments     *Installments                               `json:"installments,omitempty"`
-	PaymentMethod    *string                                     `json:"payment_method,omitempty"`
-	SetupFutureUsage *UpdatePaymentIntentRequestSetupFutureUsage `json:"setup_future_usage,omitempty"`
+	Installments        *Installments                                  `json:"installments,omitempty"`
+	PaymentMethod       *string                                        `json:"payment_method,omitempty"`
+	RequestThreeDSecure *UpdatePaymentIntentRequestRequestThreeDSecure `json:"request_three_d_secure,omitempty"`
+	SetupFutureUsage    *UpdatePaymentIntentRequestSetupFutureUsage    `json:"setup_future_usage,omitempty"`
 }
+
+// UpdatePaymentIntentRequestRequestThreeDSecure defines model for UpdatePaymentIntentRequest.RequestThreeDSecure.
+type UpdatePaymentIntentRequestRequestThreeDSecure string
 
 // UpdatePaymentIntentRequestSetupFutureUsage defines model for UpdatePaymentIntentRequest.SetupFutureUsage.
 type UpdatePaymentIntentRequestSetupFutureUsage string
@@ -1120,6 +1649,32 @@ type CreateRefundParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
+// ListRiskDecisionsParams defines parameters for ListRiskDecisions.
+type ListRiskDecisionsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartingAfter An object id; the page starts with the next older object.
+	StartingAfter *StartingAfter `form:"starting_after,omitempty" json:"starting_after,omitempty"`
+
+	// EndingBefore An object id; the page ends with the next newer object.
+	EndingBefore  *EndingBefore                  `form:"ending_before,omitempty" json:"ending_before,omitempty"`
+	Action        *ListRiskDecisionsParamsAction `form:"action,omitempty" json:"action,omitempty"`
+	PaymentIntent *string                        `form:"payment_intent,omitempty" json:"payment_intent,omitempty"`
+}
+
+// ListRiskDecisionsParamsAction defines parameters for ListRiskDecisions.
+type ListRiskDecisionsParamsAction string
+
+// CreateRiskListItemParams defines parameters for CreateRiskListItem.
+type CreateRiskListItemParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// CreateRiskRuleParams defines parameters for CreateRiskRule.
+type CreateRiskRuleParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // CompletePaymentIntentActionParams defines parameters for CompletePaymentIntentAction.
 type CompletePaymentIntentActionParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
@@ -1177,6 +1732,12 @@ type CreatePaymentMethodJSONRequestBody = CreatePaymentMethodRequest
 
 // CreateRefundJSONRequestBody defines body for CreateRefund for application/json ContentType.
 type CreateRefundJSONRequestBody = CreateRefundRequest
+
+// CreateRiskListItemJSONRequestBody defines body for CreateRiskListItem for application/json ContentType.
+type CreateRiskListItemJSONRequestBody = CreateRiskListItemRequest
+
+// CreateRiskRuleJSONRequestBody defines body for CreateRiskRule for application/json ContentType.
+type CreateRiskRuleJSONRequestBody = CreateRiskRuleRequest
 
 // CompletePaymentIntentActionJSONRequestBody defines body for CompletePaymentIntentAction for application/json ContentType.
 type CompletePaymentIntentActionJSONRequestBody = CompleteActionRequest
@@ -1249,6 +1810,30 @@ type ServerInterface interface {
 
 	// (GET /v1/refunds/{id})
 	GetRefund(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (GET /v1/risk/decisions)
+	ListRiskDecisions(w http.ResponseWriter, r *http.Request, params ListRiskDecisionsParams)
+
+	// (GET /v1/risk/decisions/{id})
+	GetRiskDecision(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (GET /v1/risk/list_items)
+	ListRiskListItems(w http.ResponseWriter, r *http.Request)
+
+	// (POST /v1/risk/list_items)
+	CreateRiskListItem(w http.ResponseWriter, r *http.Request, params CreateRiskListItemParams)
+
+	// (DELETE /v1/risk/list_items/{id})
+	DeleteRiskListItem(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (GET /v1/risk/rules)
+	ListRiskRules(w http.ResponseWriter, r *http.Request)
+
+	// (POST /v1/risk/rules)
+	CreateRiskRule(w http.ResponseWriter, r *http.Request, params CreateRiskRuleParams)
+
+	// (DELETE /v1/risk/rules/{id})
+	DeleteRiskRule(w http.ResponseWriter, r *http.Request, id ID)
 
 	// (POST /v1/test_helpers/payment_intents/{id}/complete_action)
 	CompletePaymentIntentAction(w http.ResponseWriter, r *http.Request, id ID, params CompletePaymentIntentActionParams)
@@ -2166,6 +2751,279 @@ func (siw *ServerInterfaceWrapper) GetRefund(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ListRiskDecisions operation middleware
+func (siw *ServerInterfaceWrapper) ListRiskDecisions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRiskDecisionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "starting_after" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "starting_after", r.URL.Query(), &params.StartingAfter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "starting_after"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "starting_after", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "ending_before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "ending_before", r.URL.Query(), &params.EndingBefore, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ending_before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ending_before", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", r.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "action"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "payment_intent" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "payment_intent", r.URL.Query(), &params.PaymentIntent, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "payment_intent"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "payment_intent", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRiskDecisions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRiskDecision operation middleware
+func (siw *ServerInterfaceWrapper) GetRiskDecision(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRiskDecision(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRiskListItems operation middleware
+func (siw *ServerInterfaceWrapper) ListRiskListItems(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRiskListItems(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateRiskListItem operation middleware
+func (siw *ServerInterfaceWrapper) CreateRiskListItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateRiskListItemParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateRiskListItem(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteRiskListItem operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRiskListItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteRiskListItem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRiskRules operation middleware
+func (siw *ServerInterfaceWrapper) ListRiskRules(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRiskRules(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateRiskRule operation middleware
+func (siw *ServerInterfaceWrapper) CreateRiskRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateRiskRuleParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateRiskRule(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteRiskRule operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRiskRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteRiskRule(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CompletePaymentIntentAction operation middleware
 func (siw *ServerInterfaceWrapper) CompletePaymentIntentAction(w http.ResponseWriter, r *http.Request) {
 
@@ -2600,6 +3458,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/refunds", wrapper.ListRefunds)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/refunds", wrapper.CreateRefund)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/refunds/{id}", wrapper.GetRefund)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/decisions", wrapper.ListRiskDecisions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/decisions/{id}", wrapper.GetRiskDecision)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/rules", wrapper.ListRiskRules)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/risk/rules", wrapper.CreateRiskRule)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/risk/rules/{id}", wrapper.DeleteRiskRule)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/list_items", wrapper.ListRiskListItems)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/risk/list_items", wrapper.CreateRiskListItem)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/risk/list_items/{id}", wrapper.DeleteRiskListItem)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/test_helpers/payment_intents/{id}/complete_action", wrapper.CompletePaymentIntentAction)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/api_keys", wrapper.ListApiKeys)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/api_keys", wrapper.CreateApiKey)
@@ -2623,81 +3489,98 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"j1peR+N5VWjfeNY/Z2PQ1Xqublf/PwA=",
+	"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",
+	"rl/v/sv9/w0A",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

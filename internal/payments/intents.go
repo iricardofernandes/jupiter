@@ -25,30 +25,43 @@ const (
 	StepCapture Step = "capture"
 	StepVoid    Step = "void"
 	StepConfirm Step = "authorize"
+	// StepAuthenticate asks the cardholder's issuer to authenticate them (3-D Secure)
+	// before the authorization.
+	StepAuthenticate Step = "authenticate"
+)
+
+// Three-D Secure requests.
+const (
+	ThreeDSAutomatic = "automatic"
+	ThreeDSAny       = "any"
 )
 
 type CreateParams struct {
-	Amount           money.Amount
-	CaptureMethod    CaptureMethod
-	PaymentMethod    string
-	Description      string
-	Installments     *Installments
-	SetupFutureUsage string
+	Amount              money.Amount
+	CaptureMethod       CaptureMethod
+	PaymentMethod       string
+	Description         string
+	Installments        *Installments
+	SetupFutureUsage    string
+	RequestThreeDSecure string
 }
 
 type UpdateParams struct {
-	Amount           *money.Amount
-	PaymentMethod    *string
-	Description      *string
-	Installments     *Installments
-	SetupFutureUsage *string
+	Amount              *money.Amount
+	PaymentMethod       *string
+	Description         *string
+	Installments        *Installments
+	SetupFutureUsage    *string
+	RequestThreeDSecure *string
 }
 
 // ConfirmParams says how to authorize: OffSession for a merchant-initiated payment,
-// made without the cardholder, on a card an earlier payment stored.
+// made without the cardholder, on a card an earlier payment stored. IP is the
+// customer's address, for the risk engine.
 type ConfirmParams struct {
 	PaymentMethod string
 	OffSession    bool
+	IP            string
 }
 
 const maxDescription = 1000
@@ -57,7 +70,10 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	if p.CaptureMethod == "" {
 		p.CaptureMethod = CaptureAutomatic
 	}
-	if err := validateIntent(p.Amount, p.CaptureMethod, p.Description, p.Installments, p.SetupFutureUsage); err != nil {
+	if p.RequestThreeDSecure == "" {
+		p.RequestThreeDSecure = ThreeDSAutomatic
+	}
+	if err := validateIntent(p.Amount, p.CaptureMethod, p.Description, p.Installments, p.SetupFutureUsage, p.RequestThreeDSecure); err != nil {
 		return Intent{}, err
 	}
 	if err := s.checkPaymentMethod(ctx, tx, owner, p.PaymentMethod); err != nil {
@@ -72,6 +88,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		ID: IntentPrefix.New().String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 		Amount: p.Amount.Minor(), Currency: p.Amount.Currency().Code(), CaptureMethod: string(p.CaptureMethod),
 		Status: string(status), PaymentMethod: p.PaymentMethod, Description: p.Description, SetupFutureUsage: p.SetupFutureUsage,
+		RequestThreeDSecure: p.RequestThreeDSecure,
 	}
 	row.Installments, row.InstallmentsFinancedBy = installmentColumns(p.Installments)
 	q := db.New(tx)
@@ -79,7 +96,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		ID: row.ID, MerchantID: row.MerchantID, Livemode: row.Livemode, Amount: row.Amount, Currency: row.Currency,
 		CaptureMethod: row.CaptureMethod, Status: row.Status, PaymentMethod: row.PaymentMethod,
 		Description: row.Description, Installments: row.Installments, InstallmentsFinancedBy: row.InstallmentsFinancedBy,
-		SetupFutureUsage: row.SetupFutureUsage, CreatedAt: ts(now),
+		SetupFutureUsage: row.SetupFutureUsage, RequestThreeDSecure: row.RequestThreeDSecure, CreatedAt: ts(now),
 	}); err != nil {
 		return Intent{}, fmt.Errorf("creating payment intent: %w", err)
 	}
@@ -92,7 +109,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 
 const maxInstallments = 12
 
-func validateIntent(amount money.Amount, method CaptureMethod, description string, installments *Installments, setup string) error {
+func validateIntent(amount money.Amount, method CaptureMethod, description string, installments *Installments, setup, threeDS string) error {
 	if installments != nil {
 		switch {
 		case installments.Count < 2 || installments.Count > maxInstallments:
@@ -106,6 +123,8 @@ func validateIntent(amount money.Amount, method CaptureMethod, description strin
 	switch {
 	case setup != "" && setup != SetupOffSession:
 		return fmt.Errorf("%w: setup_future_usage must be off_session", ErrInvalid)
+	case threeDS != ThreeDSAutomatic && threeDS != ThreeDSAny:
+		return fmt.Errorf("%w: request_three_d_secure must be automatic or any", ErrInvalid)
 	case !amount.IsPositive():
 		return fmt.Errorf("%w: amount must be a positive number of minor units", ErrInvalid)
 	case method != CaptureAutomatic && method != CaptureManual:
@@ -148,7 +167,10 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 	if p.SetupFutureUsage != nil {
 		row.SetupFutureUsage = *p.SetupFutureUsage
 	}
-	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description, installmentsOf(row), row.SetupFutureUsage); err != nil {
+	if p.RequestThreeDSecure != nil {
+		row.RequestThreeDSecure = *p.RequestThreeDSecure
+	}
+	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description, installmentsOf(row), row.SetupFutureUsage, row.RequestThreeDSecure); err != nil {
 		return Intent{}, err
 	}
 	if p.PaymentMethod != nil {
@@ -202,34 +224,63 @@ func (s *Service) Intents(ctx context.Context, q db.DBTX, owner Owner, r page.Re
 
 // StartConfirm records a new attempt and moves the intent to processing, before any
 // call to the rail: whatever happens next, the attempt exists to be resolved.
-func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, intentID id.ID, p ConfirmParams) (Intent, error) {
+func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, intentID id.ID, p ConfirmParams) (Intent, Step, error) {
 	q := db.New(tx)
 	row, err := lockIntent(ctx, q, owner, intentID)
 	if err != nil {
-		return Intent{}, err
+		return Intent{}, StepDone, err
 	}
 	if p.PaymentMethod != "" {
 		if err := s.checkPaymentMethod(ctx, tx, owner, p.PaymentMethod); err != nil {
-			return Intent{}, err
+			return Intent{}, StepDone, err
 		}
 		row.PaymentMethod = p.PaymentMethod
 	}
 	status := Status(row.Status)
 	switch {
 	case status != RequiresPaymentMethod && status != RequiresConfirmation:
-		return Intent{}, fmt.Errorf("%w: a %s payment intent cannot be confirmed", ErrInvalidState, status)
+		return Intent{}, StepDone, fmt.Errorf("%w: a %s payment intent cannot be confirmed", ErrInvalidState, status)
 	case row.PaymentMethod == "":
-		return Intent{}, fmt.Errorf("%w: a payment_method is needed to confirm", ErrInvalid)
+		return Intent{}, StepDone, fmt.Errorf("%w: a payment_method is needed to confirm", ErrInvalid)
+	case p.IP != "" && !validIP(p.IP):
+		return Intent{}, StepDone, fmt.Errorf("%w: customer_ip is not an IP address", ErrInvalid)
 	}
 	if _, err := s.rail(owner.Livemode); err != nil {
-		return Intent{}, err
+		return Intent{}, StepDone, err
 	}
 	if err := s.checkStoredCredential(ctx, tx, owner, row, p.OffSession); err != nil {
-		return Intent{}, err
+		return Intent{}, StepDone, err
 	}
+	attemptID, err := s.newAttempt(ctx, q, row, p)
+	if err != nil {
+		return Intent{}, StepDone, err
+	}
+	row.LatestAttempt = text(attemptID)
+	row.LastErrorCode, row.LastDeclineCode, row.LastErrorMessage = "", "", ""
+	row.RiskDecision, row.RiskDecisionID, row.NextAction, row.NextActionUrl = "", "", "", ""
+	if err := s.setStatus(ctx, tx, &row, Processing); err != nil {
+		return Intent{}, StepDone, err
+	}
+	attempt, err := q.LockAttempt(ctx, attemptID)
+	if err != nil {
+		return Intent{}, StepDone, err
+	}
+	step, err := s.decide(ctx, tx, owner, &row, &attempt, p.OffSession)
+	if err != nil {
+		return Intent{}, StepDone, err
+	}
+	attempt.UpdatedAt = ts(s.cfg.Now().UTC())
+	if err := saveAttempt(ctx, q, attempt); err != nil {
+		return Intent{}, StepDone, err
+	}
+	it, err := s.save(ctx, q, row)
+	return it, step, err
+}
+
+func (s *Service) newAttempt(ctx context.Context, q *db.Queries, row db.PaymentsIntent, p ConfirmParams) (string, error) {
 	number, err := q.NextAttemptNumber(ctx, row.ID)
 	if err != nil {
-		return Intent{}, err
+		return "", err
 	}
 	initiator := "customer"
 	if p.OffSession {
@@ -240,16 +291,11 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 		ID: attemptID, IntentID: row.ID, Number: number, PaymentMethod: row.PaymentMethod,
 		Amount: row.Amount, Status: string(attemptAuthorizing), Initiator: initiator,
 		StoresCredential: row.SetupFutureUsage == SetupOffSession, Installments: row.Installments,
-		InstallmentsFinancedBy: row.InstallmentsFinancedBy, CreatedAt: ts(s.cfg.Now().UTC()),
+		InstallmentsFinancedBy: row.InstallmentsFinancedBy, Ip: p.IP, CreatedAt: ts(s.cfg.Now().UTC()),
 	}); err != nil {
-		return Intent{}, fmt.Errorf("recording attempt: %w", err)
+		return "", fmt.Errorf("recording attempt: %w", err)
 	}
-	row.LatestAttempt = text(attemptID)
-	row.LastErrorCode, row.LastDeclineCode, row.LastErrorMessage = "", "", ""
-	if err := s.setStatus(ctx, tx, &row, Processing); err != nil {
-		return Intent{}, err
-	}
-	return s.save(ctx, q, row)
+	return attemptID, nil
 }
 
 // Authorize sends the intent's attempt to the rail. It runs outside any transaction and
@@ -292,7 +338,7 @@ func (s *Service) authorizeOnRail(ctx context.Context, q db.DBTX, owner Owner, i
 	return rail.Authorize(ctx, AuthorizeRequest{
 		Key: attempt.ID, Merchant: owner.Merchant.String(), Amount: amount, PaymentMethod: attempt.PaymentMethod, Card: card,
 		Authenticated: attempt.Authenticated, Installments: installments, MerchantInitiated: attempt.Initiator == "merchant",
-		FirstTransaction: first, StoresCredential: attempt.StoresCredential,
+		FirstTransaction: first, StoresCredential: attempt.StoresCredential, Authentication: authenticationOf(attempt),
 	}), nil
 }
 
@@ -310,9 +356,15 @@ func (s *Service) FinishAuthorization(ctx context.Context, tx pgx.Tx, owner Owne
 	switch res.Outcome {
 	case Approved:
 		step, err = s.authorized(ctx, tx, &row, &attempt, res)
+		if err == nil {
+			err = s.recordOutcome(ctx, tx, attempt.ID, true)
+		}
 	case Declined:
 		attempt.Status, attempt.RailReference, attempt.DeclineCode = string(attemptDeclined), res.Reference, res.DeclineCode
 		err = s.fail(ctx, tx, &row, "card_declined", res.DeclineCode, "The card was declined.")
+		if err == nil {
+			err = s.recordOutcome(ctx, tx, attempt.ID, false)
+		}
 	case ActionRequired:
 		attempt.Status, attempt.RailReference = string(attemptRequiresAction), res.Reference
 		row.NextAction = "use_test_authentication"

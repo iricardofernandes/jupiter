@@ -59,6 +59,7 @@ const (
 	attemptCapturing            attemptStatus = "capturing"
 	attemptCaptureUnknown       attemptStatus = "capture_unknown"
 	attemptCaptured             attemptStatus = "captured"
+	attemptAuthenticating       attemptStatus = "authenticating"
 	attemptVoiding              attemptStatus = "voiding"
 	attemptVoidUnknown          attemptStatus = "void_unknown"
 	attemptVoided               attemptStatus = "voided"

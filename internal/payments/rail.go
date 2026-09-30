@@ -47,11 +47,16 @@ type AuthorizeRequest struct {
 	FirstTransaction  string
 	// StoresCredential marks the customer-initiated payment that stores the card.
 	StoresCredential bool
+	// Authentication is the 3-D Secure result, when the cardholder authenticated.
+	Authentication *AuthenticationData
 }
 
 type CardReference struct {
 	Token string
 	Owner string
+	// NetworkToken says the card has an active network token, which the rail uses in
+	// place of the number where it can.
+	NetworkToken bool
 }
 
 // OperationRequest acts on an earlier authorization, named by the key it was sent with,

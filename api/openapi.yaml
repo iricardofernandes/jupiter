@@ -20,6 +20,7 @@ tags:
   - name: Payment methods
   - name: Payment intents
   - name: Refunds
+  - name: Risk
   - name: Test helpers
   - name: API keys
   - name: Webhook endpoints
@@ -241,6 +242,128 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Refund" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/risk/decisions:
+    get:
+      operationId: listRiskDecisions
+      tags: [Risk]
+      description: The decision log, newest first. Every decision lists the rules that fired and the features they saw.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+        - name: action
+          in: query
+          schema: { type: string, enum: [allow, review, request_3ds, block] }
+        - name: payment_intent
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of decisions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiskDecisionList" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/risk/decisions/{id}:
+    get:
+      operationId: getRiskDecision
+      tags: [Risk]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The decision.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiskDecision" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/risk/rules:
+    get:
+      operationId: listRiskRules
+      tags: [Risk]
+      description: The merchant's own rules, and the platform's, which apply to every payment.
+      responses:
+        "200":
+          description: The rules.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiskRulePage" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createRiskRule
+      tags: [Risk]
+      description: |
+        Adds a rule: when expression holds for a payment, action applies. Expressions use
+        the features a decision records, such as `amount >= 500000 && brand == "elo"` or
+        `ip_attempts_1h > 3`; docs/api/risk.md lists them.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRiskRuleRequest" }
+      responses:
+        "200":
+          description: The rule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiskRule" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/risk/rules/{id}:
+    delete:
+      operationId: deleteRiskRule
+      tags: [Risk]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The deleted rule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeletedObject" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/risk/list_items:
+    get:
+      operationId: listRiskListItems
+      tags: [Risk]
+      responses:
+        "200":
+          description: The allow and block list entries.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiskListItemPage" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createRiskListItem
+      tags: [Risk]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRiskListItemRequest" }
+      responses:
+        "200":
+          description: The entry.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RiskListItem" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/risk/list_items/{id}:
+    delete:
+      operationId: deleteRiskListItem
+      tags: [Risk]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The deleted entry.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeletedObject" }
         default: { $ref: "#/components/responses/Failure" }
   /v1/test_helpers/payment_intents/{id}/complete_action:
     post:
@@ -600,7 +723,8 @@ components:
       type: object
       required: [id, object, livemode, amount, currency, capture_method, status, payment_method, description,
                  amount_capturable, amount_received, amount_refunded, latest_attempt, last_payment_error,
-                 next_action, cancellation_reason, installments, setup_future_usage, created]
+                 next_action, cancellation_reason, installments, setup_future_usage, request_three_d_secure,
+                 risk_decision, created]
       properties:
         id: { type: string }
         object: { type: string, enum: [payment_intent] }
@@ -628,7 +752,17 @@ components:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/Installments" }]
         setup_future_usage: { type: string, enum: [off_session], nullable: true }
+        request_three_d_secure: { type: string, enum: [automatic, any] }
+        risk_decision:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/RiskDecisionRef" }]
         created: { type: integer, format: int64 }
+    RiskDecisionRef:
+      type: object
+      required: [id, action]
+      properties:
+        id: { type: string }
+        action: { type: string, enum: [allow, review, request_3ds, block] }
     Installments:
       type: object
       description: |
@@ -647,11 +781,109 @@ components:
         code: { type: string }
         decline_code: { type: string }
         message: { type: string }
+    RiskDecision:
+      type: object
+      required: [id, object, livemode, payment_intent, attempt, action, rules, features, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [risk_decision] }
+        livemode: { type: boolean }
+        payment_intent: { type: string }
+        attempt: { type: string }
+        action: { type: string, enum: [allow, review, request_3ds, block] }
+        rules:
+          type: array
+          description: The rules and list entries that fired; the decision is the most severe of their actions.
+          items: { $ref: "#/components/schemas/FiredRule" }
+        features:
+          type: object
+          description: What the rules saw.
+          additionalProperties: true
+        created: { type: integer, format: int64 }
+    FiredRule:
+      type: object
+      required: [id, action, description]
+      properties:
+        id: { type: string }
+        action: { type: string, enum: [allow, review, request_3ds, block] }
+        description: { type: string }
+        expression: { type: string }
+    RiskDecisionList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/RiskDecision" }
+    RiskRule:
+      type: object
+      required: [id, object, action, expression, description, platform]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [risk_rule] }
+        action: { type: string, enum: [allow, review, request_3ds, block] }
+        expression: { type: string }
+        description: { type: string }
+        platform: { type: boolean, description: "A platform rule, which applies to every merchant and cannot be deleted." }
+        created: { type: integer, format: int64, nullable: true }
+    RiskRulePage:
+      type: object
+      required: [object, data]
+      properties:
+        object: { type: string, enum: [list] }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/RiskRule" }
+    CreateRiskRuleRequest:
+      type: object
+      required: [action, expression]
+      additionalProperties: false
+      properties:
+        action: { type: string, enum: [allow, review, request_3ds, block] }
+        expression: { type: string, maxLength: 1000 }
+        description: { type: string, maxLength: 500 }
+    RiskListItem:
+      type: object
+      required: [id, object, list, kind, value, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [risk_list_item] }
+        list: { type: string, enum: [allow, block] }
+        kind: { type: string, enum: [card_fingerprint, ip, bin] }
+        value: { type: string }
+        created: { type: integer, format: int64 }
+    RiskListItemPage:
+      type: object
+      required: [object, data]
+      properties:
+        object: { type: string, enum: [list] }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/RiskListItem" }
+    CreateRiskListItemRequest:
+      type: object
+      required: [list, kind, value]
+      additionalProperties: false
+      properties:
+        list: { type: string, enum: [allow, block] }
+        kind: { type: string, enum: [card_fingerprint, ip, bin] }
+        value: { type: string, maxLength: 100 }
     NextAction:
       type: object
       required: [type]
       properties:
-        type: { type: string, description: "use_test_authentication: complete it with the test helper." }
+        type:
+          type: string
+          description: |
+            redirect_to_url: send the customer to redirect_to_url.url to complete 3-D Secure.
+            use_test_authentication: in test mode, complete it with the test helper.
+        redirect_to_url:
+          type: object
+          required: [url]
+          properties:
+            url: { type: string }
     PaymentIntentList:
       allOf:
         - $ref: "#/components/schemas/ListMeta"
@@ -680,6 +912,12 @@ components:
         off_session:
           type: boolean
           description: With confirm, a merchant-initiated payment, made without the cardholder on a card stored before.
+        request_three_d_secure:
+          type: string
+          enum: [automatic, any]
+          description: automatic lets the risk engine decide when to authenticate the cardholder; any always does.
+        customer_ip: { type: string, maxLength: 45, description: "The customer's IP address, for the risk engine." }
+        return_url: { type: string, maxLength: 2048, description: "Where to send the customer after a 3-D Secure challenge: an absolute https URL." }
     UpdatePaymentIntentRequest:
       type: object
       additionalProperties: false
@@ -689,12 +927,15 @@ components:
         description: { type: string, maxLength: 1000 }
         installments: { $ref: "#/components/schemas/Installments" }
         setup_future_usage: { type: string, enum: [off_session] }
+        request_three_d_secure: { type: string, enum: [automatic, any] }
     ConfirmPaymentIntentRequest:
       type: object
       additionalProperties: false
       properties:
         payment_method: { type: string }
         off_session: { type: boolean }
+        customer_ip: { type: string, maxLength: 45 }
+        return_url: { type: string, maxLength: 2048, description: "Where to send the customer after a 3-D Secure challenge: an absolute https URL." }
     CapturePaymentIntentRequest:
       type: object
       additionalProperties: false

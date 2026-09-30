@@ -56,8 +56,8 @@ func TestConfigurationChecks(t *testing.T) {
 		"https://network.example/files": true, "http://127.0.0.1:8584": true, "http://localhost:8584": true,
 		"http://network.example": false, "ftp://127.0.0.1": false, "/relative": false,
 	} {
-		if err := checkClearingURL(raw); (err == nil) != ok {
-			t.Errorf("checkClearingURL(%q) = %v", raw, err)
+		if err := checkNetworkURL(raw); (err == nil) != ok {
+			t.Errorf("checkNetworkURL(%q) = %v", raw, err)
 		}
 	}
 	env := func(values map[string]string) func(string) string { return func(k string) string { return values[k] } }

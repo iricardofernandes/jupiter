@@ -33,6 +33,18 @@ type PaymentsAttempt struct {
 	NetworkTransactionID   string
 	ClearedOn              pgtype.Date
 	AmountCleared          pgtype.Int8
+	Ip                     string
+	RiskDecision           string
+	RiskDecisionID         string
+	ThreeDsServerTransID   string
+	ThreeDsVersion         string
+	ThreeDsStatus          string
+	DsTransID              string
+	AcsTransID             string
+	AcsUrl                 string
+	Eci                    string
+	AuthenticationValue    string
+	LiabilityShift         bool
 }
 
 type PaymentsIntent struct {
@@ -59,6 +71,10 @@ type PaymentsIntent struct {
 	Installments           pgtype.Int4
 	InstallmentsFinancedBy pgtype.Text
 	SetupFutureUsage       string
+	RequestThreeDSecure    string
+	NextActionUrl          string
+	RiskDecision           string
+	RiskDecisionID         string
 }
 
 type PaymentsLedgerAccount struct {
@@ -70,19 +86,23 @@ type PaymentsLedgerAccount struct {
 }
 
 type PaymentsPaymentMethod struct {
-	ID                   string
-	MerchantID           string
-	Livemode             bool
-	Type                 string
-	VaultToken           string
-	Brand                string
-	Bin                  string
-	Last4                string
-	ExpMonth             int32
-	ExpYear              int32
-	VaultFingerprint     string
-	CreatedAt            pgtype.Timestamptz
-	NetworkTransactionID string
+	ID                    string
+	MerchantID            string
+	Livemode              bool
+	Type                  string
+	VaultToken            string
+	Brand                 string
+	Bin                   string
+	Last4                 string
+	ExpMonth              int32
+	ExpYear               int32
+	VaultFingerprint      string
+	CreatedAt             pgtype.Timestamptz
+	NetworkTransactionID  string
+	NetworkTokenReference string
+	NetworkTokenStatus    string
+	NetworkTokenSince     pgtype.Timestamptz
+	NetworkTokenEventAt   pgtype.Timestamptz
 }
 
 type PaymentsRefund struct {

@@ -42,6 +42,19 @@ Any other valid number is approved while its limit lasts.
 | 4000000000000143 | Half approved (10) when partial approval is offered, fully approved otherwise |
 | 4000000000000150 | The issuer is down: approved in stand-in up to R$ 500.00, 91 above |
 
+## 3-D Secure and network tokens
+
+With `AuthenticationKey` set (JUPITER_SIM_AUTHENTICATION_KEY, shared with sim-3ds), an
+authorization carrying a 3-D Secure authentication value in DE 48 AV is declined (05) if
+the value does not check out for its card, amount and directory server transaction.
+
+The network also runs a token service ([docs/cardnet](../../../docs/cardnet/iso8583.md#network-tokens)):
+it provisions tokens, issues cryptograms, checks them on authorizations, and tells the
+token requestor (JUPITER_CARDNET_EVENTS_URL, signed with JUPITER_CARDNET_EVENTS_SECRET)
+when `POST /admin/cards/replace {pan, new_pan, exp_month, exp_year}` replaces a card or
+`POST /admin/tokens/{reference}/suspend` suspends a token. All of it is unverified
+against real token services.
+
 ## Faults
 
 In-process, `Config.Faults` is asked about every request and advice and can lose the

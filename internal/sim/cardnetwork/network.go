@@ -25,11 +25,19 @@ type Config struct {
 	LateAfter time.Duration
 	// Faults, if set, is asked about every request, on top of the card's own behaviour.
 	Faults func(cardnet.Message) Fault
+	// AuthenticationKey checks the 3-D Secure authentication values authorizations
+	// carry; the 3-D Secure simulator makes them with the same key.
+	AuthenticationKey []byte
+	// TokenEventsURL is where the token service tells the token requestor about its
+	// tokens, signed with TokenEventsSecret.
+	TokenEventsURL    string
+	TokenEventsSecret string
 }
 
 type Network struct {
 	cfg    Config
 	issuer *issuer
+	tokens *tokenService
 	server *server.Server
 
 	mu    sync.Mutex
@@ -50,7 +58,10 @@ func New(cfg Config) *Network {
 	if cfg.LateAfter == 0 {
 		cfg.LateAfter = 30 * time.Second
 	}
-	return &Network{cfg: cfg, issuer: newIssuer(cfg.Now), files: map[string][]byte{}, stop: make(chan struct{})}
+	return &Network{
+		cfg: cfg, issuer: newIssuer(cfg.Now, cfg.AuthenticationKey), tokens: newTokenService(),
+		files: map[string][]byte{}, stop: make(chan struct{}),
+	}
 }
 
 // Start listens for acquirers on addr, such as "127.0.0.1:0".
@@ -114,10 +125,16 @@ func (n *Network) process(req cardnet.Message) (cardnet.Message, bool) {
 		resp.NetworkCode = req.NetworkCode
 		return resp, true
 	case cardnet.AuthorizationRequest:
+		if resp, ok := n.detokenize(&req); !ok {
+			return resp, true
+		}
 		return n.issuer.authorize(req), true
 	case cardnet.FinancialRequest:
 		if req.ProcessingCode == cardnet.ProcessingRefund {
 			return n.issuer.refund(req), true
+		}
+		if resp, ok := n.detokenize(&req); !ok {
+			return resp, true
 		}
 		return n.purchase(req), true
 	case cardnet.CompletionAdvice, cardnet.CompletionAdviceRepeat:
@@ -127,6 +144,24 @@ func (n *Network) process(req cardnet.Message) (cardnet.Message, bool) {
 	default:
 		return cardnet.Message{}, false
 	}
+}
+
+// detokenize swaps a network token in DE 2 for the card behind it, once its cryptogram
+// checks out; a card number goes through as it is.
+func (n *Network) detokenize(req *cardnet.Message) (cardnet.Message, bool) {
+	cryptogram := ""
+	if req.Private != nil {
+		cryptogram = req.Private.TokenCryptogram
+	}
+	pan, rc := n.tokens.redeem(req.PAN, cryptogram, req.Amount)
+	switch {
+	case rc == "":
+		return cardnet.Message{}, true
+	case rc != cardnet.Approved:
+		return answer(*req, rc), false
+	}
+	req.PAN = pan
+	return cardnet.Message{}, true
 }
 
 // purchase is a single-message 0200: authorized and completed at once.

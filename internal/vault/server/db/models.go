@@ -9,19 +9,23 @@ import (
 )
 
 type VaultCard struct {
-	Token           string
-	Owner           pgtype.Text
-	RequestKey      pgtype.Text
-	PublishableKey  pgtype.Text
-	ClaimExpiresAt  pgtype.Timestamptz
-	Fingerprint     []byte
-	Brand           string
-	Bin             string
-	Last4           string
-	ExpMonth        int32
-	ExpYear         int32
-	EncryptedNumber []byte
-	WrappedKey      []byte
-	KeyID           string
-	CreatedAt       pgtype.Timestamptz
+	Token                 string
+	Owner                 pgtype.Text
+	RequestKey            pgtype.Text
+	PublishableKey        pgtype.Text
+	ClaimExpiresAt        pgtype.Timestamptz
+	Fingerprint           []byte
+	Brand                 string
+	Bin                   string
+	Last4                 string
+	ExpMonth              int32
+	ExpYear               int32
+	EncryptedNumber       []byte
+	WrappedKey            []byte
+	KeyID                 string
+	CreatedAt             pgtype.Timestamptz
+	NetworkToken          []byte
+	NetworkTokenMonth     pgtype.Int4
+	NetworkTokenYear      pgtype.Int4
+	NetworkTokenReference string
 }

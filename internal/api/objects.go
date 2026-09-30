@@ -41,6 +41,18 @@ func paymentIntentJSON(it payments.Intent) openapi.PaymentIntent {
 	}
 	if it.NextAction != "" {
 		out.NextAction = &openapi.NextAction{Type: it.NextAction}
+		if it.NextActionURL != "" {
+			out.NextAction.RedirectToUrl = &struct {
+				Url string `json:"url"` //nolint:revive // the generated type's name
+			}{Url: it.NextActionURL}
+		}
+	}
+	out.RequestThreeDSecure = openapi.PaymentIntentRequestThreeDSecure(it.RequestThreeDSecure)
+	if out.RequestThreeDSecure == "" {
+		out.RequestThreeDSecure = "automatic"
+	}
+	if it.RiskDecision != "" {
+		out.RiskDecision = &openapi.RiskDecisionRef{Id: it.RiskDecisionID, Action: openapi.RiskDecisionRefAction(it.RiskDecision)}
 	}
 	if it.Installments != nil {
 		out.Installments = &openapi.Installments{Count: it.Installments.Count, FinancedBy: openapi.InstallmentsFinancedBy(it.Installments.FinancedBy)}

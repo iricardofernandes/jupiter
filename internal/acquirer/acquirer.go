@@ -42,10 +42,15 @@ type Config struct {
 	Pool *pgxpool.Pool
 	// Addr is the network's ISO 8583 address, host:port.
 	Addr string
-	// ClearingURL is the base URL the network serves clearing files from.
-	ClearingURL string
-	AcquirerID  string
-	TerminalID  string
+	// NetworkURL is the network's HTTP base: its clearing files and its token service.
+	NetworkURL string
+	// EventsSecret checks the signature on the network's token events.
+	EventsSecret string
+	// Tokens, if set, lets the connector provision network tokens for live cards and
+	// keep them in the vault.
+	Tokens     TokenVault
+	AcquirerID string
+	TerminalID string
 	// Timeout is how long to wait for the network's answer before a request is reversed
 	// or an advice repeated.
 	Timeout    time.Duration
@@ -86,8 +91,8 @@ func New(cfg Config) (*Connector, error) {
 	if strings.Trim(cfg.AcquirerID, "0123456789") != "" || len(cfg.AcquirerID) > 11 {
 		return nil, errors.New("acquirer: the acquirer id must be up to 11 digits")
 	}
-	if cfg.ClearingURL != "" {
-		if err := checkClearingURL(cfg.ClearingURL); err != nil {
+	if cfg.NetworkURL != "" {
+		if err := checkNetworkURL(cfg.NetworkURL); err != nil {
 			return nil, err
 		}
 	}
@@ -279,8 +284,8 @@ func merchantCode(merchant string) string {
 	return "M" + strings.ToUpper(hex.EncodeToString(sum[:]))[:14]
 }
 
-// checkClearingURL accepts https, or http to this machine for the simulator.
-func checkClearingURL(raw string) error {
+// checkNetworkURL accepts https, or http to this machine for the simulator.
+func checkNetworkURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
 		return fmt.Errorf("acquirer: the clearing URL %q is not an absolute URL", raw)
@@ -300,7 +305,7 @@ func isLoopback(host string) bool {
 }
 
 // FromEnv builds and connects the connector from JUPITER_CARDNET_ADDR (the network's
-// ISO 8583 address), JUPITER_CARDNET_CLEARING_URL and JUPITER_ACQUIRER_ID. Without an
+// ISO 8583 address), JUPITER_CARDNET_URL and JUPITER_ACQUIRER_ID. Without an
 // address it returns nil: live mode then has no rail.
 func FromEnv(ctx context.Context, getenv func(string) string, pool *pgxpool.Pool, cards payments.CardSource, logger *slog.Logger) (*Connector, error) {
 	addr := getenv("JUPITER_CARDNET_ADDR")
@@ -316,10 +321,14 @@ func FromEnv(ctx context.Context, getenv func(string) string, pool *pgxpool.Pool
 	if !isLoopback(host) && getenv("JUPITER_CARDNET_PRIVATE_LINK") != "true" {
 		return nil, fmt.Errorf("acquirer: %s is not on this machine; set JUPITER_CARDNET_PRIVATE_LINK=true only over a private circuit", addr)
 	}
-	c, err := New(Config{
-		Pool: pool, Addr: addr, ClearingURL: getenv("JUPITER_CARDNET_CLEARING_URL"),
+	cfg := Config{
+		Pool: pool, Addr: addr, NetworkURL: getenv("JUPITER_CARDNET_URL"), EventsSecret: getenv("JUPITER_CARDNET_EVENTS_SECRET"),
 		AcquirerID: getenv("JUPITER_ACQUIRER_ID"), Cards: cards, Logger: logger,
-	})
+	}
+	if tokens, ok := cards.(TokenVault); ok {
+		cfg.Tokens = tokens
+	}
+	c, err := New(cfg)
 	if err != nil {
 		return nil, err
 	}

@@ -61,8 +61,23 @@ func (c *Client) Claim(ctx context.Context, token, owner string) (Card, error) {
 // security code comes back the first time only.
 func (c *Client) Detokenize(ctx context.Context, token, owner string) (CardData, error) {
 	var wire WireCard
-	err := c.call(ctx, http.MethodPost, cardPath(token, "/detokenize"), OwnerBody{Owner: owner}, &wire)
+	err := c.call(ctx, http.MethodPost, cardPath(token, "/detokenize"), DetokenizeBody{Owner: owner}, &wire)
 	return wire.Data(), err
+}
+
+// ReadCard returns the card in the clear without its security code, which stays for the
+// authorization it is meant for.
+func (c *Client) ReadCard(ctx context.Context, token, owner string) (CardData, error) {
+	var wire WireCard
+	err := c.call(ctx, http.MethodPost, cardPath(token, "/detokenize"), DetokenizeBody{Owner: owner, KeepCVC: true}, &wire)
+	wire.CVC = ""
+	return wire.Data(), err
+}
+
+// StoreNetworkToken keeps the network token issued for a card.
+func (c *Client) StoreNetworkToken(ctx context.Context, token, owner string, nt NetworkToken) error {
+	var card Card
+	return c.call(ctx, http.MethodPost, cardPath(token, "/network_token"), NetworkTokenBody{Owner: owner, NetworkToken: nt}, &card)
 }
 
 func cardPath(token, action string) string {

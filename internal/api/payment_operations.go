@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/iricardofernandes/jupiter/internal/api/openapi"
 	"github.com/iricardofernandes/jupiter/internal/id"
@@ -16,31 +18,36 @@ import (
 )
 
 const (
-	pointAuthorizing = "authorizing"
-	pointCapturing   = "capturing"
-	pointVoiding     = "voiding"
-	pointRefunding   = "refunding"
-	stateIntent      = "intent"
-	stateRefund      = "refund"
+	pointAuthenticating = "authenticating"
+	pointAuthorizing    = "authorizing"
+	pointCapturing      = "capturing"
+	pointVoiding        = "voiding"
+	pointRefunding      = "refunding"
+	stateIntent         = "intent"
+	stateReturnURL      = "return_url"
+	stateRefund         = "refund"
 )
 
 // The phases that talk to the rail are shared: creating with confirm, confirming and
 // completing an action all go on to authorize, and authorizing with automatic capture
 // goes on to capture.
 func (a *API) paymentOperations() []operation {
+	authenticate := phase{point: pointAuthenticating, foreign: a.authenticateCardholder, atomic: a.finishAuthentication}
 	authorize := phase{point: pointAuthorizing, foreign: a.authorizeOnRail, atomic: a.finishAuthorization}
 	capture := phase{point: pointCapturing, foreign: a.captureOnRail, atomic: a.finishCapture}
 	void := phase{point: pointVoiding, foreign: a.voidOnRail, atomic: a.finishCancel}
 	refund := phase{point: pointRefunding, foreign: a.refundOnRail, atomic: a.finishRefund}
 	write := merchant.ScopePaymentIntentsWrite
 	return []operation{
-		{name: "create_payment_intent", scope: write, phases: []phase{{point: pointStarted, atomic: a.createPaymentIntent}, authorize, capture}},
+		{name: "create_payment_intent", scope: write, phases: []phase{{point: pointStarted, atomic: a.createPaymentIntent}, authenticate, authorize, capture}},
 		{name: "update_payment_intent", scope: write, phases: []phase{{point: pointStarted, atomic: a.updatePaymentIntent}}},
-		{name: "confirm_payment_intent", scope: write, phases: []phase{{point: pointStarted, atomic: a.confirmPaymentIntent}, authorize, capture}},
+		{name: "confirm_payment_intent", scope: write, phases: []phase{{point: pointStarted, atomic: a.confirmPaymentIntent}, authenticate, authorize, capture}},
 		{name: "capture_payment_intent", scope: write, phases: []phase{{point: pointStarted, atomic: a.capturePaymentIntent}, capture}},
 		{name: "cancel_payment_intent", scope: write, phases: []phase{{point: pointStarted, atomic: a.cancelPaymentIntent}, void}},
 		{name: "complete_payment_intent_action", scope: write, phases: []phase{{point: pointStarted, atomic: a.completeAction}, authorize, capture}},
 		{name: "create_refund", scope: merchant.ScopeRefundsWrite, phases: []phase{{point: pointStarted, atomic: a.createRefund}, refund}},
+		// A payment whose cardholder completed a 3-D Secure challenge resumes here.
+		{name: "resume_payment_intent", scope: write, phases: []phase{authorize, capture}},
 	}
 }
 
@@ -64,6 +71,9 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	if body.CaptureMethod != nil {
 		params.CaptureMethod = payments.CaptureMethod(*body.CaptureMethod)
 	}
+	if body.RequestThreeDSecure != nil {
+		params.RequestThreeDSecure = string(*body.RequestThreeDSecure)
+	}
 	if body.SetupFutureUsage != nil {
 		params.SetupFutureUsage = string(*body.SetupFutureUsage)
 	}
@@ -71,6 +81,10 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	confirm := body.Confirm != nil && *body.Confirm
 	if offSession && !confirm {
 		return outcome{}, invalidRequest("parameter_invalid", "off_session", "off_session applies only with confirm.")
+	}
+	returnURL, err := checkReturnURL(body.ReturnUrl)
+	if err != nil {
+		return outcome{}, err
 	}
 	owner := paymentsOwner(r.principal)
 	it, err := a.deps.Payments.Create(ctx, tx, owner, params)
@@ -81,10 +95,24 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	if !confirm {
 		return respond(paymentIntentJSON(it))
 	}
-	if _, err := a.deps.Payments.StartConfirm(ctx, tx, owner, it.ID, payments.ConfirmParams{OffSession: offSession}); err != nil {
+	r.state[stateReturnURL] = returnURL
+	confirmed, step, err := a.deps.Payments.StartConfirm(ctx, tx, owner, it.ID, payments.ConfirmParams{OffSession: offSession, IP: deref(body.CustomerIp)})
+	if err != nil {
 		return outcome{}, paymentsError(err, it.ID.String())
 	}
-	return proceed(pointAuthorizing)
+	return a.next(r, confirmed, step)
+}
+
+// next goes from a confirmation, or a 3-D Secure answer, to what the payment needs.
+func (a *API) next(r *request, it payments.Intent, step payments.Step) (outcome, error) {
+	switch step {
+	case payments.StepAuthenticate:
+		return proceed(pointAuthenticating)
+	case payments.StepConfirm:
+		return proceed(pointAuthorizing)
+	default:
+		return respondIntent(r, it)
+	}
 }
 
 func (a *API) updatePaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (outcome, error) {
@@ -98,6 +126,10 @@ func (a *API) updatePaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	}
 	params := payments.UpdateParams{
 		PaymentMethod: body.PaymentMethod, Description: body.Description, Installments: installmentsParam(body.Installments),
+	}
+	if body.RequestThreeDSecure != nil {
+		threeDS := string(*body.RequestThreeDSecure)
+		params.RequestThreeDSecure = &threeDS
 	}
 	if body.SetupFutureUsage != nil {
 		setup := string(*body.SetupFutureUsage)
@@ -130,12 +162,67 @@ func (a *API) confirmPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (
 	if err := decode(r.body, &body, true); err != nil {
 		return outcome{}, err
 	}
-	confirm := payments.ConfirmParams{PaymentMethod: deref(body.PaymentMethod), OffSession: body.OffSession != nil && *body.OffSession}
-	if _, err := a.deps.Payments.StartConfirm(ctx, tx, paymentsOwner(r.principal), intentID, confirm); err != nil {
+	returnURL, err := checkReturnURL(body.ReturnUrl)
+	if err != nil {
+		return outcome{}, err
+	}
+	confirm := payments.ConfirmParams{
+		PaymentMethod: deref(body.PaymentMethod), OffSession: body.OffSession != nil && *body.OffSession, IP: deref(body.CustomerIp),
+	}
+	it, step, err := a.deps.Payments.StartConfirm(ctx, tx, paymentsOwner(r.principal), intentID, confirm)
+	if err != nil {
 		return outcome{}, paymentsError(err, r.pathID)
 	}
-	r.state[stateIntent] = intentID.String()
-	return proceed(pointAuthorizing)
+	r.state[stateIntent], r.state[stateReturnURL] = intentID.String(), returnURL
+	return a.next(r, it, step)
+}
+
+// maxReturnURL bounds the return_url a merchant may send.
+const maxReturnURL = 2048
+
+// checkReturnURL accepts where the customer goes after 3-D Secure: an absolute HTTPS
+// address, without credentials in it.
+func checkReturnURL(raw *string) (string, error) {
+	s := deref(raw)
+	if s == "" {
+		return "", nil
+	}
+	u, err := url.Parse(s)
+	if err != nil || len(s) > maxReturnURL || u.Scheme != "https" || u.Host == "" || u.User != nil {
+		return "", invalidRequest("url_invalid", "return_url", "return_url must be an absolute https URL.")
+	}
+	return s, nil
+}
+
+func (a *API) authenticateCardholder(ctx context.Context, r *request) error {
+	res, err := a.deps.Payments.Authenticate(ctx, a.deps.Pool, paymentsOwner(r.principal), stateID(r, stateIntent), r.state[stateReturnURL])
+	r.scratch = res
+	return err
+}
+
+func (a *API) finishAuthentication(ctx context.Context, tx pgx.Tx, r *request) (outcome, error) {
+	res, _ := r.scratch.(payments.Authentication)
+	it, step, err := a.deps.Payments.FinishAuthentication(ctx, tx, paymentsOwner(r.principal), stateID(r, stateIntent), res)
+	if err != nil {
+		return outcome{}, err
+	}
+	return a.next(r, it, step)
+}
+
+// ResumePayment carries a payment on to its authorization after the cardholder completed
+// a 3-D Secure challenge, as the operation that confirmed it would have. Should it stop
+// half-way, the resolver picks the attempt up.
+func (a *API) ResumePayment(ctx context.Context, owner payments.Owner, intentID string) error {
+	req := &request{
+		principal: merchant.Principal{Merchant: owner.Merchant, Livemode: owner.Livemode, Kind: merchant.Secret, APIVersion: CurrentVersion},
+		version:   CurrentVersion, requestID: requestPrefix.New().String() + "_3ds",
+		state: map[string]string{stateIntent: intentID},
+	}
+	_, _, err := a.runPhases(ctx, a.operations["resume_payment_intent"], req, 0, pgtype.UUID{}, pointAuthorizing)
+	if _, isClientError := asError(err); isClientError {
+		return nil
+	}
+	return err
 }
 
 func (a *API) completeAction(ctx context.Context, tx pgx.Tx, r *request) (outcome, error) {

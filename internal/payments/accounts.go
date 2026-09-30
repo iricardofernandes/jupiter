@@ -132,7 +132,9 @@ func intentFromRow(row db.PaymentsIntent) (Intent, error) {
 		PaymentMethod: row.PaymentMethod, Description: row.Description,
 		AmountCapturable: amount(row.AmountCapturable), AmountReceived: amount(row.AmountReceived),
 		AmountRefunded: amount(row.AmountRefunded), NextAction: row.NextAction,
-		CancellationReason: row.CancellationReason, SetupFutureUsage: row.SetupFutureUsage, CreatedAt: row.CreatedAt.Time,
+		CancellationReason: row.CancellationReason, SetupFutureUsage: row.SetupFutureUsage,
+		RequestThreeDSecure: row.RequestThreeDSecure, NextActionURL: row.NextActionUrl,
+		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, CreatedAt: row.CreatedAt.Time,
 	}
 	if row.Installments.Valid {
 		it.Installments = &Installments{Count: int(row.Installments.Int32), FinancedBy: Financing(row.InstallmentsFinancedBy.String)}
@@ -186,7 +188,9 @@ func saveIntent(ctx context.Context, q *db.Queries, row db.PaymentsIntent) error
 		AmountRefunded: row.AmountRefunded, LatestAttempt: row.LatestAttempt, LastErrorCode: row.LastErrorCode,
 		LastDeclineCode: row.LastDeclineCode, LastErrorMessage: row.LastErrorMessage, NextAction: row.NextAction,
 		CancellationReason: row.CancellationReason, Installments: row.Installments,
-		InstallmentsFinancedBy: row.InstallmentsFinancedBy, SetupFutureUsage: row.SetupFutureUsage, UpdatedAt: row.UpdatedAt,
+		InstallmentsFinancedBy: row.InstallmentsFinancedBy, SetupFutureUsage: row.SetupFutureUsage,
+		RequestThreeDSecure: row.RequestThreeDSecure, NextActionUrl: row.NextActionUrl,
+		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, UpdatedAt: row.UpdatedAt,
 	})
 }
 
@@ -196,6 +200,10 @@ func saveAttempt(ctx context.Context, q *db.Queries, row db.PaymentsAttempt) err
 		DeclineCode: row.DeclineCode, LedgerHold: row.LedgerHold, CaptureAmount: row.CaptureAmount,
 		AmountCaptured: row.AmountCaptured, AuthorizationExpiresAt: row.AuthorizationExpiresAt,
 		UnknownSince: row.UnknownSince, Resolutions: row.Resolutions, NetworkTransactionID: row.NetworkTransactionID,
-		ClearedOn: row.ClearedOn, AmountCleared: row.AmountCleared, UpdatedAt: row.UpdatedAt,
+		ClearedOn: row.ClearedOn, AmountCleared: row.AmountCleared, RiskDecision: row.RiskDecision,
+		RiskDecisionID: row.RiskDecisionID, ThreeDsServerTransID: row.ThreeDsServerTransID,
+		ThreeDsVersion: row.ThreeDsVersion, ThreeDsStatus: row.ThreeDsStatus, DsTransID: row.DsTransID,
+		AcsTransID: row.AcsTransID, AcsUrl: row.AcsUrl, Eci: row.Eci, AuthenticationValue: row.AuthenticationValue,
+		LiabilityShift: row.LiabilityShift, UpdatedAt: row.UpdatedAt,
 	})
 }
