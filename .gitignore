@@ -1,5 +1,10 @@
 # Binaries
 /bin/
+/jupiterctl
+/api
+/worker
+/vault
+/loadgen
 
 # Local overrides for compose.yaml
 .env

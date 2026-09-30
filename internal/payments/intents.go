@@ -44,6 +44,8 @@ type CreateParams struct {
 	Installments        *Installments
 	SetupFutureUsage    string
 	RequestThreeDSecure string
+	// Pix says how a Pix charge is made, for the payment method pix.
+	Pix *PixOptions
 }
 
 type UpdateParams struct {
@@ -53,6 +55,7 @@ type UpdateParams struct {
 	Installments        *Installments
 	SetupFutureUsage    *string
 	RequestThreeDSecure *string
+	Pix                 *PixOptions
 }
 
 // ConfirmParams says how to authorize: OffSession for a merchant-initiated payment,
@@ -79,6 +82,9 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	if err := s.checkPaymentMethod(ctx, tx, owner, p.PaymentMethod); err != nil {
 		return Intent{}, err
 	}
+	if err := s.checkPix(p.PaymentMethod, p.Pix, p.Amount, p.CaptureMethod, p.Installments, p.SetupFutureUsage); err != nil {
+		return Intent{}, err
+	}
 	status := RequiresPaymentMethod
 	if p.PaymentMethod != "" {
 		status = RequiresConfirmation
@@ -88,7 +94,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		ID: IntentPrefix.New().String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 		Amount: p.Amount.Minor(), Currency: p.Amount.Currency().Code(), CaptureMethod: string(p.CaptureMethod),
 		Status: string(status), PaymentMethod: p.PaymentMethod, Description: p.Description, SetupFutureUsage: p.SetupFutureUsage,
-		RequestThreeDSecure: p.RequestThreeDSecure,
+		RequestThreeDSecure: p.RequestThreeDSecure, PixOptions: pixOptionsColumn(p.Pix),
 	}
 	row.Installments, row.InstallmentsFinancedBy = installmentColumns(p.Installments)
 	q := db.New(tx)
@@ -96,7 +102,8 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		ID: row.ID, MerchantID: row.MerchantID, Livemode: row.Livemode, Amount: row.Amount, Currency: row.Currency,
 		CaptureMethod: row.CaptureMethod, Status: row.Status, PaymentMethod: row.PaymentMethod,
 		Description: row.Description, Installments: row.Installments, InstallmentsFinancedBy: row.InstallmentsFinancedBy,
-		SetupFutureUsage: row.SetupFutureUsage, RequestThreeDSecure: row.RequestThreeDSecure, CreatedAt: ts(now),
+		SetupFutureUsage: row.SetupFutureUsage, RequestThreeDSecure: row.RequestThreeDSecure, PixOptions: row.PixOptions,
+		CreatedAt: ts(now),
 	}); err != nil {
 		return Intent{}, fmt.Errorf("creating payment intent: %w", err)
 	}
@@ -155,7 +162,37 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 		}
 		amount = *p.Amount
 	}
+	applyUpdate(&row, p)
+	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description, installmentsOf(row), row.SetupFutureUsage, row.RequestThreeDSecure); err != nil {
+		return Intent{}, err
+	}
+	row.Amount = amount.Minor()
+	if err := s.checkPixRow(row); err != nil {
+		return Intent{}, err
+	}
 	if p.PaymentMethod != nil {
+		if err := s.checkPaymentMethod(ctx, tx, owner, row.PaymentMethod); err != nil {
+			return Intent{}, err
+		}
+	}
+	next := RequiresPaymentMethod
+	if row.PaymentMethod != "" {
+		next = RequiresConfirmation
+	}
+	if next != status {
+		if err := s.setStatus(ctx, tx, &row, next); err != nil {
+			return Intent{}, err
+		}
+	}
+	return s.save(ctx, q, row)
+}
+
+// applyUpdate sets the fields an update names; they are checked after.
+func applyUpdate(row *db.PaymentsIntent, p UpdateParams) {
+	if p.PaymentMethod != nil {
+		if *p.PaymentMethod != PaymentMethodPix && p.Pix == nil {
+			row.PixOptions = nil // paid otherwise now: the Pix options no longer apply
+		}
 		row.PaymentMethod = *p.PaymentMethod
 	}
 	if p.Description != nil {
@@ -170,25 +207,9 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 	if p.RequestThreeDSecure != nil {
 		row.RequestThreeDSecure = *p.RequestThreeDSecure
 	}
-	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description, installmentsOf(row), row.SetupFutureUsage, row.RequestThreeDSecure); err != nil {
-		return Intent{}, err
+	if p.Pix != nil {
+		row.PixOptions = pixOptionsColumn(p.Pix)
 	}
-	if p.PaymentMethod != nil {
-		if err := s.checkPaymentMethod(ctx, tx, owner, row.PaymentMethod); err != nil {
-			return Intent{}, err
-		}
-	}
-	row.Amount = amount.Minor()
-	next := RequiresPaymentMethod
-	if row.PaymentMethod != "" {
-		next = RequiresConfirmation
-	}
-	if next != status {
-		if err := s.setStatus(ctx, tx, &row, next); err != nil {
-			return Intent{}, err
-		}
-	}
-	return s.save(ctx, q, row)
 }
 
 func (s *Service) Intent(ctx context.Context, q db.DBTX, owner Owner, intentID id.ID) (Intent, error) {
@@ -236,6 +257,9 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 		}
 		row.PaymentMethod = p.PaymentMethod
 	}
+	if err := s.checkPixRow(row); err != nil {
+		return Intent{}, StepDone, err
+	}
 	status := Status(row.Status)
 	switch {
 	case status != RequiresPaymentMethod && status != RequiresConfirmation:
@@ -245,7 +269,7 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 	case p.IP != "" && !validIP(p.IP):
 		return Intent{}, StepDone, fmt.Errorf("%w: customer_ip is not an IP address", ErrInvalid)
 	}
-	if _, err := s.rail(owner.Livemode); err != nil {
+	if err := s.checkRail(owner, row.PaymentMethod, p.OffSession); err != nil {
 		return Intent{}, StepDone, err
 	}
 	if err := s.checkStoredCredential(ctx, tx, owner, row, p.OffSession); err != nil {
@@ -255,9 +279,7 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 	if err != nil {
 		return Intent{}, StepDone, err
 	}
-	row.LatestAttempt = text(attemptID)
-	row.LastErrorCode, row.LastDeclineCode, row.LastErrorMessage = "", "", ""
-	row.RiskDecision, row.RiskDecisionID, row.NextAction, row.NextActionUrl = "", "", "", ""
+	startAttempt(&row, attemptID)
 	if err := s.setStatus(ctx, tx, &row, Processing); err != nil {
 		return Intent{}, StepDone, err
 	}
@@ -265,9 +287,13 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 	if err != nil {
 		return Intent{}, StepDone, err
 	}
-	step, err := s.decide(ctx, tx, owner, &row, &attempt, p.OffSession)
-	if err != nil {
-		return Intent{}, StepDone, err
+	// The risk engine and 3-D Secure are for cards: a Pix is pushed by the payer, from
+	// their own bank, which authenticates them.
+	step := StepConfirm
+	if row.PaymentMethod != PaymentMethodPix {
+		if step, err = s.decide(ctx, tx, owner, &row, &attempt, p.OffSession); err != nil {
+			return Intent{}, StepDone, err
+		}
 	}
 	attempt.UpdatedAt = ts(s.cfg.Now().UTC())
 	if err := saveAttempt(ctx, q, attempt); err != nil {
@@ -275,6 +301,15 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 	}
 	it, err := s.save(ctx, q, row)
 	return it, step, err
+}
+
+// startAttempt makes attemptID the intent's latest and forgets what the previous one
+// left.
+func startAttempt(row *db.PaymentsIntent, attemptID string) {
+	row.LatestAttempt = text(attemptID)
+	row.LastErrorCode, row.LastDeclineCode, row.LastErrorMessage = "", "", ""
+	row.RiskDecision, row.RiskDecisionID, row.NextAction, row.NextActionUrl = "", "", "", ""
+	row.NextActionData, row.NextActionExpiresAt = "", pgtype.Timestamptz{}
 }
 
 func (s *Service) newAttempt(ctx context.Context, q *db.Queries, row db.PaymentsIntent, p ConfirmParams) (string, error) {
@@ -313,6 +348,9 @@ func (s *Service) Authorize(ctx context.Context, q db.DBTX, owner Owner, intentI
 }
 
 func (s *Service) authorizeOnRail(ctx context.Context, q db.DBTX, owner Owner, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (Result, error) {
+	if attempt.PaymentMethod == PaymentMethodPix {
+		return s.chargePix(ctx, intent, attempt)
+	}
 	rail, err := s.rail(intent.Livemode)
 	if err != nil {
 		return Result{}, err
@@ -360,12 +398,21 @@ func (s *Service) FinishAuthorization(ctx context.Context, tx pgx.Tx, owner Owne
 			err = s.recordOutcome(ctx, tx, attempt.ID, true)
 		}
 	case Declined:
+		if attempt.PaymentMethod == PaymentMethodPix {
+			attempt.Status, attempt.DeclineCode = string(attemptDeclined), res.DeclineCode
+			err = s.fail(ctx, tx, &row, "payment_intent_payment_attempt_failed", res.DeclineCode, "The bank did not make the Pix charge.")
+			break
+		}
 		attempt.Status, attempt.RailReference, attempt.DeclineCode = string(attemptDeclined), res.Reference, res.DeclineCode
 		err = s.fail(ctx, tx, &row, "card_declined", res.DeclineCode, "The card was declined.")
 		if err == nil {
 			err = s.recordOutcome(ctx, tx, attempt.ID, false)
 		}
 	case ActionRequired:
+		if res.Pix != nil {
+			err = s.awaitPix(ctx, tx, &row, &attempt, *res.Pix)
+			break
+		}
 		attempt.Status, attempt.RailReference = string(attemptRequiresAction), res.Reference
 		row.NextAction = "use_test_authentication"
 		err = s.setStatus(ctx, tx, &row, RequiresAction)
@@ -451,6 +498,9 @@ func (s *Service) CompleteAction(ctx context.Context, tx pgx.Tx, owner Owner, in
 	if Status(row.Status) != RequiresAction || !inStatus(attempt, attemptRequiresAction) {
 		return Intent{}, StepDone, fmt.Errorf("%w: the payment intent is not waiting for an action", ErrInvalidState)
 	}
+	if attempt.PaymentMethod == PaymentMethodPix {
+		return Intent{}, StepDone, fmt.Errorf("%w: a Pix payment completes when its Pix arrives, not with the test helper", ErrInvalidState)
+	}
 	row.NextAction = ""
 	step := StepDone
 	if succeeded {
@@ -473,6 +523,44 @@ func (s *Service) CompleteAction(ctx context.Context, tx pgx.Tx, owner Owner, in
 	}
 	it, err := s.save(ctx, q, row)
 	return it, step, err
+}
+
+// checkPixRow applies Pix's rules to an intent as it stands.
+func (s *Service) checkPixRow(row db.PaymentsIntent) error {
+	amount, err := money.New(row.Amount, mustCurrency(row.Currency))
+	if err != nil {
+		return err
+	}
+	pix, err := pixOptionsOf(row)
+	if err != nil {
+		return err
+	}
+	return s.checkPix(row.PaymentMethod, pix, amount, CaptureMethod(row.CaptureMethod), installmentsOf(row), row.SetupFutureUsage)
+}
+
+// checkRail checks the mode has the rail the payment method needs.
+func (s *Service) checkRail(owner Owner, pm string, offSession bool) error {
+	if pm != PaymentMethodPix {
+		_, err := s.rail(owner.Livemode)
+		return err
+	}
+	if offSession {
+		return fmt.Errorf("%w: a Pix payment is made by the customer; off_session does not apply", ErrInvalid)
+	}
+	_, err := s.pixRail(owner.Livemode)
+	return err
+}
+
+// checkPix applies Pix's rules to an intent paid, or to be paid, by Pix; Pix options on
+// an intent paid otherwise are refused.
+func (s *Service) checkPix(pm string, o *PixOptions, amount money.Amount, method CaptureMethod, installments *Installments, setup string) error {
+	if pm != PaymentMethodPix {
+		if o != nil {
+			return fmt.Errorf("%w: pix options are for the payment method pix", ErrInvalid)
+		}
+		return nil
+	}
+	return validatePix(o, amount, method, installments, setup, s.cfg.Now())
 }
 
 // fail returns the intent to requires_payment_method with the reason, keeping the
@@ -515,8 +603,11 @@ func (s *Service) setStatus(ctx context.Context, tx pgx.Tx, row *db.PaymentsInte
 
 func (s *Service) publish(ctx context.Context, tx pgx.Tx, owner Owner, eventType, intentID string) error {
 	objectType := "payment_intent"
-	if eventType == events.TypeRefundCreated || eventType == events.TypeRefundUpdated {
+	switch eventType {
+	case events.TypeRefundCreated, events.TypeRefundUpdated:
 		objectType = "refund"
+	case events.TypePayoutCreated, events.TypePayoutPaid, events.TypePayoutFailed:
+		objectType = "payout"
 	}
 	_, err := s.cfg.Events.Publish(ctx, tx, events.Owner{Merchant: owner.Merchant, Livemode: owner.Livemode}, eventType,
 		events.ObjectRef{ID: intentID, Type: objectType})

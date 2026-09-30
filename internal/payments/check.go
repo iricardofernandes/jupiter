@@ -79,11 +79,55 @@ func (s *Service) checkBalances(ctx context.Context, tx pgx.Tx, q *db.Queries) (
 			return nil, err
 		}
 		t := want[scope{a.MerchantID, a.Currency, a.Livemode}]
-		if posted.Minor() != t.Posted || balance.PendingCredits.Minor() != t.Held {
+		if posted.Minor() != t.Posted || balance.PendingCredits.Minor() != t.Held || balance.PendingDebits.Minor() != t.PayingOut {
 			violations = append(violations, Violation{
 				Subject: a.AccountID,
-				Detail: fmt.Sprintf("ledger has %d posted and %d held; payments say %d received less refunded and %d authorized",
-					posted.Minor(), balance.PendingCredits.Minor(), t.Posted, t.Held),
+				Detail: fmt.Sprintf("ledger has %d posted, %d held for and %d against the merchant; payments say %d received less refunded and paid out, %d authorized and %d paying out",
+					posted.Minor(), balance.PendingCredits.Minor(), balance.PendingDebits.Minor(), t.Posted, t.Held, t.PayingOut),
+			})
+		}
+	}
+	unmatched, err := s.checkUnmatchedPix(ctx, tx, q)
+	return append(violations, unmatched...), err
+}
+
+// checkUnmatchedPix: what the held-apart account holds is the Pix received that paid
+// nothing and are not yet returned.
+func (s *Service) checkUnmatchedPix(ctx context.Context, tx pgx.Tx, q *db.Queries) ([]Violation, error) {
+	totals, err := q.UnmatchedPixTotals(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accounts, err := q.PixLedgerAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	type scope struct {
+		livemode bool
+		currency string
+	}
+	want := map[scope]int64{}
+	for _, t := range totals {
+		want[scope{t.Livemode, t.Currency}] = t.Held
+	}
+	var violations []Violation
+	for _, a := range accounts {
+		accountID, err := ledger.AccountPrefix.Parse(a.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		balance, err := s.cfg.Ledger.Balance(ctx, tx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		posted, err := balance.Posted()
+		if err != nil {
+			return nil, err
+		}
+		if held := want[scope{a.Livemode, a.Currency}]; posted.Minor() != held {
+			violations = append(violations, Violation{
+				Subject: a.AccountID,
+				Detail:  fmt.Sprintf("the unmatched Pix account holds %d; %d is waiting to be returned", posted.Minor(), held),
 			})
 		}
 	}

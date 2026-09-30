@@ -68,6 +68,9 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 		Amount: amount, PaymentMethod: deref(body.PaymentMethod), Description: deref(body.Description),
 		Installments: installmentsParam(body.Installments),
 	}
+	if params.Pix, err = pixOptionsParam(body.Pix); err != nil {
+		return outcome{}, err
+	}
 	if body.CaptureMethod != nil {
 		params.CaptureMethod = payments.CaptureMethod(*body.CaptureMethod)
 	}
@@ -126,6 +129,9 @@ func (a *API) updatePaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	}
 	params := payments.UpdateParams{
 		PaymentMethod: body.PaymentMethod, Description: body.Description, Installments: installmentsParam(body.Installments),
+	}
+	if params.Pix, err = pixOptionsParam(body.Pix); err != nil {
+		return outcome{}, err
 	}
 	if body.RequestThreeDSecure != nil {
 		threeDS := string(*body.RequestThreeDSecure)
@@ -443,10 +449,11 @@ func parseAmount(minor int64, currency, param string) (money.Amount, error) {
 
 func paymentsError(err error, objectID string) error {
 	for sentinel, code := range map[error]string{
-		payments.ErrInvalid:         "parameter_invalid",
-		payments.ErrInvalidState:    "payment_intent_unexpected_state",
-		payments.ErrRailUnavailable: "livemode_unsupported",
-		payments.ErrAmountTooLarge:  "amount_too_large",
+		payments.ErrInvalid:           "parameter_invalid",
+		payments.ErrInvalidState:      "payment_intent_unexpected_state",
+		payments.ErrRailUnavailable:   "livemode_unsupported",
+		payments.ErrAmountTooLarge:    "amount_too_large",
+		payments.ErrInsufficientFunds: "balance_insufficient",
 	} {
 		if errors.Is(err, sentinel) {
 			return invalidRequest(code, "", "%s", strings.TrimPrefix(err.Error(), sentinel.Error()+": "))
@@ -459,6 +466,8 @@ func paymentsError(err error, objectID string) error {
 			resource = "refund"
 		case strings.HasPrefix(objectID, "pm_"):
 			resource = "payment_method"
+		case strings.HasPrefix(objectID, "po_"):
+			resource = "payout"
 		}
 		return notFound(resource, objectID)
 	}

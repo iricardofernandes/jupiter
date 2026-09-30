@@ -29,6 +29,8 @@ type Result struct {
 	// NetworkTransactionID identifies an approved authorization across the network;
 	// merchant-initiated payments quote the one that stored the card.
 	NetworkTransactionID string
+	// Pix is the charge a Pix attempt waits on, with ActionRequired.
+	Pix *PixCharge
 }
 
 type AuthorizeRequest struct {

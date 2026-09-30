@@ -10,6 +10,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/payments"
+	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
 )
@@ -109,7 +110,9 @@ func importClearing(c *acquirer.Connector, p *payments.Service, logger *slog.Log
 
 // tasks are the worker's background loops; the card network's run only when one is
 // configured.
-func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.API, p *payments.Service, network *acquirer.Connector, logger *slog.Logger) []func(context.Context) error {
+func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.API, p *payments.Service, network *acquirer.Connector,
+	pixRails []*pix.Connector, logger *slog.Logger,
+) []func(context.Context) error {
 	background := []func(context.Context) error{
 		jobs.Run(jobClient),
 		service.Every(logger, "ledger.apply_queued", applyInterval, applyQueued(l, pool)),
@@ -120,6 +123,21 @@ func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.
 		service.Every(logger, "payments.resolve", resolveInterval, resolve(p, pool, logger)),
 		service.Every(logger, "payments.expire_authorizations", expireAuthsEvery, expireAuthorizations(p, pool, logger)),
 	}
+	pixConfigured := false
+	for _, c := range pixRails {
+		if c == nil {
+			continue
+		}
+		pixConfigured = true
+		background = append(background, service.Every(logger, "pix.reconcile", pixReconcileEvery, reconcilePix(c, p, logger)))
+	}
+	if pixConfigured {
+		background = append(background,
+			service.Every(logger, "payments.expire_pix_charges", pixExpiryEvery, counted(logger, "settled or expired Pix charges", func(ctx context.Context) (int, error) { return p.ExpirePixCharges(ctx, pool) })),
+			service.Every(logger, "payments.return_unmatched_pix", pixReturnsEvery, counted(logger, "returned Pix that paid nothing", func(ctx context.Context) (int, error) { return p.ReturnUnmatchedPix(ctx, pool) })),
+			service.Every(logger, "payments.resolve_payouts", payoutsEvery, counted(logger, "resolved payouts", func(ctx context.Context) (int, error) { return p.ResolvePayouts(ctx, pool) })),
+		)
+	}
 	if network != nil {
 		background = append(background,
 			service.Every(logger, "acquirer.retry_forwards", forwardEvery, retryForwards(network, logger)),
@@ -128,6 +146,21 @@ func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.
 		)
 	}
 	return background
+}
+
+// counted runs f and logs how many things it moved.
+func counted(logger *slog.Logger, what string, f func(context.Context) (int, error)) func(context.Context) error {
+	return func(ctx context.Context) error {
+		n, err := f(ctx)
+		if n > 0 {
+			logger.InfoContext(ctx, what, "count", n)
+		}
+		return err
+	}
+}
+
+func reconcilePix(c *pix.Connector, p *payments.Service, logger *slog.Logger) func(context.Context) error {
+	return counted(logger, "read Pix received from the bank", func(ctx context.Context) (int, error) { return c.Reconcile(ctx, p) })
 }
 
 func provisionTokens(c *acquirer.Connector, p *payments.Service, logger *slog.Logger) func(context.Context) error {

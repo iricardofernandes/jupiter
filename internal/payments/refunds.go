@@ -80,17 +80,22 @@ func (s *Service) RefundOnRail(ctx context.Context, q db.DBTX, owner Owner, refu
 }
 
 func (s *Service) refundOnRail(ctx context.Context, q db.DBTX, refund db.PaymentsRefund) (Result, error) {
-	rail, err := s.rail(refund.Livemode)
-	if err != nil {
-		return Result{}, err
-	}
 	attempt, err := db.New(q).GetAttempt(ctx, refund.AttemptID)
 	if err != nil {
 		return Result{}, err
 	}
+	var rail Rail
+	if attempt.PaymentMethod != PaymentMethodPix {
+		if rail, err = s.rail(refund.Livemode); err != nil {
+			return Result{}, err
+		}
+	}
 	amount, err := money.New(refund.Amount, mustCurrency(refund.Currency))
 	if err != nil {
 		return Result{}, err
+	}
+	if attempt.PaymentMethod == PaymentMethodPix {
+		return s.returnPix(ctx, refund.Livemode, attempt.NetworkTransactionID, bankID(refund.ID), amount)
 	}
 	return rail.Refund(ctx, OperationRequest{
 		Key: refund.ID, AuthorizationKey: attempt.ID, Reference: attempt.RailReference, Amount: amount,
@@ -156,9 +161,23 @@ func (s *Service) refunded(ctx context.Context, tx pgx.Tx, refund *db.PaymentsRe
 	if err != nil {
 		return err
 	}
+	// The money goes back the way it came: to the card network, or out of Jupiter's
+	// Pix account.
+	source := accts.networkReceivable
+	attempt, err := q.GetAttempt(ctx, refund.AttemptID)
+	if err != nil {
+		return err
+	}
+	if attempt.PaymentMethod == PaymentMethodPix {
+		pix, err := s.pixAccounts(ctx, tx, refund.Livemode, currency)
+		if err != nil {
+			return err
+		}
+		source = pix.settlement
+	}
 	txn, err := s.cfg.Ledger.Post(ctx, tx, ledger.Posting{
 		Description: "refund " + refund.ID,
-		Legs:        []ledger.Leg{ledger.Debit(accts.merchantBalance, amount), ledger.Credit(accts.networkReceivable, amount)},
+		Legs:        []ledger.Leg{ledger.Debit(accts.merchantBalance, amount), ledger.Credit(source, amount)},
 	})
 	if err != nil {
 		return fmt.Errorf("posting refund to the ledger: %w", err)

@@ -80,6 +80,9 @@ func (s *Service) resolveAttempt(ctx context.Context, pool *pgxpool.Pool, attemp
 	if inStatus(attempt, attemptAuthenticating) {
 		return s.resumeAuthentication(ctx, pool, owner, intentID)
 	}
+	if attempt.PaymentMethod == PaymentMethodPix {
+		return s.resolvePix(ctx, pool, owner, intentID, intent, attempt)
+	}
 	rail, err := s.rail(owner.Livemode)
 	if err != nil {
 		return false, err
@@ -204,11 +207,22 @@ func (s *Service) resolveRefund(ctx context.Context, pool *pgxpool.Pool, refundI
 		return false, err
 	}
 	owner := Owner{Merchant: merchantID, Livemode: refund.Livemode}
-	rail, err := s.rail(owner.Livemode)
+	attempt, err := q.GetAttempt(ctx, refund.AttemptID)
 	if err != nil {
 		return false, err
 	}
-	res := rail.Query(ctx, refund.ID)
+	var res Result
+	if attempt.PaymentMethod == PaymentMethodPix {
+		res, err = s.queryPixReturn(ctx, refund.Livemode, attempt.NetworkTransactionID, bankID(refund.ID))
+	} else {
+		var rail Rail
+		if rail, err = s.rail(owner.Livemode); err == nil {
+			res = rail.Query(ctx, refund.ID)
+		}
+	}
+	if err != nil {
+		return false, err
+	}
 	if res.Outcome == NotFound {
 		if res, err = s.refundOnRail(ctx, pool, refund); err != nil {
 			return false, err

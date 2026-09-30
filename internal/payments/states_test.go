@@ -21,6 +21,7 @@ func TestEveryTransition(t *testing.T) {
 		{Processing, Canceled}:                        true,
 		{RequiresAction, Processing}:                  true,
 		{RequiresAction, RequiresPaymentMethod}:       true,
+		{RequiresAction, Succeeded}:                   true, // a Pix arrives paid
 		{RequiresAction, Canceled}:                    true,
 		{RequiresCapture, Processing}:                 true,
 	}

@@ -1,10 +1,10 @@
 -- name: InsertIntent :exec
 INSERT INTO payments.intents (id, merchant_id, livemode, amount, currency, capture_method, status, payment_method,
                               description, installments, installments_financed_by, setup_future_usage,
-                              request_three_d_secure, created_at, updated_at)
+                              request_three_d_secure, pix_options, created_at, updated_at)
 VALUES (@id, @merchant_id, @livemode, @amount, @currency, @capture_method, @status, @payment_method, @description,
         sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @setup_future_usage, @request_three_d_secure,
-        @created_at, @created_at);
+        @pix_options, @created_at, @created_at);
 
 -- name: GetIntent :one
 SELECT * FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3;
@@ -38,7 +38,8 @@ SET amount = @amount, status = @status, payment_method = @payment_method, descri
     cancellation_reason = @cancellation_reason, installments = sqlc.narg('installments'),
     installments_financed_by = sqlc.narg('installments_financed_by'), setup_future_usage = @setup_future_usage,
     request_three_d_secure = @request_three_d_secure, next_action_url = @next_action_url,
-    risk_decision = @risk_decision, risk_decision_id = @risk_decision_id, updated_at = @updated_at
+    risk_decision = @risk_decision, risk_decision_id = @risk_decision_id, pix_options = @pix_options,
+    next_action_data = @next_action_data, next_action_expires_at = @next_action_expires_at, updated_at = @updated_at
 WHERE id = @id;
 
 -- name: InsertAttempt :exec
@@ -136,14 +137,30 @@ SELECT merchant_id, livemode, currency, account_id FROM payments.ledger_accounts
 WHERE role = 'merchant_balance' ORDER BY merchant_id, livemode, currency;
 
 -- name: MerchantTotals :many
-SELECT merchant_id, livemode, currency,
-       sum(amount_received - amount_refunded)::bigint AS posted,
-       (SELECT coalesce(sum(a.amount), 0) FROM payments.attempts a
-          JOIN payments.intents i2 ON i2.id = a.intent_id
-         WHERE i2.merchant_id = i.merchant_id AND i2.livemode = i.livemode AND i2.currency = i.currency
-           AND a.status IN ('authorized', 'capturing', 'capture_unknown', 'voiding', 'void_unknown'))::bigint AS held
-FROM payments.intents i
-GROUP BY merchant_id, livemode, currency;
+-- What each merchant's balance should hold: posted, what payments received less what
+-- was refunded and paid out; held for the merchant, what open card authorizations hold;
+-- held against the merchant, what payouts in flight hold.
+WITH received AS (
+    SELECT merchant_id, livemode, currency, sum(amount_received - amount_refunded) AS posted
+    FROM payments.intents GROUP BY merchant_id, livemode, currency
+), held AS (
+    SELECT i.merchant_id, i.livemode, i.currency, sum(a.amount) AS held
+    FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+    WHERE a.ledger_hold IS NOT NULL AND a.status IN ('authorized', 'capturing', 'capture_unknown', 'voiding', 'void_unknown')
+    GROUP BY i.merchant_id, i.livemode, i.currency
+), paid_out AS (
+    SELECT merchant_id, livemode, currency,
+           coalesce(sum(amount) FILTER (WHERE status = 'paid'), 0) AS paid,
+           coalesce(sum(amount) FILTER (WHERE status IN ('sending', 'unknown')), 0) AS in_flight
+    FROM payments.payouts GROUP BY merchant_id, livemode, currency
+)
+SELECT r.merchant_id, r.livemode, r.currency,
+       (r.posted - coalesce(p.paid, 0))::bigint AS posted,
+       coalesce(h.held, 0)::bigint AS held,
+       coalesce(p.in_flight, 0)::bigint AS paying_out
+FROM received r
+LEFT JOIN held h ON h.merchant_id = r.merchant_id AND h.livemode = r.livemode AND h.currency = r.currency
+LEFT JOIN paid_out p ON p.merchant_id = r.merchant_id AND p.livemode = r.livemode AND p.currency = r.currency;
 
 -- An intent's status must agree with its latest attempt and its amounts. Statuses that
 -- need an attempt fail the check when it is missing: coalesce turns NULL into false.
@@ -228,3 +245,94 @@ SET last4 = @last4, exp_month = @exp_month, exp_year = @exp_year, network_token_
 WHERE network_token_reference = @network_token_reference
   AND network_token_status IN ('active', 'suspended')
   AND (network_token_event_at IS NULL OR network_token_event_at <= @occurred_at);
+
+-- name: InsertPixCharge :exec
+INSERT INTO payments.pix_charges (txid, attempt_id, livemode, due, copy_paste, expires_at, created_at)
+VALUES (@txid, @attempt_id, @livemode, @due, @copy_paste, @expires_at, @created_at)
+ON CONFLICT (txid) DO NOTHING;
+
+-- name: PixChargeByTxid :one
+SELECT * FROM payments.pix_charges WHERE txid = @txid AND livemode = @livemode;
+
+-- name: PixChargeByAttempt :one
+SELECT * FROM payments.pix_charges WHERE attempt_id = @attempt_id;
+
+-- name: PixAttemptsDue :many
+-- Attempts waiting for a Pix whose charge expired more than a grace period ago.
+SELECT a.id FROM payments.attempts a JOIN payments.pix_charges c ON c.attempt_id = a.id
+WHERE a.status = 'requires_action' AND c.expires_at <= @before::timestamptz
+ORDER BY c.expires_at, a.id
+LIMIT @max_count::integer;
+
+-- name: InsertPixReceived :one
+INSERT INTO payments.pix_received (livemode, e2e_id, txid, amount, currency, received_at, status, created_at, updated_at)
+VALUES (@livemode, @e2e_id, @txid, @amount, @currency, @received_at, 'unmatched', @now, @now)
+ON CONFLICT (livemode, e2e_id) DO NOTHING
+RETURNING *;
+
+-- name: LockPixReceived :one
+SELECT * FROM payments.pix_received WHERE livemode = @livemode AND e2e_id = @e2e_id FOR UPDATE;
+
+-- name: SavePixReceived :exec
+UPDATE payments.pix_received
+SET status = @status, attempt_id = sqlc.narg('attempt_id'), ledger_txn = sqlc.narg('ledger_txn'),
+    return_txn = sqlc.narg('return_txn'), reason = @reason, updated_at = @updated_at
+WHERE livemode = @livemode AND e2e_id = @e2e_id;
+
+-- name: PixReceivedToReturn :many
+SELECT livemode, e2e_id FROM payments.pix_received
+WHERE status IN ('unmatched', 'returning') AND updated_at <= @before::timestamptz
+ORDER BY updated_at, e2e_id
+LIMIT @max_count::integer;
+
+-- name: UnmatchedPixTotals :many
+SELECT livemode, currency, coalesce(sum(amount), 0)::bigint AS held
+FROM payments.pix_received WHERE status IN ('unmatched', 'returning', 'return_failed')
+GROUP BY livemode, currency;
+
+-- name: PixLedgerAccounts :many
+SELECT livemode, currency, account_id FROM payments.ledger_accounts WHERE role = 'pix_unmatched';
+
+-- name: InsertPayout :exec
+INSERT INTO payments.payouts (id, merchant_id, livemode, amount, currency, pix_key, description, status, ledger_hold,
+                              created_at, updated_at)
+VALUES (@id, @merchant_id, @livemode, @amount, @currency, @pix_key, @description, 'sending', @ledger_hold, @now, @now);
+
+-- name: GetPayout :one
+SELECT * FROM payments.payouts WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode;
+
+-- name: GetPayoutByID :one
+SELECT * FROM payments.payouts WHERE id = @id;
+
+-- name: LockPayoutByID :one
+SELECT * FROM payments.payouts WHERE id = @id FOR UPDATE;
+
+-- name: ListPayouts :many
+SELECT * FROM payments.payouts
+WHERE merchant_id = @merchant_id AND livemode = @livemode
+  AND (@starting_after::text = '' OR id < @starting_after)
+  AND (@ending_before::text = '' OR id > @ending_before)
+ORDER BY CASE WHEN @ending_before <> '' THEN id END ASC, id DESC
+LIMIT @max_count::integer;
+
+-- name: SavePayout :exec
+UPDATE payments.payouts
+SET status = @status, failure_code = @failure_code, failure_message = @failure_message, e2e_id = @e2e_id,
+    recipient_name = @recipient_name, unknown_since = @unknown_since, resolutions = @resolutions,
+    arrived_at = @arrived_at, updated_at = @updated_at
+WHERE id = @id;
+
+-- name: PayoutsToResolve :many
+SELECT id FROM payments.payouts
+WHERE status IN ('sending', 'unknown') AND updated_at <= @before::timestamptz
+ORDER BY updated_at, id
+LIMIT @max_count::integer;
+
+-- name: LockPayouts :exec
+-- Serializes payouts from one balance, so two cannot both spend what is available once.
+SELECT pg_advisory_xact_lock(hashtext('payments.payouts/' || @scope::text));
+
+-- name: RefundsInFlight :one
+-- What refunds not yet confirmed will take from a merchant's balance.
+SELECT coalesce(sum(amount), 0)::bigint FROM payments.refunds
+WHERE merchant_id = @merchant_id AND livemode = @livemode AND currency = @currency AND status IN ('pending', 'refund_unknown');

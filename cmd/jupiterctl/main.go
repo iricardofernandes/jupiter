@@ -140,37 +140,43 @@ func createMerchant(ctx context.Context, pool *pgxpool.Pool, name string) error 
 	return encoder.Encode(out)
 }
 
-// devCerts writes a CA, a server certificate for the vault valid on localhost and
-// "vault", and the client certificates the API and the worker present.
+// devCerts writes a CA and, from it: a server certificate for the vault valid on
+// localhost and "vault", and the client certificates the API and the worker present to
+// it; the Pix simulator's server certificate and the one it signs notifications with, and
+// Jupiter's client certificate at the bank and server certificate for notifications.
 func devCerts(dir string) error {
 	pki, err := mtls.NewPKI("Jupiter development CA")
 	if err != nil {
 		return err
 	}
-	server, err := pki.Server("localhost", "vault", "127.0.0.1")
-	if err != nil {
-		return err
-	}
-	client, err := pki.Client(vault.APIIdentity)
-	if err != nil {
-		return err
-	}
-	worker, err := pki.Client(vault.WorkerIdentity)
-	if err != nil {
-		return err
+	pairs := map[string]func() (mtls.Issued, error){
+		"vault":        func() (mtls.Issued, error) { return pki.Server("localhost", "vault", "127.0.0.1") },
+		"api":          func() (mtls.Issued, error) { return pki.Client(vault.APIIdentity) },
+		"worker":       func() (mtls.Issued, error) { return pki.Client(vault.WorkerIdentity) },
+		"sim-pix":      func() (mtls.Issued, error) { return pki.Server("localhost", "sim-pix", "127.0.0.1") },
+		"sim-pix-hook": func() (mtls.Issued, error) { return pki.Client(pixBankIdentity) },
+		"pix-client":   func() (mtls.Issued, error) { return pki.Client("spiffe://jupiter/pix") },
+		"pix-webhooks": func() (mtls.Issued, error) { return pki.Server("localhost", "127.0.0.1") },
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // the operator names the directory
 		return err
 	}
-	for name, data := range map[string][]byte{
-		"ca.pem": pki.CAPEM(), "vault.pem": server.CertPEM, "vault-key.pem": server.KeyPEM,
-		"api.pem": client.CertPEM, "api-key.pem": client.KeyPEM,
-		"worker.pem": worker.CertPEM, "worker-key.pem": worker.KeyPEM,
-	} {
+	files := map[string][]byte{"ca.pem": pki.CAPEM()}
+	for name, issue := range pairs {
+		issued, err := issue()
+		if err != nil {
+			return err
+		}
+		files[name+".pem"], files[name+"-key.pem"] = issued.CertPEM, issued.KeyPEM
+	}
+	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil { //nolint:gosec // the operator names the directory
 			return err
 		}
 	}
-	fmt.Println("wrote ca.pem and the key pairs vault, api and worker to", dir)
+	fmt.Println("wrote ca.pem and the key pairs vault, api, worker, sim-pix, sim-pix-hook, pix-client and pix-webhooks to", dir)
 	return nil
 }
+
+// pixBankIdentity is the identity the Pix simulator signs its notifications with.
+const pixBankIdentity = "spiffe://sim-pix/webhook"

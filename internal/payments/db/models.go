@@ -75,6 +75,9 @@ type PaymentsIntent struct {
 	NextActionUrl          string
 	RiskDecision           string
 	RiskDecisionID         string
+	PixOptions             []byte
+	NextActionData         string
+	NextActionExpiresAt    pgtype.Timestamptz
 }
 
 type PaymentsLedgerAccount struct {
@@ -103,6 +106,53 @@ type PaymentsPaymentMethod struct {
 	NetworkTokenStatus    string
 	NetworkTokenSince     pgtype.Timestamptz
 	NetworkTokenEventAt   pgtype.Timestamptz
+}
+
+type PaymentsPayout struct {
+	ID             string
+	MerchantID     string
+	Livemode       bool
+	Amount         int64
+	Currency       string
+	PixKey         string
+	Description    string
+	Status         string
+	FailureCode    string
+	FailureMessage string
+	E2eID          string
+	RecipientName  string
+	LedgerHold     string
+	UnknownSince   pgtype.Timestamptz
+	Resolutions    int32
+	ArrivedAt      pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type PaymentsPixCharge struct {
+	Txid      string
+	AttemptID string
+	Livemode  bool
+	Due       bool
+	CopyPaste string
+	ExpiresAt pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
+type PaymentsPixReceived struct {
+	Livemode   bool
+	E2eID      string
+	Txid       string
+	Amount     int64
+	Currency   string
+	ReceivedAt pgtype.Timestamptz
+	AttemptID  pgtype.Text
+	Status     string
+	LedgerTxn  pgtype.Text
+	ReturnTxn  pgtype.Text
+	Reason     string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
 }
 
 type PaymentsRefund struct {

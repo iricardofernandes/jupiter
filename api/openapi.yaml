@@ -20,6 +20,7 @@ tags:
   - name: Payment methods
   - name: Payment intents
   - name: Refunds
+  - name: Payouts
   - name: Risk
   - name: Test helpers
   - name: API keys
@@ -242,6 +243,55 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Refund" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/payouts:
+    get:
+      operationId: listPayouts
+      tags: [Payouts]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+      responses:
+        "200":
+          description: A page of payouts, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createPayout
+      tags: [Payouts]
+      description: |
+        Sends part of your balance to a Pix key. The amount is held at once; the payout is
+        pending until the bank confirms the transfer, then paid, or failed with the amount
+        back in your balance.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePayoutRequest" }
+      responses:
+        "200":
+          description: The payout.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payout" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/payouts/{id}:
+    get:
+      operationId: getPayout
+      tags: [Payouts]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The payout.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payout" }
         default: { $ref: "#/components/responses/Failure" }
   /v1/risk/decisions:
     get:
@@ -756,7 +806,51 @@ components:
         risk_decision:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/RiskDecisionRef" }]
+        pix:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/PixOptions" }]
         created: { type: integer, format: int64 }
+    PixOptions:
+      type: object
+      additionalProperties: false
+      description: |
+        How the Pix charge of a payment with payment_method pix is made. Without due_date,
+        an immediate charge, payable for expires_after_seconds (a day unless set). With
+        due_date, a charge with a due date, payable until days_after_due days after it,
+        with the payer named, and an optional fine and interest for paying late and
+        discount for paying early: amount_received is then what the payer paid.
+      properties:
+        expires_after_seconds: { type: integer, format: int64, minimum: 60, maximum: 1209600 }
+        due_date: { type: string, format: date, description: "YYYY-MM-DD, in Brasília." }
+        days_after_due: { type: integer, format: int32, minimum: 0, maximum: 365, description: "30 unless set." }
+        payer:
+          type: object
+          additionalProperties: false
+          required: [name, tax_id]
+          properties:
+            name: { type: string, maxLength: 200 }
+            tax_id: { type: string, description: "A CPF (11 digits) or a CNPJ (14 characters)." }
+        fine:
+          type: object
+          additionalProperties: false
+          description: Charged once, if paid after the due date. An amount or a percent, not both.
+          properties:
+            amount: { type: integer, format: int64, minimum: 1 }
+            percent: { type: string, pattern: '^\d{1,3}\.\d{2}$', description: 'Of the amount, such as "2.00".' }
+        interest:
+          type: object
+          additionalProperties: false
+          required: [monthly_percent]
+          properties:
+            monthly_percent: { type: string, pattern: '^\d{1,3}\.\d{2}$', description: "Of the amount, a month, charged per day late." }
+        discount:
+          type: object
+          additionalProperties: false
+          required: [amount, until]
+          description: Taken off if paid on or before until.
+          properties:
+            amount: { type: integer, format: int64, minimum: 1 }
+            until: { type: string, format: date }
     RiskDecisionRef:
       type: object
       required: [id, action]
@@ -879,11 +973,18 @@ components:
           description: |
             redirect_to_url: send the customer to redirect_to_url.url to complete 3-D Secure.
             use_test_authentication: in test mode, complete it with the test helper.
+            pix_display_qr_code: show the customer pix_display_qr_code.data, as a QR code and as text to copy and paste.
         redirect_to_url:
           type: object
           required: [url]
           properties:
             url: { type: string }
+        pix_display_qr_code:
+          type: object
+          required: [data, expires_at]
+          properties:
+            data: { type: string, description: "The BR Code (Pix Copia e Cola)." }
+            expires_at: { type: integer, format: int64, description: "When it can no longer be paid, Unix time." }
     PaymentIntentList:
       allOf:
         - $ref: "#/components/schemas/ListMeta"
@@ -901,7 +1002,7 @@ components:
         amount: { type: integer, format: int64, minimum: 1 }
         currency: { type: string }
         capture_method: { type: string, enum: [automatic, manual] }
-        payment_method: { type: string }
+        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, or pix." }
         description: { type: string, maxLength: 1000 }
         confirm: { type: boolean }
         installments: { $ref: "#/components/schemas/Installments" }
@@ -918,21 +1019,23 @@ components:
           description: automatic lets the risk engine decide when to authenticate the cardholder; any always does.
         customer_ip: { type: string, maxLength: 45, description: "The customer's IP address, for the risk engine." }
         return_url: { type: string, maxLength: 2048, description: "Where to send the customer after a 3-D Secure challenge: an absolute https URL." }
+        pix: { $ref: "#/components/schemas/PixOptions" }
     UpdatePaymentIntentRequest:
       type: object
       additionalProperties: false
       properties:
         amount: { type: integer, format: int64, minimum: 1 }
-        payment_method: { type: string }
+        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, or pix." }
         description: { type: string, maxLength: 1000 }
         installments: { $ref: "#/components/schemas/Installments" }
         setup_future_usage: { type: string, enum: [off_session] }
         request_three_d_secure: { type: string, enum: [automatic, any] }
+        pix: { $ref: "#/components/schemas/PixOptions" }
     ConfirmPaymentIntentRequest:
       type: object
       additionalProperties: false
       properties:
-        payment_method: { type: string }
+        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, or pix." }
         off_session: { type: boolean }
         customer_ip: { type: string, maxLength: 45 }
         return_url: { type: string, maxLength: 2048, description: "Where to send the customer after a 3-D Secure challenge: an absolute https URL." }
@@ -976,6 +1079,55 @@ components:
             data:
               type: array
               items: { $ref: "#/components/schemas/Refund" }
+    Payout:
+      type: object
+      required: [id, object, livemode, amount, currency, destination, description, status, failure_code, failure_message,
+                 end_to_end_id, arrival_date, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [payout] }
+        livemode: { type: boolean }
+        amount: { type: integer, format: int64 }
+        currency: { type: string }
+        destination: { $ref: "#/components/schemas/PayoutDestination" }
+        description: { type: string }
+        status: { type: string, enum: [pending, paid, failed] }
+        failure_code: { type: string, nullable: true }
+        failure_message: { type: string, nullable: true }
+        end_to_end_id: { type: string, nullable: true, description: "The Pix's endToEndId, once paid." }
+        arrival_date: { type: integer, format: int64, nullable: true, description: "When it was paid, Unix time." }
+        created: { type: integer, format: int64 }
+    PayoutDestination:
+      type: object
+      required: [type, pix_key]
+      properties:
+        type: { type: string, enum: [pix] }
+        pix_key: { type: string, description: "A CPF, a CNPJ, an e-mail, a phone number (+5511...) or a random key." }
+        recipient_name: { type: string, nullable: true, description: "Who the key belongs to, as DICT names them, once paid." }
+    PayoutList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Payout" }
+    CreatePayoutRequest:
+      type: object
+      required: [amount, currency, destination]
+      additionalProperties: false
+      properties:
+        amount: { type: integer, format: int64, minimum: 1 }
+        currency: { type: string, enum: [brl] }
+        destination:
+          type: object
+          required: [type, pix_key]
+          additionalProperties: false
+          properties:
+            type: { type: string, enum: [pix] }
+            pix_key: { type: string, maxLength: 77 }
+        description: { type: string, maxLength: 140 }
     CreateRefundRequest:
       type: object
       required: [payment_intent]

@@ -149,6 +149,14 @@ func (s *Service) StartCancel(ctx context.Context, tx pgx.Tx, owner Owner, inten
 		err = s.setStatus(ctx, tx, &row, Processing)
 		step = StepVoid
 	case RequiresAction:
+		if attempt.PaymentMethod == PaymentMethodPix {
+			// The charge must be removed at the bank first: until it is, the customer may
+			// still pay it.
+			attempt.Status = string(attemptVoiding)
+			err = s.setStatus(ctx, tx, &row, Processing)
+			step = StepVoid
+			break
+		}
 		attempt.Status = string(attemptFailed)
 		row.NextAction = ""
 		err = s.setStatus(ctx, tx, &row, Canceled)
@@ -182,6 +190,9 @@ func (s *Service) Void(ctx context.Context, q db.DBTX, owner Owner, intentID id.
 }
 
 func (s *Service) voidOnRail(ctx context.Context, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (Result, error) {
+	if attempt.PaymentMethod == PaymentMethodPix {
+		return s.removePixCharge(ctx, intent, attempt)
+	}
 	rail, err := s.rail(intent.Livemode)
 	if err != nil {
 		return Result{}, err
@@ -200,9 +211,13 @@ func (s *Service) FinishCancel(ctx context.Context, tx pgx.Tx, owner Owner, inte
 	now := s.cfg.Now().UTC()
 	switch res.Outcome {
 	case Approved:
-		if err = s.releaseHold(ctx, tx, attempt); err == nil {
+		if attempt.LedgerHold.Valid {
+			err = s.releaseHold(ctx, tx, attempt)
+		}
+		if err == nil {
 			attempt.Status = string(attemptVoided)
 			attempt.UnknownSince = pgtype.Timestamptz{}
+			row.NextAction, row.NextActionData, row.NextActionExpiresAt = "", "", pgtype.Timestamptz{}
 			err = s.setStatus(ctx, tx, &row, Canceled)
 		}
 	default:

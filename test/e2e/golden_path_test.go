@@ -28,13 +28,16 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/merchant"
 	"github.com/iricardofernandes/jupiter/internal/money"
 	"github.com/iricardofernandes/jupiter/internal/payments"
+	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
+	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
+	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
 	"github.com/iricardofernandes/jupiter/pkg/webhook"
@@ -49,12 +52,12 @@ func TestMain(m *testing.M) {
 	}))
 }
 
-// The golden path, as far as phase 6 reaches: a customer's card goes from their browser
+// The golden path, as far as phase 7 reaches: a customer's card goes from their browser
 // to the vault; the customer pays R$ 600.00 in six installments, passes the risk engine,
 // is authenticated with 3-D Secure without a challenge, and is authorized by the issuer
-// over ISO 8583; the merchant captures it; the ledger and a signed webhook say so;
-// and the network's clearing file for the day confirms it. Later phases extend this test
-// with receivables, split, settlement and payout.
+// over ISO 8583; the merchant captures it; the ledger and a signed webhook say so; the
+// network's clearing file for the day confirms it; and the merchant is paid out by Pix.
+// Later phases add receivables, split and settlement before the payout.
 func TestGoldenPath(t *testing.T) {
 	ctx := t.Context()
 	pool := server.Pool(t)
@@ -111,11 +114,12 @@ func TestGoldenPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bank, pixConnector := startPixBank(t, pool)
 	l := ledger.New()
 	riskEngine := risk.New(risk.Config{})
 	paymentService := payments.New(payments.Config{
 		Ledger: l, Events: eventService, LiveRail: connector, Authenticator: authenticator, Risk: riskEngine,
-		TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client),
+		TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client), LivePix: pixConnector,
 	})
 	merchants := merchant.New(nil)
 	jupiterAPI := api.New(api.Deps{
@@ -259,7 +263,30 @@ func TestGoldenPath(t *testing.T) {
 	}
 	t.Log("   R$ 600.00 cleared")
 
-	t.Log("9. every invariant holds")
+	t.Log("9. the merchant pays its balance out, by Pix, to its owner's key")
+	var payout struct {
+		Status      string `json:"status"`
+		EndToEndID  string `json:"end_to_end_id"`
+		Destination struct {
+			RecipientName string `json:"recipient_name"`
+		} `json:"destination"`
+	}
+	client.post("/v1/payouts", map[string]any{
+		"amount": 60000, "currency": "brl", "destination": map[string]any{"type": "pix", "pix_key": sellerKey},
+	}, &payout)
+	if payout.Status != "paid" || payout.Destination.RecipientName != "Vendedora do Caminho" {
+		t.Fatalf("the payout: %+v", payout)
+	}
+	transfers := bank.Transfers()
+	if len(transfers) != 1 || transfers[0].Valor != "600.00" || transfers[0].Chave != sellerKey || transfers[0].EndToEndID != payout.EndToEndID {
+		t.Fatalf("the bank sent %+v", transfers)
+	}
+	if posted, held := balance(t, paymentService, pool, owner); posted != 0 || held != 0 {
+		t.Fatalf("ledger after the payout: posted %d, held %d; want 0 and 0", posted, held)
+	}
+	t.Logf("   R$ 600.00 sent through the SPI to %s (%s); the merchant's balance is zero", payout.Destination.RecipientName, payout.EndToEndID)
+
+	t.Log("10. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}
@@ -271,6 +298,48 @@ func TestGoldenPath(t *testing.T) {
 	if err != nil || len(violations) > 0 {
 		t.Fatalf("payments check: %v %+v", err, violations)
 	}
+}
+
+const sellerKey = "+5511987654321"
+
+// startPixBank runs the Pix simulator as Jupiter's bank, over mutual TLS, and Jupiter's
+// connector to it.
+func startPixBank(t *testing.T, pool *pgxpool.Pool) (*pixsim.Sim, *pix.Connector) {
+	t.Helper()
+	pki, err := mtls.NewPKI("golden-path-pix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverCert, err := pki.Server("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientCert, err := pki.Client("spiffe://jupiter/pix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var handler http.Handler
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handler.ServeHTTP(w, r) }))
+	server.TLS = pixsim.ServerTLS(serverCert.TLS, pki.Pool())
+	bank, err := pixsim.New(pixsim.Config{
+		Host:    server.Listener.Addr().String(),
+		Clients: []pixsim.Client{{ID: "jupiter", Secret: "golden", Name: "Jupiter Pagamentos", TaxID: "11222333000181", Keys: []string{"0b7c1a2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d"}, Balance: 1_000_000_00}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler = bank.Handler()
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	bank.AddKey(pixsim.Entry{Key: sellerKey, ISPB: "30000003", Name: "Vendedora do Caminho", TaxID: "98765432100"})
+	connector, err := pix.New(pix.Config{
+		BaseURL: server.URL, ClientID: "jupiter", ClientSecret: "golden", Key: "0b7c1a2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d",
+		TLS: mtls.ClientConfig(clientCert.TLS, pki.Pool()), Livemode: true, Pool: pool,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bank, connector
 }
 
 type apiClient struct {

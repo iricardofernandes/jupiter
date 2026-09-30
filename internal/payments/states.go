@@ -28,8 +28,9 @@ var transitions = map[Status][]Status{
 	RequiresConfirmation:  {RequiresPaymentMethod, Processing, Canceled},
 	// Processing covers a call to the rail in flight or with an unknown outcome.
 	Processing: {RequiresPaymentMethod, RequiresAction, RequiresCapture, Succeeded, Canceled},
-	// Completing the action resumes the authorization; failing it needs a new method.
-	RequiresAction: {Processing, RequiresPaymentMethod, Canceled},
+	// Completing the action resumes the authorization; failing it needs a new method. A
+	// Pix arrives paid: the action, paying it, completes the payment.
+	RequiresAction: {Processing, RequiresPaymentMethod, Succeeded, Canceled},
 	// Capturing and voiding both call the rail, so both pass through processing.
 	RequiresCapture: {Processing},
 	Succeeded:       {},

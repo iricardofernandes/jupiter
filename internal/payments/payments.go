@@ -50,20 +50,25 @@ type PaymentError struct {
 }
 
 type Intent struct {
-	ID                  id.ID
-	Owner               Owner
-	Amount              money.Amount
-	CaptureMethod       CaptureMethod
-	Status              Status
-	PaymentMethod       string
-	Description         string
-	AmountCapturable    money.Amount
-	AmountReceived      money.Amount
-	AmountRefunded      money.Amount
-	LatestAttempt       id.ID
-	LastError           *PaymentError
-	NextAction          string
-	NextActionURL       string
+	ID               id.ID
+	Owner            Owner
+	Amount           money.Amount
+	CaptureMethod    CaptureMethod
+	Status           Status
+	PaymentMethod    string
+	Description      string
+	AmountCapturable money.Amount
+	AmountReceived   money.Amount
+	AmountRefunded   money.Amount
+	LatestAttempt    id.ID
+	LastError        *PaymentError
+	NextAction       string
+	NextActionURL    string
+	// NextActionData is the BR Code a Pix payment waits to be paid with, until
+	// NextActionExpiresAt.
+	NextActionData      string
+	NextActionExpiresAt time.Time
+	Pix                 *PixOptions
 	CancellationReason  string
 	Installments        *Installments
 	SetupFutureUsage    string
@@ -124,7 +129,10 @@ type Config struct {
 	// Authenticator runs 3-D Secure for live-mode cards; without one, live payments go
 	// unauthenticated.
 	Authenticator Authenticator
-	Now           func() time.Time
+	// Pix rails serve each mode's Pix payments and payouts; a mode without one has no Pix.
+	TestPix PixRail
+	LivePix PixRail
+	Now     func() time.Time
 	// ResolveAfter is how long an operation stays in flight before the resolver asks
 	// the rail what happened; GiveUpAfter is when an authorization still unknown is
 	// reversed and failed, so no attempt stays unknown for longer.

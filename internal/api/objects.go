@@ -14,6 +14,7 @@ var objectPaths = map[string]string{
 	"webhook_endpoint": "/v1/webhook_endpoints/",
 	"payment_intent":   "/v1/payment_intents/",
 	"refund":           "/v1/refunds/",
+	"payout":           "/v1/payouts/",
 }
 
 func optional(s string) *string {
@@ -46,7 +47,12 @@ func paymentIntentJSON(it payments.Intent) openapi.PaymentIntent {
 				Url string `json:"url"` //nolint:revive // the generated type's name
 			}{Url: it.NextActionURL}
 		}
+		if it.NextActionData != "" {
+			qr := allocate(&out.NextAction.PixDisplayQrCode)
+			qr.Data, qr.ExpiresAt = it.NextActionData, it.NextActionExpiresAt.Unix()
+		}
 	}
+	out.Pix = pixOptionsJSON(it.Pix)
 	out.RequestThreeDSecure = openapi.PaymentIntentRequestThreeDSecure(it.RequestThreeDSecure)
 	if out.RequestThreeDSecure == "" {
 		out.RequestThreeDSecure = "automatic"
@@ -71,6 +77,21 @@ func refundJSON(r payments.Refund) openapi.Refund {
 		Reason: optional(r.Reason), Status: openapi.RefundStatus(r.Status), FailureReason: optional(r.FailureReason),
 		Created: r.CreatedAt.Unix(),
 	}
+}
+
+func payoutJSON(p payments.Payout) openapi.Payout {
+	out := openapi.Payout{
+		Id: p.ID.String(), Object: "payout", Livemode: p.Owner.Livemode, Amount: p.Amount.Minor(),
+		Currency: strings.ToLower(p.Amount.Currency().Code()), Description: p.Description, Status: openapi.PayoutStatus(p.Status),
+		Destination: openapi.PayoutDestination{Type: "pix", PixKey: p.PixKey, RecipientName: optional(p.RecipientName)},
+		FailureCode: optional(p.FailureCode), FailureMessage: optional(p.FailureMessage), EndToEndId: optional(p.EndToEndID),
+		Created: p.CreatedAt.Unix(),
+	}
+	if !p.ArrivedAt.IsZero() {
+		arrived := p.ArrivedAt.Unix()
+		out.ArrivalDate = &arrived
+	}
+	return out
 }
 
 func apiKeyJSON(k merchant.Key, value *string) openapi.ApiKey {

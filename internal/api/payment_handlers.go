@@ -144,6 +144,19 @@ func (a *API) relatedPayment(ctx context.Context, p merchant.Principal, ref even
 			return nil, err
 		}
 		return paymentIntentJSON(it), nil
+	case "payout":
+		if !p.Can(merchant.ScopePayoutsRead) {
+			return nil, forbidden(string(merchant.ScopePayoutsRead))
+		}
+		payoutID, err := payments.PayoutPrefix.Parse(ref.ID)
+		if err != nil {
+			return nil, err
+		}
+		payout, err := a.deps.Payments.Payout(ctx, a.deps.Pool, paymentsOwner(p), payoutID)
+		if err != nil {
+			return nil, err
+		}
+		return payoutJSON(payout), nil
 	default:
 		if !p.Can(merchant.ScopeRefundsRead) {
 			return nil, forbidden(string(merchant.ScopeRefundsRead))

@@ -258,7 +258,7 @@ func (a *API) event(ctx context.Context, p merchant.Principal, e events.Event, i
 	switch e.Object.Type {
 	case "webhook_endpoint", "api_key":
 		related, err = a.relatedAccountObject(ctx, p, e.Object)
-	case "payment_intent", "refund":
+	case "payment_intent", "refund", "payout":
 		related, err = a.relatedPayment(ctx, p, e.Object)
 	}
 	if errors.Is(err, errRelatedGone) || (err == nil && related == nil) {

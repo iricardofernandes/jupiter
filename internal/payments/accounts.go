@@ -18,6 +18,8 @@ import (
 const (
 	roleMerchantBalance   = "merchant_balance"
 	roleNetworkReceivable = "network_receivable"
+	rolePixSettlement     = "pix_settlement"
+	rolePixUnmatched      = "pix_unmatched"
 )
 
 // accounts are the two ledger accounts a card payment moves between: what the card
@@ -45,6 +47,28 @@ func (s *Service) ledgerAccounts(ctx context.Context, tx pgx.Tx, owner Owner, cu
 		return accounts{}, err
 	}
 	return accounts{merchantBalance: merchantID, networkReceivable: networkID}, nil
+}
+
+// pixAccounts are Jupiter's account at its Pix bank, where every Pix in and out of a
+// mode settles, and the Pix received that paid nothing, held until they are returned.
+type pixAccounts struct {
+	settlement id.ID
+	unmatched  id.ID
+}
+
+func (s *Service) pixAccounts(ctx context.Context, tx pgx.Tx, livemode bool, currency money.Currency) (pixAccounts, error) {
+	q := db.New(tx)
+	settlement, err := s.scopedAccount(ctx, tx, q, "", livemode, currency, rolePixSettlement,
+		ledger.AccountSpec{Book: ledger.ClientFunds, Code: "pix_settlement", Currency: currency, Normal: ledger.DebitNormal, Batched: true})
+	if err != nil {
+		return pixAccounts{}, err
+	}
+	unmatched, err := s.scopedAccount(ctx, tx, q, "", livemode, currency, rolePixUnmatched,
+		ledger.AccountSpec{Book: ledger.ClientFunds, Code: "pix_unmatched", Currency: currency, Normal: ledger.CreditNormal})
+	if err != nil {
+		return pixAccounts{}, err
+	}
+	return pixAccounts{settlement: settlement, unmatched: unmatched}, nil
 }
 
 func (s *Service) scopedAccount(ctx context.Context, tx pgx.Tx, q *db.Queries, merchant string, livemode bool, currency money.Currency, role string, spec ledger.AccountSpec) (id.ID, error) {
@@ -135,6 +159,10 @@ func intentFromRow(row db.PaymentsIntent) (Intent, error) {
 		CancellationReason: row.CancellationReason, SetupFutureUsage: row.SetupFutureUsage,
 		RequestThreeDSecure: row.RequestThreeDSecure, NextActionURL: row.NextActionUrl,
 		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, CreatedAt: row.CreatedAt.Time,
+		NextActionData: row.NextActionData, NextActionExpiresAt: row.NextActionExpiresAt.Time,
+	}
+	if it.Pix, err = pixOptionsOf(row); err != nil {
+		return Intent{}, err
 	}
 	if row.Installments.Valid {
 		it.Installments = &Installments{Count: int(row.Installments.Int32), FinancedBy: Financing(row.InstallmentsFinancedBy.String)}
@@ -190,7 +218,8 @@ func saveIntent(ctx context.Context, q *db.Queries, row db.PaymentsIntent) error
 		CancellationReason: row.CancellationReason, Installments: row.Installments,
 		InstallmentsFinancedBy: row.InstallmentsFinancedBy, SetupFutureUsage: row.SetupFutureUsage,
 		RequestThreeDSecure: row.RequestThreeDSecure, NextActionUrl: row.NextActionUrl,
-		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, UpdatedAt: row.UpdatedAt,
+		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, PixOptions: row.PixOptions,
+		NextActionData: row.NextActionData, NextActionExpiresAt: row.NextActionExpiresAt, UpdatedAt: row.UpdatedAt,
 	})
 }
 
