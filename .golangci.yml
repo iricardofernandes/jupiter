@@ -1,0 +1,107 @@
+version: "2"
+
+run:
+  build-tags:
+    - integration
+    - e2e
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - forcetypeassert
+    - funlen
+    - gocognit
+    - gocritic
+    - gosec
+    - intrange
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - perfsprint
+    - revive
+    - sloglint
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: github.com/shopspring/decimal
+              desc: "money is int64 minor units; rates use money.Rate (ADR 0003)"
+            - pkg: math/rand$
+              desc: "use math/rand/v2, or crypto/rand for anything security-relevant"
+            - pkg: github.com/pkg/errors
+              desc: "use the standard errors package and fmt.Errorf with %w"
+            - pkg: github.com/google/uuid
+              desc: "use the standard uuid package through internal/id (ADR 0007)"
+    exhaustive:
+      default-signifies-exhaustive: true
+    funlen:
+      lines: 60
+      statements: 40
+    gocognit:
+      min-complexity: 20
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # readability of structs matters more than a few bytes
+    nestif:
+      min-complexity: 4
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: error-strings
+        - name: error-naming
+        - name: receiver-naming
+        - name: indent-error-flow
+        - name: unused-parameter
+    sloglint:
+      kv-only: true
+      context: scope
+  exclusions:
+    generated: strict
+    presets:
+      - std-error-handling
+    rules:
+      # Table tests and property tests are long by nature.
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+      # Fixtures are code the architecture test must see, not code to lint.
+      - path: testdata/
+        linters:
+          - revive
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/iricardofernandes/jupiter
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

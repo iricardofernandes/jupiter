@@ -1,0 +1,17 @@
+# Binaries
+/bin/
+
+# Local overrides for compose.yaml
+.env
+
+# Failure files rapid writes to reproduce a failing property; promote one to a
+# regression test deliberately instead of committing it by accident.
+**/testdata/rapid/
+
+# Coverage
+*.out
+coverage.html
+
+# Personal Claude Code settings
+.claude/settings.local.json
+.claude/*.lock

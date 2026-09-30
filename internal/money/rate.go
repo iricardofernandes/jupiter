@@ -1,0 +1,149 @@
+package money
+
+import (
+	"errors"
+	"fmt"
+	"math/big"
+	"strings"
+)
+
+var (
+	// ErrInvalidRate is returned when a string is not a plain decimal rate, and for the
+	// zero value of Rate.
+	ErrInvalidRate = errors.New("money: invalid rate")
+	// ErrRoundingMode is returned when an operation is given no valid rounding mode.
+	ErrRoundingMode = errors.New("money: invalid rounding mode")
+)
+
+// Rate is an exact decimal multiplier, such as a fee of "0.0249" or a split percentage.
+// It is held as an exact rational, so multiplying by it loses nothing until the one
+// rounding step that the caller names. The zero value is invalid.
+type Rate struct {
+	value *big.Rat // never mutated after construction
+	scale int      // decimal places of the parsed string, kept for String
+}
+
+// ParseRate reads a plain decimal string such as "0.0249", "1" or "-0.5". Fractions,
+// exponents and explicit plus signs are rejected, so a rate is always written the way a
+// contract or a regulation writes it.
+func ParseRate(s string) (Rate, error) {
+	unsigned, _ := strings.CutPrefix(s, "-")
+	whole, fraction, hasPoint := strings.Cut(unsigned, ".")
+	if !isDigits(whole) || (hasPoint && !isDigits(fraction)) {
+		return Rate{}, fmt.Errorf("%w: %q", ErrInvalidRate, s)
+	}
+	value, ok := new(big.Rat).SetString(s)
+	if !ok {
+		return Rate{}, fmt.Errorf("%w: %q", ErrInvalidRate, s)
+	}
+	return Rate{value: value, scale: len(fraction)}, nil
+}
+
+// String returns the rate with the decimal places it was parsed with.
+func (r Rate) String() string {
+	if r.value == nil {
+		return "<invalid rate>"
+	}
+	return r.value.FloatString(r.scale)
+}
+
+// RoundingMode names how an exact result is brought to a whole number of minor units.
+// The zero value is deliberately not a mode, so a caller cannot round by omission.
+type RoundingMode int
+
+// Rounding modes. "Half" modes round to the nearest unit and differ only on exact ties.
+const (
+	_        RoundingMode = iota
+	HalfEven              // nearest; ties to the even unit (banker's rounding)
+	HalfUp                // nearest; ties away from zero
+	HalfDown              // nearest; ties toward zero
+	Down                  // toward zero (truncation)
+	Up                    // away from zero
+	Floor                 // toward negative infinity
+	Ceiling               // toward positive infinity
+)
+
+func (m RoundingMode) valid() bool { return m >= HalfEven && m <= Ceiling }
+
+func (m RoundingMode) String() string {
+	switch m {
+	case HalfEven:
+		return "HalfEven"
+	case HalfUp:
+		return "HalfUp"
+	case HalfDown:
+		return "HalfDown"
+	case Down:
+		return "Down"
+	case Up:
+		return "Up"
+	case Floor:
+		return "Floor"
+	case Ceiling:
+		return "Ceiling"
+	default:
+		return fmt.Sprintf("RoundingMode(%d)", int(m))
+	}
+}
+
+// MulRate returns the amount multiplied by rate, rounded to a minor unit with mode.
+func (a Amount) MulRate(rate Rate, mode RoundingMode) (Amount, error) {
+	if err := a.currency.validate(); err != nil {
+		return Amount{}, err
+	}
+	if rate.value == nil {
+		return Amount{}, fmt.Errorf("%w: zero value", ErrInvalidRate)
+	}
+	// The mode is checked even when the product is exact, so a missing mode is caught
+	// on the first call rather than on the first inexact one.
+	if !mode.valid() {
+		return Amount{}, fmt.Errorf("%w: %v", ErrRoundingMode, mode)
+	}
+	exact := new(big.Rat).Mul(new(big.Rat).SetInt64(a.minor), rate.value)
+	rounded, err := round(exact, mode)
+	if err != nil {
+		return Amount{}, err
+	}
+	if !rounded.IsInt64() {
+		return Amount{}, fmt.Errorf("%w: %v × %v", ErrOverflow, a, rate)
+	}
+	return Amount{minor: rounded.Int64(), currency: a.currency}, nil
+}
+
+// round brings an exact rational to an integer according to mode.
+func round(x *big.Rat, mode RoundingMode) (*big.Int, error) {
+	// Truncated division gives the quotient toward zero and a remainder with x's sign.
+	quotient, remainder := new(big.Int).QuoRem(x.Num(), x.Denom(), new(big.Int))
+	if remainder.Sign() == 0 {
+		return quotient, nil
+	}
+	awayFromZero := big.NewInt(int64(x.Sign()))
+
+	// Compare twice the remainder's magnitude with the denominator to find which side of
+	// one half the discarded fraction lies on.
+	half := new(big.Int).Lsh(new(big.Int).Abs(remainder), 1).Cmp(x.Denom())
+
+	var bumpAway bool
+	switch mode {
+	case HalfEven:
+		bumpAway = half > 0 || (half == 0 && quotient.Bit(0) == 1)
+	case HalfUp:
+		bumpAway = half >= 0
+	case HalfDown:
+		bumpAway = half > 0
+	case Down:
+		bumpAway = false
+	case Up:
+		bumpAway = true
+	case Floor:
+		bumpAway = x.Sign() < 0
+	case Ceiling:
+		bumpAway = x.Sign() > 0
+	default:
+		return nil, fmt.Errorf("%w: %v", ErrRoundingMode, mode)
+	}
+	if bumpAway {
+		quotient.Add(quotient, awayFromZero)
+	}
+	return quotient, nil
+}
