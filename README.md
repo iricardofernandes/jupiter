@@ -6,7 +6,7 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **7 — Pix** · milestone M2 reached
+> ### Current phase: **8 — Pix Automático** · milestone M2 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
 > kept in a separate vault, live payments over ISO 8583 to a card network and issuer
@@ -17,10 +17,13 @@ This repository is the **backend only**.
 > - BR Codes checked against every example in the Manual de Padrões;
 > - signed payload locations;
 > - refunds as returns, and stray Pix returned to their payers;
-> - payouts by Pix, which end the golden path for now.
+> - payouts by Pix, which end the golden path for now;
+> - subscriptions charged by Pix Automático: recurrences authorized by a request to the
+>   customer's bank or a QR code, a charge per cycle debited on its due date, and retries.
+>   A year of them runs in accelerated time in CI.
 >
 > A deterministic simulation runs 10,000 payments with faults on every push. Next are
-> Pix Automático (phase 8) and receivables (phase 9); see [`docs/plan.md`](docs/plan.md).
+> receivables and the registry (phase 9); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -64,7 +67,7 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix and payouts |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, payouts and subscriptions |
 | [`api/bacen-pix/`](api/bacen-pix/) | The Banco Central's API Pix specification, pinned, which `pkg/pixapi` is generated from |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |

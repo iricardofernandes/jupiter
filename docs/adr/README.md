@@ -34,6 +34,7 @@ point at its replacement.
 | [0025](0025-pix-through-a-partner-bank.md) | Pix goes through a partner bank's API Pix, trusted only once confirmed | Accepted |
 | [0026](0026-pix-payments-refunds-and-strays.md) | A Pix payment waits on a charge; refunds are returns; stray Pix go back | Accepted |
 | [0027](0027-payouts-by-pix.md) | Payouts: held on the balance, sent by Pix, never abandoned | Accepted |
+| [0028](0028-subscriptions-by-pix-automatico.md) | Subscriptions charge by Pix Automático, one payment intent per cycle | Accepted |
 
 ## Template
 

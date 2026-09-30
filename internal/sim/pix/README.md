@@ -41,9 +41,34 @@ The request and response types are generated from the official specification
 | Transfers out: `PUT /transferencias/{idEnvio}` with `valor` and `chave`, and `GET /transferencias/{idEnvio}`. The key is resolved in DICT and the transfer settled at once, `REALIZADO`, or refused, `NAO_REALIZADO`: unknown key, closed account, short balance | **The simulator's own**: the API Pix does not cover sending, and each bank has its own interface. This one follows the API's conventions: client-chosen ids, an idempotent PUT, and the same error format |
 | Errors as RFC 7807 problems typed `https://pix.bcb.gov.br/api/v2/error/<Type>` (`CobOperacaoInvalida`, `PixDevolucaoInvalida`, `AcessoNegado`, …) | Sourced: specification |
 
-Not simulated: lotecobv, Pix Saque and Pix Troco (refused), Pix Automático (rec, solicrec,
-cobr), MED returns, key portability, participants other than the bank itself as receivers,
-and time spent in the SPI.
+Not simulated: lotecobv, Pix Saque and Pix Troco (refused), MED returns, key portability,
+participants other than the bank itself as receivers, and time spent in the SPI.
+
+## Pix Automático
+
+The receiver's side, as the Manual de Padrões' Anexo IV and the specification describe it,
+and the payer and their bank as the rest of the world.
+
+| Behaviour | Source |
+|---|---|
+| Recurrences (`POST /rec`, `GET /rec/{idRec}`, `GET /rec` by period and payer, `PATCH` to cancel, or to give a location before approval). The idRec is `R`, `R` or `N` (retries allowed or not), the ISPB, the day and 11 characters. Statuses `CRIADA`, `APROVADA`, `REJEITADA`, `EXPIRADA` (after `dataFinal`), `CANCELADA`, with their history | Sourced: Anexo IV §2.1, §3.1, §4.1 |
+| Journey 1: `POST /solicrec` sends the request to the payer's bank (`CRIADA` → `ENVIADA` → `RECEBIDA`). The payer accepts, approving the recurrence, or rejects it. A request to an ISPB with no bank behind it is rejected (`DADOS_BANCARIOS_INVALIDOS`). Requests expire at `dataExpiracaoSolicitacao` | Sourced: §2.2, §3.2. The payer's decision is the simulator's control |
+| Journey 2: `POST /locrec`, and a recurrence with that location, whose `dadosQR.pixCopiaECola` is a composite BR Code with only the recurrence URL. The payer's bank fetches its signed payload (as for dynamic codes), checks the payer is the debtor, and approves it | Sourced: manual §2.8, Anexo IV §4.4. The signature is as unverified as the payment payloads' |
+| Journeys 3 and 4, and recurrences from Open Finance (`C…`) | Not simulated; journey 3 data is refused |
+| Recurring charges (`PUT/POST /cobr`, `GET`, `PATCH` to cancel): only under an approved recurrence, to the client's own account, at the recurrence's fixed amount, within its validity, one per cycle. Cycles repeat from the first date by the period, a day the month lacks becoming its last | Sourced: §2.3, §4.3.1 |
+| A charge must be made at least 2 days before its due date and is sent to the payer's bank from 10 days before | **From the BCB's Pix Automático FAQ as the research summarized it**, not a primary text the research read |
+| `ajusteDiaUtil` moves a due date on a weekend to Monday | Sourced in principle (§2.3.9). The simulator knows no holidays, national or local |
+| Sent to the payer's bank, the first attempt (`AGND`) goes `SOLICITADA` → `AGENDADA` and the charge `ATIVA`. On its date the payer's bank debits it if the payer has the money, trying again through the day. The attempt is `PAGA` and the charge `CONCLUIDA`, with the Pix listed and in `GET /pix`. Otherwise the attempt is `EXPIRADA` the next day | Sourced: §3.3.1-3.3.4 |
+| Retries (`POST /cobr/{txid}/retentativa/{data}`, type `NTAG`, each with its own endToEndId), only under `PERMITE_3R_7D`: up to three, on different days, within seven days of the first, asked for before the day. Without retries, or with them used up or out of time, the charge is `EXPIRADA` | Sourced: §2.1.5, §4.1.4 |
+| The receiver cancels a charge until the day before its first debit. Canceling a recurrence cancels its pending requests and the charges not yet due. The payer can revoke a recurrence in their bank's app | Sourced: §3.3.6, §4.1.3, §4.3.2 |
+| The payer's bank rejects a charge to a closed account (`AC05`) or of the wrong amount (`AM09`), rejecting the charge | The codes and their effect on the charge are the specification's (§3.3.5). Which one applies to which case is the simulator's choice, from the ISO 20022 meanings |
+| Rejection and cancellation codes: a payer refusing a request is `AP13`; a receiver canceling is `SLCR`, a payer `SLDB` (recurrence) or `SLBD` (charge) | **The simulator's choices** among the specification's codes; their meanings are in the SPI message catalogue, which the research could not read |
+| Intraday retries after a settlement error (`RIFL`), Pix Automático returns (`MED_PIX_AUTOMATICO`) | Not simulated |
+| Notifications: `PUT /webhookrec` and `/webhookcobr` register URLs; every change to a recurrence is posted to `{url}/rec` (`{"recs": [...]}`) and to a charge to `{url}/cobr` (`{"cobsr": [...]}`), over mutual TLS | Sourced: specification |
+
+`Tick` moves the days: requests and recurrences expire, charges enter the window, debits
+happen and attempts expire. The binary ticks every ten seconds. Tests call it after moving
+their clock, which is how a year runs in seconds.
 
 ## Payers and operators
 
@@ -57,6 +82,10 @@ The admin handler takes no credentials and must listen on loopback only.
 | `GET /admin/transfers` | What clients sent |
 | `GET /admin/deliveries` | Notifications sent, dropped or refused |
 | `GET /admin/balances/{client}` | A client's balance |
+| `POST /admin/recurrence-requests/{id}/decide` | The payer accepts (`{"accept": true}`) or rejects a recurrence request |
+| `POST /admin/recurrences/{idRec}/cancel` | The payer revokes a recurrence |
+| `POST /admin/payers/{tax_id}/funds` | Limits what a payer has for recurring debits (`{"balance": "10.00"}`); `{}` lifts the limit |
+| `POST /admin/tick` | Lets the bank's day move now |
 
 ## Faults
 

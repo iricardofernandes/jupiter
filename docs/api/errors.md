@@ -106,6 +106,14 @@ The Pix charge could not be made. `decline_code` is `pix_charge_refused` when th
 refused it, or `pix_charge_unresolved` when it did not confirm it within 15 minutes. The
 payment intent is back in `requires_payment_method`.
 
+A [subscription](subscriptions.md)'s payment that fails has `decline_code`
+`pix_charge_expired` (the customer's bank did not debit it by its last attempt) or
+`pix_charge_rejected`, with the bank's reason in the message.
+
+### subscription_unexpected_state
+The subscription cannot do that now: canceling one the bank has not set up yet, or
+subscribing a customer while another subscription waits for their authorization.
+
 ### balance_insufficient
 A payout asked for more than the balance has available: what payments posted, less
 refunds, payouts and payouts still in flight.

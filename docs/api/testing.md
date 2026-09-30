@@ -148,3 +148,15 @@ curl -X POST http://127.0.0.1:8587/admin/pay -d '{"brcode": "<data>", "payer_tax
 
 The intent succeeds when the bank notifies Jupiter. [Accepting Pix](pix.md) covers due
 dates, refunds and what happens to a charge nobody pays.
+
+## Subscriptions
+
+In the sandbox, the customer's side of [subscriptions](subscriptions.md) goes through the
+simulator's controls:
+- **authorize:** pay the QR code with `/admin/pay`, or accept or reject the request with
+  `/admin/recurrence-requests/{id}/decide`;
+- **run out of funds:** `/admin/payers/{tax_id}/funds`;
+- **revoke:** `/admin/recurrences/{idRec}/cancel`.
+
+The simulator's clock moves the charges every ten seconds (`/admin/tick` moves them at
+once). Its [README](../../internal/sim/pix/README.md) lists the routes.
