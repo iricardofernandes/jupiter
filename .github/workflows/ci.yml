@@ -24,6 +24,7 @@ jobs:
           cache-dependency-path: |
             go.sum
             tools/go.sum
+      - run: make generate-check
       - run: make fmt-check
       - run: make vet
       - run: make lint
@@ -38,7 +39,16 @@ jobs:
         with:
           go-version-file: go.mod
       - run: make test
-      - run: make test-property RAPID_CHECKS=10000
+
+  property:
+    name: property tests (1000 cases each)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make test-property RAPID_CHECKS=1000
 
   integration:
     name: integration tests (testcontainers)

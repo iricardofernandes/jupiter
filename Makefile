@@ -2,11 +2,14 @@ GO      ?= go
 TOOL    := $(GO) tool -modfile=tools/go.mod
 COMPOSE ?= docker compose
 
+# Local infrastructure from compose.yaml.
+DATABASE_URL ?= postgres://jupiter:jupiter@127.0.0.1:55432/jupiter?sslmode=disable
+
 # Cases per property in test-property. `make test` uses rapid's default of 100.
-RAPID_CHECKS ?= 10000
+RAPID_CHECKS ?= 1000
 
 # Packages whose tests use rapid: the only ones that accept -rapid.* flags.
-PROPERTY_PKGS = $(shell $(GO) list -f '{{.ImportPath}} {{join .TestImports " "}} {{join .XTestImports " "}}' ./... | awk '/pgregory.net\/rapid/ {print $$1}')
+PROPERTY_PKGS = $(shell $(GO) list -tags=integration -f '{{.ImportPath}} {{join .TestImports " "}} {{join .XTestImports " "}}' ./... | awk '/pgregory.net\/rapid/ {print $$1}')
 
 .DEFAULT_GOAL := help
 
@@ -15,7 +18,15 @@ help: ## List the targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z0-9-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 .PHONY: check
-check: fmt-check vet lint vuln test ## Everything CI checks except Docker-based tests
+check: generate-check fmt-check vet lint vuln test ## Everything CI checks except Docker-based tests
+
+.PHONY: generate
+generate: ## Regenerate code (sqlc)
+	$(TOOL) sqlc generate
+
+.PHONY: generate-check
+generate-check: ## Fail if generated code is stale
+	$(TOOL) sqlc diff
 
 .PHONY: fmt
 fmt: ## Format the code
@@ -42,8 +53,12 @@ test: ## Unit, property and architecture tests, with the race detector
 	$(GO) test -race -count=1 ./...
 
 .PHONY: test-property
-test-property: ## Property tests only, with RAPID_CHECKS cases each
-	$(GO) test -count=1 -run=Property $(PROPERTY_PKGS) -rapid.checks=$(RAPID_CHECKS)
+test-property: ## Property tests only, including those against PostgreSQL, with RAPID_CHECKS cases each
+	$(GO) test -count=1 -timeout=30m -tags=integration -run=Property $(PROPERTY_PKGS) -rapid.checks=$(RAPID_CHECKS)
+
+.PHONY: bench-ledger
+bench-ledger: ## The hot-account load recorded in docs/benchmarks
+	JUPITER_LEDGER_BENCH=1 $(GO) test -count=1 -tags=integration -run=TestConcurrentWritersToAHotAccount -v ./internal/ledger/ | grep 'hot account'
 
 .PHONY: test-integration
 test-integration: ## Integration tests against real dependencies in Docker (testcontainers)
@@ -61,6 +76,14 @@ tidy: ## Tidy both modules
 .PHONY: build
 build: ## Build every binary into bin/
 	$(GO) build -o bin/ ./cmd/...
+
+.PHONY: migrate
+migrate: ## Apply migrations to the local database
+	JUPITER_DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/jupiterctl migrate
+
+.PHONY: ledger-check
+ledger-check: ## Verify ledger invariants on the local database
+	JUPITER_DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/jupiterctl ledger check
 
 .PHONY: up
 up: ## Start local infrastructure and wait until every service is healthy

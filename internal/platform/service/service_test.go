@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ func TestServeAnswersHealthChecksAndShutsDown(t *testing.T) {
 	ln := listen(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { done <- service.Serve(ctx, ln, nil, slog.New(slog.DiscardHandler)) }()
+	go func() { done <- service.Serve(ctx, ln, service.App{}, slog.New(slog.DiscardHandler)) }()
 
 	base := "http://" + ln.Addr().String()
 	for _, path := range []string{"/healthz", "/readyz"} {
@@ -86,7 +87,9 @@ func TestServeRoutesToTheHandlerBesideHealthChecks(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("api"))
 	})
-	go func() { _ = service.Serve(t.Context(), ln, handler, slog.New(slog.DiscardHandler)) }()
+	go func() {
+		_ = service.Serve(t.Context(), ln, service.App{Handler: handler}, slog.New(slog.DiscardHandler))
+	}()
 
 	base := "http://" + ln.Addr().String()
 	if status, body := get(t, base+"/v1/anything"); status != http.StatusOK || body != "api" {
@@ -109,7 +112,7 @@ func TestShutdownDrainsInFlightRequests(t *testing.T) {
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	served := make(chan error, 1)
-	go func() { served <- service.Serve(ctx, ln, handler, slog.New(slog.DiscardHandler)) }()
+	go func() { served <- service.Serve(ctx, ln, service.App{Handler: handler}, slog.New(slog.DiscardHandler)) }()
 
 	type response struct {
 		status int
@@ -138,12 +141,68 @@ func TestShutdownDrainsInFlightRequests(t *testing.T) {
 	}
 }
 
+func TestReadinessReflectsTheAppsCheck(t *testing.T) {
+	ln := listen(t)
+	var ready atomic.Bool
+	app := service.App{Ready: func(context.Context) error {
+		if ready.Load() {
+			return nil
+		}
+		return errors.New("database unreachable")
+	}}
+	go func() { _ = service.Serve(t.Context(), ln, app, slog.New(slog.DiscardHandler)) }()
+
+	url := "http://" + ln.Addr().String() + "/readyz"
+	if status, _ := get(t, url); status != http.StatusServiceUnavailable {
+		t.Errorf("GET /readyz while not ready = %d, want 503", status)
+	}
+	ready.Store(true)
+	if status, _ := get(t, url); status != http.StatusOK {
+		t.Errorf("GET /readyz when ready = %d, want 200", status)
+	}
+}
+
+func TestAFailingBackgroundTaskStopsTheProcess(t *testing.T) {
+	ln := listen(t)
+	boom := errors.New("boom")
+	app := service.App{Background: []func(context.Context) error{
+		func(context.Context) error { return boom },
+	}}
+	if err := service.Serve(t.Context(), ln, app, slog.New(slog.DiscardHandler)); !errors.Is(err, boom) {
+		t.Fatalf("Serve = %v, want the task's error", err)
+	}
+}
+
+func TestEveryKeepsRunningAfterAFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	var runs atomic.Int32
+	task := service.Every(slog.New(slog.DiscardHandler), "flaky", time.Millisecond, func(context.Context) error {
+		if runs.Add(1) >= 3 {
+			cancel()
+		}
+		return errors.New("transient")
+	})
+	if err := task(ctx); err != nil {
+		t.Fatalf("Every returned %v, want nil on cancellation", err)
+	}
+	if runs.Load() < 3 {
+		t.Fatalf("ran %d times, want at least 3", runs.Load())
+	}
+}
+
+func TestConfigReadsTheDatabaseURL(t *testing.T) {
+	cfg, err := service.ConfigFromEnv("worker", ":8081", env(map[string]string{"JUPITER_DATABASE_URL": "postgres://x"}))
+	if err != nil || cfg.DatabaseURL != "postgres://x" {
+		t.Fatalf("ConfigFromEnv = %+v, %v", cfg, err)
+	}
+}
+
 func TestServeReportsListenerFailure(t *testing.T) {
 	ln := listen(t)
 	if err := ln.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	err := service.Serve(t.Context(), ln, nil, slog.New(slog.DiscardHandler))
+	err := service.Serve(t.Context(), ln, service.App{}, slog.New(slog.DiscardHandler))
 	if err == nil || errors.Is(err, http.ErrServerClosed) {
 		t.Fatalf("Serve on a closed listener = %v, want an error", err)
 	}
@@ -153,7 +212,7 @@ func TestRunStopsCleanlyWhenCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	cfg := service.Config{Name: "test", HTTPAddr: "127.0.0.1:0", LogLevel: slog.LevelInfo}
-	if err := service.Run(ctx, cfg, nil, slog.New(slog.DiscardHandler)); err != nil {
+	if err := service.Run(ctx, cfg, service.App{}, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("Run = %v, want nil after cancellation", err)
 	}
 }
@@ -162,7 +221,7 @@ func TestRunFailsWhenTheAddressIsTaken(t *testing.T) {
 	taken := listen(t)
 	defer func() { _ = taken.Close() }()
 	cfg := service.Config{Name: "test", HTTPAddr: taken.Addr().String(), LogLevel: slog.LevelInfo}
-	if err := service.Run(t.Context(), cfg, nil, slog.New(slog.DiscardHandler)); err == nil {
+	if err := service.Run(t.Context(), cfg, service.App{}, slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("Run succeeded on an address already in use")
 	}
 }

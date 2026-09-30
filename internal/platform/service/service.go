@@ -11,27 +11,41 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
-	envHTTPAddr = "JUPITER_HTTP_ADDR"
-	envLogLevel = "JUPITER_LOG_LEVEL"
+	envHTTPAddr    = "JUPITER_HTTP_ADDR"
+	envLogLevel    = "JUPITER_LOG_LEVEL"
+	envDatabaseURL = "JUPITER_DATABASE_URL"
 
 	readHeaderTimeout = 5 * time.Second
 	readTimeout       = 15 * time.Second
 	writeTimeout      = 15 * time.Second
 	idleTimeout       = 60 * time.Second
 	shutdownTimeout   = 10 * time.Second
+	readyTimeout      = 2 * time.Second
 )
 
 type Config struct {
-	Name     string
-	HTTPAddr string
-	LogLevel slog.Level
+	Name        string
+	HTTPAddr    string
+	LogLevel    slog.Level
+	DatabaseURL string
 }
 
+type App struct {
+	Handler    http.Handler
+	Ready      func(context.Context) error
+	Background []func(context.Context) error
+	Close      func()
+}
+
+type Build func(ctx context.Context, cfg Config, logger *slog.Logger) (App, error)
+
 func ConfigFromEnv(name, defaultAddr string, getenv func(string) string) (Config, error) {
-	cfg := Config{Name: name, HTTPAddr: defaultAddr, LogLevel: slog.LevelInfo}
+	cfg := Config{Name: name, HTTPAddr: defaultAddr, LogLevel: slog.LevelInfo, DatabaseURL: getenv(envDatabaseURL)}
 	if addr := getenv(envHTTPAddr); addr != "" {
 		cfg.HTTPAddr = addr
 	}
@@ -46,7 +60,7 @@ func ConfigFromEnv(name, defaultAddr string, getenv func(string) string) (Config
 	return cfg, nil
 }
 
-func Main(name, defaultAddr string) {
+func Main(name, defaultAddr string, build Build) {
 	cfg, err := ConfigFromEnv(name, defaultAddr, os.Getenv)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: invalid configuration: %v\n", name, err)
@@ -58,25 +72,47 @@ func Main(name, defaultAddr string) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := Run(ctx, cfg, nil, logger); err != nil {
+	if err := run(ctx, cfg, build, logger); err != nil {
 		logger.ErrorContext(ctx, "service stopped with an error", "error", err)
 		stop()
 		os.Exit(1) //nolint:gocritic // stop is called explicitly above
 	}
 }
 
-func Run(ctx context.Context, cfg Config, handler http.Handler, logger *slog.Logger) error {
+func run(ctx context.Context, cfg Config, build Build, logger *slog.Logger) error {
+	app, err := build(ctx, cfg, logger)
+	if err != nil {
+		return fmt.Errorf("starting %s: %w", cfg.Name, err)
+	}
+	if app.Close != nil {
+		defer app.Close()
+	}
+	return Run(ctx, cfg, app, logger)
+}
+
+func Run(ctx context.Context, cfg Config, app App, logger *slog.Logger) error {
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", cfg.HTTPAddr)
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", cfg.HTTPAddr, err)
 	}
-	return Serve(ctx, ln, handler, logger)
+	return Serve(ctx, ln, app, logger)
 }
 
-func Serve(ctx context.Context, ln net.Listener, handler http.Handler, logger *slog.Logger) error {
+// Serve runs the app's background tasks beside the HTTP server. The first task to fail
+// stops the whole process, so a broken worker restarts instead of limping on.
+func Serve(ctx context.Context, ln net.Listener, app App, logger *slog.Logger) error {
+	group, ctx := errgroup.WithContext(ctx)
+	for _, task := range app.Background {
+		group.Go(func() error { return task(ctx) })
+	}
+	group.Go(func() error { return serveHTTP(ctx, ln, app, logger) })
+	return group.Wait()
+}
+
+func serveHTTP(ctx context.Context, ln net.Listener, app App, logger *slog.Logger) error {
 	server := &http.Server{
-		Handler:           routes(handler),
+		Handler:           routes(app),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
@@ -109,16 +145,49 @@ func Serve(ctx context.Context, ln net.Listener, handler http.Handler, logger *s
 	return nil
 }
 
-func routes(handler http.Handler) http.Handler {
+func routes(app App) http.Handler {
 	mux := http.NewServeMux()
-	if handler != nil {
-		mux.Handle("/", handler)
+	if app.Handler != nil {
+		mux.Handle("/", app.Handler)
 	}
-	ok := func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write([]byte("ok\n"))
-	}
-	mux.HandleFunc("GET /healthz", ok)
-	mux.HandleFunc("GET /readyz", ok)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		writeText(w, http.StatusOK, "ok")
+	})
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		if app.Ready != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), readyTimeout)
+			defer cancel()
+			if err := app.Ready(ctx); err != nil {
+				writeText(w, http.StatusServiceUnavailable, "not ready")
+				return
+			}
+		}
+		writeText(w, http.StatusOK, "ok")
+	})
 	return mux
+}
+
+func writeText(w http.ResponseWriter, status int, body string) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(body + "\n"))
+}
+
+// Every returns a background task that runs fn every interval until ctx is done. A
+// failed run is logged and retried on the next tick rather than stopping the process.
+func Every(logger *slog.Logger, name string, interval time.Duration, fn func(context.Context) error) func(context.Context) error {
+	return func(ctx context.Context) error {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			if err := fn(ctx); err != nil && ctx.Err() == nil {
+				logger.ErrorContext(ctx, "background task failed", "task", name, "error", err)
+			}
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+			}
+		}
+	}
 }
