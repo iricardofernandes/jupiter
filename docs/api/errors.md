@@ -22,9 +22,10 @@ Every error has the same envelope:
 |---|---|---|
 | `authentication_error` | 401 | No valid API key |
 | `permission_error` | 403 | The key lacks a scope the request needs |
+| `card_error` | 402 | The card was refused, as invalid or by the issuer |
 | `invalid_request_error` | 400, 404 | The request is wrong; repeating it will fail the same way |
 | `idempotency_error` | 409, 422 | The Idempotency-Key conflicts with another request |
-| `api_error` | 500 | Jupiter failed; retrying with the same Idempotency-Key is safe |
+| `api_error` | 500, 503 | Jupiter failed; retrying with the same Idempotency-Key is safe |
 
 ## Codes
 
@@ -70,6 +71,32 @@ seconds. Retry later with the same key.
 ### idempotency_key_mismatch
 The key was already used for a different request: another endpoint, another object, or
 another body. A key names one request; use a new key for a new request.
+
+### card_declined
+The issuer declined the payment. `decline_code` says why, when the issuer did:
+`generic_decline`, `insufficient_funds`, `test_mode_live_card` (a real card number in test
+mode), `invalid_account` (the saved card is gone from the vault). The error carries the
+payment intent, back in `requires_payment_method`.
+
+### incorrect_number
+The card number fails its check digit, or has a length its brand does not use. `param` is
+`card[number]`. The number is never repeated in the error.
+
+### invalid_expiry_month
+The expiry month is not between 1 and 12.
+
+### invalid_expiry_year
+The expiry year is not a four-digit year within the next twenty.
+
+### expired_card
+The card expired before the current month.
+
+### invalid_cvc
+The security code does not have the length the brand prints: four digits for American
+Express, three for the others.
+
+### vault_unavailable
+The card vault did not answer. Nothing was saved; retry with the same Idempotency-Key.
 
 ### internal_error
 Something failed inside Jupiter. Nothing half-done is left visible: retrying with the

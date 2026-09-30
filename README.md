@@ -6,14 +6,15 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **3 — payment intents · milestone M1 reached**
+> ### Current phase: **4 — card vault** · milestone M1 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, and a payment
-> state machine that survives timeouts: card payments in test mode are authorized,
-> captured (in full or in part), canceled, expired and refunded, every step mirrored on
-> the ledger. Lost answers leave a payment in `processing` until Jupiter finds out what
-> happened. A deterministic simulation runs 10,000 payments with injected faults on every
-> push. Next is the card vault (phase 4); see [`docs/plan.md`](docs/plan.md).
+> state machine that survives timeouts, now with real card numbers: they enter through a
+> separate vault, over mTLS, encrypted under a key per card, and Jupiter's own database
+> never holds one, which a test proves by scanning it for a canary number. Keys rotate
+> while payments carry on. A deterministic simulation runs 10,000 payments with injected
+> faults, in the rail and the vault, on every push. Next is the card network and issuer
+> simulator over ISO 8583 (phase 5); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -58,6 +59,7 @@ primary source, its documentation says so.
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
 | [`docs/api/`](docs/api/) | Error codes, receiving webhooks, and test cards and amounts |
+| [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
 | [`docs/benchmarks/`](docs/benchmarks/) | Measurements, with the command and hardware that produced them |
 | [`docs/research/`](docs/research/) | How the payments market works, globally and in Brazil, and what it implies for Jupiter |
@@ -72,7 +74,8 @@ install.
 make check             # format, vet, lint, vulnerabilities, unit and architecture tests
 make test-integration  # tests against a real PostgreSQL in Docker
 make up                # local infrastructure; returns once every service is healthy
-make migrate           # apply database migrations to it
+make migrate           # apply database migrations to it, Jupiter's and the vault's
+make certs             # a development CA and the vault's and API's mTLS certificates
 make merchant NAME=x   # create a merchant; prints its API keys once
 make ledger-check      # verify the ledger's invariants on it
 make demo              # walk through the golden path, step by step
@@ -81,13 +84,15 @@ make down
 make help              # every target
 ```
 
-`make up` starts PostgreSQL, the OpenTelemetry Collector, Jaeger, Prometheus and Grafana.
+`make up` starts PostgreSQL, a separate PostgreSQL for the vault, the OpenTelemetry
+Collector, Jaeger, Prometheus and Grafana.
 They listen on 127.0.0.1 only, on ports of their own so they can run beside other local
 stacks:
 
 | Service | Address |
 |---|---|
 | PostgreSQL | `postgres://jupiter:jupiter@127.0.0.1:55432/jupiter` |
+| PostgreSQL (vault) | `postgres://vault:vault@127.0.0.1:55433/vault` |
 | OTLP (gRPC / HTTP) | `127.0.0.1:54317` / `127.0.0.1:54318` |
 | Jaeger | http://127.0.0.1:56686 |
 | Prometheus | http://127.0.0.1:59090 |
@@ -95,21 +100,28 @@ stacks:
 
 Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
 
-To run the API and the worker against it, export `JUPITER_DATABASE_URL` and a
-`JUPITER_SECRET_KEY` (`openssl rand -base64 32`), then `go run ./cmd/api` and
-`go run ./cmd/worker`:
+To run the binaries, start the vault first (`go run ./cmd/vault`), then the API and the
+worker (`go run ./cmd/api`, `go run ./cmd/worker`). [`.env.example`](.env.example) lists
+what each reads: databases, keys (`openssl rand -base64 32`) and the certificates from
+`make certs`. Then save a card and pay with it:
 
 ```sh
+curl -X POST http://127.0.0.1:8080/v1/payment_methods -H "Authorization: Bearer $SK_TEST" \
+  -d '{"type": "card", "card": {"number": "4242424242424242", "exp_month": 12, "exp_year": 2030}}'
 curl -X POST http://127.0.0.1:8080/v1/payment_intents \
   -H "Authorization: Bearer $SK_TEST" -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"amount": 60000, "currency": "brl", "payment_method": "pm_card_visa", "confirm": true}'
+  -d '{"amount": 60000, "currency": "brl", "payment_method": "pm_…", "confirm": true}'
 ```
+
+[Testing payments](docs/api/testing.md) lists the test cards, and how a checkout page
+hands a card to the vault without the merchant's server seeing it.
 
 ## Repository layout
 
 ```
 cmd/                 one binary each: api, worker, vault, jupiterctl, and (from phase 5) sim-<name>
 internal/<module>/   a domain module; its root package is its only public interface
+internal/vault/      the card vault; its root package is the client, the rest only the vault imports
 internal/money/      amounts, currencies, rates, rounding and allocation
 internal/id/         prefixed, time-ordered identifiers
 internal/platform/   process lifecycle, PostgreSQL and other shared infrastructure
@@ -117,6 +129,7 @@ internal/sim/<name>/ a simulator's code, isolated from Jupiter's domain
 pkg/                 libraries meant for other projects too (webhook verification; later BR Code, CNAB 240)
 test/architecture/   the test that enforces these boundaries
 test/e2e/            the golden path
+test/pci/            the test that the API database never holds a card number
 test/simulation/     the deterministic simulation
 deploy/              configuration for the local infrastructure
 tools/               pinned development tools

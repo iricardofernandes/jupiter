@@ -22,6 +22,9 @@ point at its replacement.
 | [0013](0013-thin-events-and-webhook-delivery.md) | Thin events written with the change, delivered at least once by River | Accepted |
 | [0014](0014-payment-intents-attempts-and-unknown-outcomes.md) | Payment intents, attempts, and unknown outcomes as a state | Accepted |
 | [0015](0015-deterministic-simulation.md) | Correctness under faults is tested by deterministic simulation | Accepted |
+| [0016](0016-card-vault-behind-mtls.md) | The card vault: its own process and database, reached only over mTLS | Accepted |
+| [0017](0017-envelope-encryption-and-key-rotation.md) | Envelope encryption with a data key per card, rotated by rewrapping | Accepted |
+| [0018](0018-how-card-numbers-enter-and-leave.md) | How a card number enters Jupiter, and how it reaches the rail | Accepted |
 
 ## Template
 
