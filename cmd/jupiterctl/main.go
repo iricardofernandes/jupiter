@@ -10,9 +10,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
+	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 )
 
@@ -20,6 +25,7 @@ const usage = `usage: jupiterctl <command>
 
 commands:
   migrate                  apply every module's database migrations
+  merchant create <name>   create a merchant and print its API keys, which are shown only once
   ledger check             verify ledger invariants; exits 1 if any is violated
   ledger repair <account>  reset a drifted account's cached balance from its entries
 
@@ -56,7 +62,9 @@ func run(ctx context.Context, args []string) error {
 
 	switch {
 	case len(args) == 1 && args[0] == "migrate":
-		return ledger.Migrate(ctx, pool)
+		return migrate(ctx, pool)
+	case len(args) == 3 && args[0] == "merchant" && args[1] == "create":
+		return createMerchant(ctx, pool, args[2])
 	case len(args) == 2 && args[0] == "ledger" && args[1] == "check":
 		return check(ctx, pool)
 	case len(args) == 3 && args[0] == "ledger" && args[1] == "repair":
@@ -88,4 +96,35 @@ func check(ctx context.Context, pool *pgxpool.Pool) error {
 		return errViolations
 	}
 	return nil
+}
+
+func migrate(ctx context.Context, pool *pgxpool.Pool) error {
+	for _, m := range []func(context.Context, *pgxpool.Pool) error{
+		ledger.Migrate, merchant.Migrate, events.Migrate, api.Migrate, jobs.Migrate,
+	} {
+		if err := m(ctx, pool); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func createMerchant(ctx context.Context, pool *pgxpool.Pool, name string) error {
+	var m merchant.Merchant
+	var keys []merchant.IssuedKey
+	err := postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		var err error
+		m, keys, err = merchant.New(nil).Create(ctx, tx, name, api.CurrentVersion)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	out := map[string]any{"merchant": m.ID.String(), "name": m.Name, "api_version": m.APIVersion}
+	for _, k := range keys {
+		out[k.Value[:7]] = k.Value
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(out)
 }

@@ -4,19 +4,29 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"time"
 
+	"github.com/riverqueue/river"
+
+	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
+	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
 )
 
 const (
-	applyInterval  = 200 * time.Millisecond
-	applyBatch     = 5000
-	expiryInterval = 10 * time.Second
-	expiryBatch    = 1000
-	checkInterval  = 5 * time.Minute
+	applyInterval     = 200 * time.Millisecond
+	applyBatch        = 5000
+	expiryInterval    = 10 * time.Second
+	expiryBatch       = 1000
+	checkInterval     = 5 * time.Minute
+	completerInterval = time.Minute
+	reaperInterval    = time.Hour
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -33,43 +43,43 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	if cfg.DatabaseURL == "" {
 		return service.App{}, errors.New("JUPITER_DATABASE_URL is required")
 	}
+	box, err := secretbox.FromBase64(os.Getenv("JUPITER_SECRET_KEY"))
+	if err != nil {
+		return service.App{}, errors.New("JUPITER_SECRET_KEY must be 32 random bytes in base64: " + err.Error())
+	}
 	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return service.App{}, err
 	}
+	inserter, err := jobs.NewInserter(pool, logger)
+	if err != nil {
+		pool.Close()
+		return service.App{}, err
+	}
+	eventService := events.New(events.Config{
+		Box: box, Jobs: inserter, Render: api.RenderEvent,
+		// Only for local development, where webhook receivers run on this machine.
+		AllowPrivateNetworks: os.Getenv("JUPITER_WEBHOOK_ALLOW_PRIVATE") == "true",
+	})
+	workers := river.NewWorkers()
+	eventService.RegisterWorkers(workers, pool)
+	jobClient, err := jobs.NewWorker(pool, jobs.WorkerConfig{Workers: workers, Logger: logger})
+	if err != nil {
+		pool.Close()
+		return service.App{}, err
+	}
+	a := api.New(api.Deps{Pool: pool, Merchants: merchant.New(nil), Events: eventService, Box: box, Logger: logger})
 	l := ledger.New()
-
-	applyQueued := func(ctx context.Context) error {
-		// Keep draining while full batches come back, then wait for the next tick.
-		for {
-			applied, err := l.ApplyQueued(ctx, pool, applyBatch)
-			if err != nil || applied < applyBatch {
-				return err
-			}
-		}
-	}
-	expireDue := func(ctx context.Context) error {
-		n, err := l.ExpireDue(ctx, pool, expiryBatch)
-		if n > 0 {
-			logger.InfoContext(ctx, "expired pending transfers", "count", n)
-		}
-		return err
-	}
-	check := func(ctx context.Context) error {
-		report, err := l.Check(ctx, pool, checkOptions)
-		for _, v := range report.Violations {
-			logger.ErrorContext(ctx, "ledger invariant violated",
-				"kind", string(v.Kind), "subject", v.Subject, "detail", v.Detail)
-		}
-		return err
-	}
 
 	return service.App{
 		Ready: pool.Ping,
 		Background: []func(context.Context) error{
-			service.Every(logger, "ledger.apply_queued", applyInterval, applyQueued),
-			service.Every(logger, "ledger.expire_due", expiryInterval, expireDue),
-			service.Every(logger, "ledger.check", checkInterval, check),
+			jobs.Run(jobClient),
+			service.Every(logger, "ledger.apply_queued", applyInterval, applyQueued(l, pool)),
+			service.Every(logger, "ledger.expire_due", expiryInterval, expireDue(l, pool, logger)),
+			service.Every(logger, "ledger.check", checkInterval, check(l, pool, logger)),
+			service.Every(logger, "api.complete_abandoned", completerInterval, completeAbandoned(a, logger)),
+			service.Every(logger, "api.reap_idempotency_keys", reaperInterval, reap(a, logger)),
 		},
 		Close: pool.Close,
 	}, nil

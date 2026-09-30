@@ -20,13 +20,20 @@ help: ## List the targets
 .PHONY: check
 check: generate-check fmt-check vet lint vuln test ## Everything CI checks except Docker-based tests
 
+OPENAPI_OUT = internal/api/openapi/openapi.gen.go
+
 .PHONY: generate
-generate: ## Regenerate code (sqlc)
+generate: ## Regenerate code from SQL (sqlc) and from api/openapi.yaml (oapi-codegen)
 	$(TOOL) sqlc generate
+	$(TOOL) oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
 
 .PHONY: generate-check
 generate-check: ## Fail if generated code is stale
 	$(TOOL) sqlc diff
+	@dir=$$(mktemp -d) && sed "s|^output: .*|output: $$dir/gen.go|" api/oapi-codegen.yaml > $$dir/config.yaml && \
+		$(TOOL) oapi-codegen -config $$dir/config.yaml api/openapi.yaml && \
+		if ! diff -q $$dir/gen.go $(OPENAPI_OUT) >/dev/null; then rm -rf $$dir; echo "$(OPENAPI_OUT) is stale: run make generate" >&2; exit 1; fi; \
+		rm -rf $$dir
 
 .PHONY: fmt
 fmt: ## Format the code
@@ -80,6 +87,10 @@ build: ## Build every binary into bin/
 .PHONY: migrate
 migrate: ## Apply migrations to the local database
 	JUPITER_DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/jupiterctl migrate
+
+.PHONY: merchant
+merchant: ## Create a merchant on the local database: make merchant NAME="Loja"
+	JUPITER_DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/jupiterctl merchant create "$(NAME)"
 
 .PHONY: ledger-check
 ledger-check: ## Verify ledger invariants on the local database

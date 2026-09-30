@@ -9,3 +9,30 @@ sql:
         out: internal/ledger/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/merchant/migrations
+    queries: internal/merchant/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/merchant/db
+        sql_package: pgx/v5
+        emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/events/migrations
+    queries: internal/events/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/events/db
+        sql_package: pgx/v5
+        emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/api/migrations
+    queries: internal/api/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/api/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

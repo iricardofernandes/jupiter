@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  title: Jupiter API
+  version: "2026-09-30"
+  description: |
+    Jupiter's merchant API. Every response describes the version it was rendered in with
+    the Jupiter-Version header; this document describes the current version.
+
+    Authenticate with a secret or restricted key as a bearer token. Keys prefixed
+    `_test_` act on test-mode data and `_live_` on live-mode data; the two never mix.
+
+    Every POST accepts an Idempotency-Key header. A retry with the same key and the same
+    body returns the first response without acting again; the same key with a different
+    body is refused.
+servers:
+  - url: http://127.0.0.1:8080
+security:
+  - bearerAuth: []
+tags:
+  - name: API keys
+  - name: Webhook endpoints
+  - name: Events
+
+paths:
+  /v1/api_keys:
+    get:
+      operationId: listApiKeys
+      tags: [API keys]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+      responses:
+        "200":
+          description: A page of keys, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKeyList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createApiKey
+      tags: [API keys]
+      description: Creates a restricted key. Its value is returned only in this response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateApiKeyRequest" }
+      responses:
+        "200":
+          description: The new key, with its value.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKey" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/api_keys/{id}:
+    get:
+      operationId: getApiKey
+      tags: [API keys]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKey" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/api_keys/{id}/revoke:
+    post:
+      operationId: revokeApiKey
+      tags: [API keys]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The revoked key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKey" }
+        default: { $ref: "#/components/responses/Failure" }
+
+  /v1/webhook_endpoints:
+    get:
+      operationId: listWebhookEndpoints
+      tags: [Webhook endpoints]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+      responses:
+        "200":
+          description: A page of endpoints, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookEndpointList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createWebhookEndpoint
+      tags: [Webhook endpoints]
+      description: Creates an endpoint. Its signing secret is returned only in this response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWebhookEndpointRequest" }
+      responses:
+        "200":
+          description: The new endpoint, with its secret.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookEndpoint" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/webhook_endpoints/{id}:
+    get:
+      operationId: getWebhookEndpoint
+      tags: [Webhook endpoints]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The endpoint.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookEndpoint" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: updateWebhookEndpoint
+      tags: [Webhook endpoints]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateWebhookEndpointRequest" }
+      responses:
+        "200":
+          description: The updated endpoint.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookEndpoint" }
+        default: { $ref: "#/components/responses/Failure" }
+    delete:
+      operationId: deleteWebhookEndpoint
+      tags: [Webhook endpoints]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The endpoint was deleted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeletedObject" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/webhook_endpoints/{id}/roll_secret:
+    post:
+      operationId: rollWebhookEndpointSecret
+      tags: [Webhook endpoints]
+      description: |
+        Issues a new signing secret. Current secrets keep signing beside it for
+        expire_current_in seconds (default 86400, at most 604800), so receivers can switch
+        without missing a delivery.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RollSecretRequest" }
+      responses:
+        "200":
+          description: The endpoint, with its new secret.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookEndpoint" }
+        default: { $ref: "#/components/responses/Failure" }
+
+  /v1/events:
+    get:
+      operationId: listEvents
+      tags: [Events]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+        - name: type
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Include"
+      responses:
+        "200":
+          description: A page of events, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventList" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/events/{id}:
+    get:
+      operationId: getEvent
+      tags: [Events]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Include"
+      responses:
+        "200":
+          description: The event.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/events/{id}/resend:
+    post:
+      operationId: resendEvent
+      tags: [Events]
+      description: Delivers the event again, to one endpoint or to every endpoint subscribed to its type.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResendEventRequest" }
+      responses:
+        "200":
+          description: The event.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        default: { $ref: "#/components/responses/Failure" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+    StartingAfter:
+      name: starting_after
+      in: query
+      description: An object id; the page starts with the next older object.
+      schema: { type: string }
+    EndingBefore:
+      name: ending_before
+      in: query
+      description: An object id; the page ends with the next newer object.
+      schema: { type: string }
+    Include:
+      name: include[]
+      in: query
+      description: Related objects to return inline. Events accept related_object.
+      style: form
+      explode: true
+      schema:
+        type: array
+        items: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string, maxLength: 255 }
+
+  responses:
+    Failure:
+      description: The request failed.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: "#/components/schemas/Error" }
+    Error:
+      type: object
+      required: [type, code, message, request_id, doc_url]
+      properties:
+        type:
+          type: string
+          enum: [api_error, authentication_error, permission_error, invalid_request_error, idempotency_error, rate_limit_error]
+        code: { type: string }
+        message: { type: string }
+        param: { type: string }
+        request_id: { type: string }
+        doc_url: { type: string }
+
+    ListMeta:
+      type: object
+      required: [object, has_more, url]
+      properties:
+        object: { type: string, enum: [list] }
+        has_more: { type: boolean }
+        url: { type: string }
+
+    ApiKey:
+      type: object
+      required: [id, object, livemode, kind, name, last4, scopes, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [api_key] }
+        livemode: { type: boolean }
+        kind: { type: string, enum: [secret, publishable, restricted] }
+        name: { type: string }
+        last4: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        created: { type: integer, format: int64 }
+        revoked: { type: integer, format: int64, nullable: true }
+        value:
+          type: string
+          description: The key itself, present only in the response that created it.
+    ApiKeyList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/ApiKey" }
+    CreateApiKeyRequest:
+      type: object
+      required: [scopes]
+      additionalProperties: false
+      properties:
+        name: { type: string, maxLength: 100 }
+        scopes:
+          type: array
+          minItems: 1
+          items: { type: string }
+
+    WebhookEndpoint:
+      type: object
+      required: [id, object, livemode, url, description, enabled_events, status, api_version, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [webhook_endpoint] }
+        livemode: { type: boolean }
+        url: { type: string }
+        description: { type: string }
+        enabled_events:
+          type: array
+          items: { type: string }
+        status: { type: string, enum: [enabled, disabled] }
+        api_version: { type: string }
+        created: { type: integer, format: int64 }
+        secret:
+          type: string
+          description: The signing secret, present only when it was just created or rolled.
+    WebhookEndpointList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/WebhookEndpoint" }
+    CreateWebhookEndpointRequest:
+      type: object
+      required: [url, enabled_events]
+      additionalProperties: false
+      properties:
+        url: { type: string, maxLength: 2048 }
+        description: { type: string, maxLength: 500 }
+        enabled_events:
+          type: array
+          minItems: 1
+          items: { type: string }
+    UpdateWebhookEndpointRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        url: { type: string, maxLength: 2048 }
+        description: { type: string, maxLength: 500 }
+        enabled_events:
+          type: array
+          minItems: 1
+          items: { type: string }
+        status: { type: string, enum: [enabled, disabled] }
+    RollSecretRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expire_current_in: { type: integer, minimum: 0, maximum: 604800 }
+
+    DeletedObject:
+      type: object
+      required: [id, object, deleted]
+      properties:
+        id: { type: string }
+        object: { type: string }
+        deleted: { type: boolean, enum: [true] }
+
+    Event:
+      type: object
+      required: [id, object, type, livemode, created, related_object]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [event] }
+        type: { type: string }
+        livemode: { type: boolean }
+        created: { type: integer, format: int64 }
+        related_object: { $ref: "#/components/schemas/RelatedObject" }
+    RelatedObject:
+      type: object
+      required: [id, type, url]
+      description: |
+        What the event is about. Events are thin: fetch the object for its current state,
+        or ask for it inline with include[]=related_object.
+      properties:
+        id: { type: string }
+        type: { type: string }
+        url: { type: string }
+        object:
+          description: The object's current state, when included and it still exists.
+          type: object
+          additionalProperties: true
+    EventList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Event" }
+    ResendEventRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        webhook_endpoint: { type: string }
