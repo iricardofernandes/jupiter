@@ -45,7 +45,10 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	if p.CaptureMethod == "" {
 		p.CaptureMethod = CaptureAutomatic
 	}
-	if err := validateIntent(p.Amount, p.CaptureMethod, p.PaymentMethod, p.Description); err != nil {
+	if err := validateIntent(p.Amount, p.CaptureMethod, p.Description); err != nil {
+		return Intent{}, err
+	}
+	if err := s.checkPaymentMethod(ctx, tx, owner, p.PaymentMethod); err != nil {
 		return Intent{}, err
 	}
 	status := RequiresPaymentMethod
@@ -73,14 +76,12 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	return intentFromRow(row)
 }
 
-func validateIntent(amount money.Amount, method CaptureMethod, pm, description string) error {
+func validateIntent(amount money.Amount, method CaptureMethod, description string) error {
 	switch {
 	case !amount.IsPositive():
 		return fmt.Errorf("%w: amount must be a positive number of minor units", ErrInvalid)
 	case method != CaptureAutomatic && method != CaptureManual:
 		return fmt.Errorf("%w: capture_method must be automatic or manual", ErrInvalid)
-	case pm != "" && !knownPaymentMethod(pm):
-		return fmt.Errorf("%w: unknown payment_method %q", ErrInvalid, pm)
 	case len(description) > maxDescription:
 		return fmt.Errorf("%w: description is longer than %d characters", ErrInvalid, maxDescription)
 	}
@@ -113,8 +114,13 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 	if p.Description != nil {
 		row.Description = *p.Description
 	}
-	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.PaymentMethod, row.Description); err != nil {
+	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description); err != nil {
 		return Intent{}, err
+	}
+	if p.PaymentMethod != nil {
+		if err := s.checkPaymentMethod(ctx, tx, owner, row.PaymentMethod); err != nil {
+			return Intent{}, err
+		}
 	}
 	row.Amount = amount.Minor()
 	next := RequiresPaymentMethod
@@ -169,8 +175,8 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 		return Intent{}, err
 	}
 	if paymentMethod != "" {
-		if !knownPaymentMethod(paymentMethod) {
-			return Intent{}, fmt.Errorf("%w: unknown payment_method %q", ErrInvalid, paymentMethod)
+		if err := s.checkPaymentMethod(ctx, tx, owner, paymentMethod); err != nil {
+			return Intent{}, err
 		}
 		row.PaymentMethod = paymentMethod
 	}
@@ -214,11 +220,15 @@ func (s *Service) Authorize(ctx context.Context, q db.DBTX, owner Owner, intentI
 	if !inStatus(attempt, attemptAuthorizing, attemptAuthorizationUnknown) {
 		return Result{}, nil
 	}
-	return s.authorizeOnRail(ctx, intent, attempt)
+	return s.authorizeOnRail(ctx, q, owner, intent, attempt)
 }
 
-func (s *Service) authorizeOnRail(ctx context.Context, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (Result, error) {
+func (s *Service) authorizeOnRail(ctx context.Context, q db.DBTX, owner Owner, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (Result, error) {
 	rail, err := s.rail(intent.Livemode)
+	if err != nil {
+		return Result{}, err
+	}
+	card, err := s.cardFor(ctx, q, owner, attempt.PaymentMethod)
 	if err != nil {
 		return Result{}, err
 	}
@@ -227,7 +237,7 @@ func (s *Service) authorizeOnRail(ctx context.Context, intent db.PaymentsIntent,
 		return Result{}, err
 	}
 	return rail.Authorize(ctx, AuthorizeRequest{
-		Key: attempt.ID, Amount: amount, PaymentMethod: attempt.PaymentMethod, Authenticated: attempt.Authenticated,
+		Key: attempt.ID, Amount: amount, PaymentMethod: attempt.PaymentMethod, Card: card, Authenticated: attempt.Authenticated,
 	}), nil
 }
 

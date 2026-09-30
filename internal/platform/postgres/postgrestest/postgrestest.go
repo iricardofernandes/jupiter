@@ -20,7 +20,9 @@ import (
 // Keep in step with compose.yaml.
 const Image = "postgres:18.6-alpine"
 
-const templateName = "jupiter_template"
+// DefaultTemplate names the template Main migrates; Templates adds others, such as the
+// vault's, which lives in a database of its own.
+const DefaultTemplate = "jupiter"
 
 // Server is one PostgreSQL container shared by a test package. Each test gets its own
 // database cloned from a migrated template, because ledger tables refuse the DELETE
@@ -36,8 +38,14 @@ type MigrateFunc func(context.Context, *pgxpool.Pool) error
 // Main starts a server, migrates its template, runs the package's tests and stops it.
 // Call it from TestMain: os.Exit(postgrestest.Main(m, &server, ledger.Migrate)).
 func Main(m *testing.M, server **Server, migrations ...MigrateFunc) int {
+	return Templates(m, server, map[string][]MigrateFunc{DefaultTemplate: migrations})
+}
+
+// Templates is Main for tests that need databases of more than one kind: each named
+// template is migrated with its own migrations.
+func Templates(m *testing.M, server **Server, templates map[string][]MigrateFunc) int {
 	ctx := context.Background()
-	s, err := start(ctx, migrations)
+	s, err := start(ctx, templates)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "postgrestest:", err)
 		return 1
@@ -47,7 +55,7 @@ func Main(m *testing.M, server **Server, migrations ...MigrateFunc) int {
 	return m.Run()
 }
 
-func start(ctx context.Context, migrations []MigrateFunc) (*Server, error) {
+func start(ctx context.Context, templates map[string][]MigrateFunc) (*Server, error) {
 	ctr, err := tcpostgres.Run(ctx, Image,
 		tcpostgres.WithDatabase("postgres"),
 		tcpostgres.WithUsername("jupiter"),
@@ -66,18 +74,24 @@ func start(ctx context.Context, migrations []MigrateFunc) (*Server, error) {
 		return nil, fmt.Errorf("connection string: %w", err)
 	}
 	s := &Server{container: ctr, adminURL: adminURL}
-	if err := s.prepareTemplate(ctx, migrations); err != nil {
-		_ = testcontainers.TerminateContainer(ctr)
-		return nil, err
+	for name, migrations := range templates {
+		if err := s.prepareTemplate(ctx, templateDatabase(name), migrations); err != nil {
+			_ = testcontainers.TerminateContainer(ctr)
+			return nil, err
+		}
 	}
 	return s, nil
 }
 
-func (s *Server) prepareTemplate(ctx context.Context, migrations []MigrateFunc) error {
-	if err := s.admin(ctx, "CREATE DATABASE "+templateName); err != nil {
+func templateDatabase(name string) string {
+	return name + "_template"
+}
+
+func (s *Server) prepareTemplate(ctx context.Context, database string, migrations []MigrateFunc) error {
+	if err := s.admin(ctx, "CREATE DATABASE "+pgx.Identifier{database}.Sanitize()); err != nil {
 		return err
 	}
-	pool, err := postgres.Connect(ctx, s.urlFor(templateName))
+	pool, err := postgres.Connect(ctx, s.urlFor(database))
 	if err != nil {
 		return err
 	}
@@ -93,7 +107,12 @@ func (s *Server) prepareTemplate(ctx context.Context, migrations []MigrateFunc) 
 // URL returns the connection URL of a new, migrated database for t.
 func (s *Server) URL(t testing.TB) string {
 	t.Helper()
-	url, _, err := s.Database(t.Context())
+	return s.URLFrom(t, DefaultTemplate)
+}
+
+func (s *Server) URLFrom(t testing.TB, template string) string {
+	t.Helper()
+	url, _, err := s.DatabaseFrom(t.Context(), template)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,8 +122,12 @@ func (s *Server) URL(t testing.TB) string {
 // Database creates a new, migrated database and returns its URL and a function that
 // drops it, for callers such as property tests that need a database per iteration.
 func (s *Server) Database(ctx context.Context) (string, func(context.Context) error, error) {
+	return s.DatabaseFrom(ctx, DefaultTemplate)
+}
+
+func (s *Server) DatabaseFrom(ctx context.Context, template string) (string, func(context.Context) error, error) {
 	name := fmt.Sprintf("test_%d", s.databases.Add(1))
-	if err := s.cloneTemplate(ctx, name); err != nil {
+	if err := s.cloneTemplate(ctx, name, templateDatabase(template)); err != nil {
 		return "", nil, err
 	}
 	drop := func(ctx context.Context) error {
@@ -115,11 +138,11 @@ func (s *Server) Database(ctx context.Context) (string, func(context.Context) er
 
 // cloneTemplate retries while the template's last sessions are still closing, which
 // PostgreSQL reports as "source database is being accessed by other users".
-func (s *Server) cloneTemplate(ctx context.Context, name string) error {
+func (s *Server) cloneTemplate(ctx context.Context, name, template string) error {
 	const attempts = 20
 	var err error
 	for range attempts {
-		err = s.admin(ctx, "CREATE DATABASE "+name+" TEMPLATE "+templateName)
+		err = s.admin(ctx, "CREATE DATABASE "+name+" TEMPLATE "+pgx.Identifier{template}.Sanitize())
 		if postgres.ErrorCode(err) != "55006" {
 			return err
 		}
@@ -131,7 +154,12 @@ func (s *Server) cloneTemplate(ctx context.Context, name string) error {
 // Pool returns a pool on a new, migrated database for t, closed when t ends.
 func (s *Server) Pool(t testing.TB) *pgxpool.Pool {
 	t.Helper()
-	pool, err := postgres.Connect(t.Context(), s.URL(t))
+	return s.PoolFrom(t, DefaultTemplate)
+}
+
+func (s *Server) PoolFrom(t testing.TB, template string) *pgxpool.Pool {
+	t.Helper()
+	pool, err := postgres.Connect(t.Context(), s.URLFrom(t, template))
 	if err != nil {
 		t.Fatal(err)
 	}

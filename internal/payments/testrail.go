@@ -13,6 +13,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/payments/db"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
 var railReferencePrefix = id.MustPrefix("rail")
@@ -46,7 +47,31 @@ type TestRail struct {
 	pool   *pgxpool.Pool
 	now    func() time.Time
 	logger *slog.Logger
+	cards  CardSource
 }
+
+// CardSource gives the rail a saved card's number for the one call that needs it.
+type CardSource interface {
+	Detokenize(ctx context.Context, token, owner string) (vault.CardData, error)
+}
+
+// Test card numbers and the test payment method each behaves as. Any other number is
+// declined, as a real card in test mode is.
+var testCardNumbers = map[string]string{
+	"4242424242424242": TestCardVisa,
+	"4000056655665556": TestCardVisa,
+	"5555555555554444": TestCardMastercard,
+	"2223003122003222": TestCardMastercard,
+	"378282246310005":  TestCardVisa,
+	"6362970000457013": TestCardVisa,
+	"6062825624254001": TestCardVisa,
+	"4000000000000002": TestCardDeclined,
+	"4000000000009995": TestCardInsufficientFunds,
+	"4000002500003155": TestCardAuthenticationRequired,
+}
+
+// liveCard is how the rail treats a number that is not a test card.
+const liveCard = "live card"
 
 func NewTestRail(pool *pgxpool.Pool, now func() time.Time, logger *slog.Logger) *TestRail {
 	if now == nil {
@@ -58,7 +83,23 @@ func NewTestRail(pool *pgxpool.Pool, now func() time.Time, logger *slog.Logger) 
 	return &TestRail{pool: pool, now: now, logger: logger}
 }
 
+// WithCards returns a rail that also accepts saved cards, read from cards.
+func (t *TestRail) WithCards(cards CardSource) *TestRail {
+	c := *t
+	c.cards = cards
+	return &c
+}
+
 func (t *TestRail) Authorize(ctx context.Context, r AuthorizeRequest) Result {
+	// A repeated request is answered from the rail's memory; reading the card again
+	// would only spend its security code.
+	if r.Card != nil && !t.seen(ctx, r.Key) {
+		method, result, ok := t.readCard(ctx, *r.Card)
+		if !ok {
+			return result
+		}
+		r.PaymentMethod = method
+	}
 	return t.do(ctx, "authorize", r.Key, "", r.Amount.Minor(), func(_ *db.Queries, op *db.PaymentsTestRail, first bool) Result {
 		switch {
 		case op.Status == railVoided:
@@ -75,8 +116,38 @@ func (t *TestRail) Authorize(ctx context.Context, r AuthorizeRequest) Result {
 	})
 }
 
+func (t *TestRail) seen(ctx context.Context, key string) bool {
+	_, err := db.New(t.pool).GetRailOperation(ctx, key)
+	return err == nil
+}
+
+// readCard detokenizes a saved card and says which test payment method it behaves as.
+// A card the vault cannot give now is an unknown outcome: the request never reached the
+// rail, so the resolver's query finds nothing and sends it again.
+func (t *TestRail) readCard(ctx context.Context, ref CardReference) (string, Result, bool) {
+	if t.cards == nil {
+		return "", Result{Outcome: Declined, DeclineCode: "processing_error"}, false
+	}
+	c, err := t.cards.Detokenize(ctx, ref.Token, ref.Owner)
+	switch {
+	case errors.Is(err, vault.ErrNotFound):
+		return "", Result{Outcome: Declined, DeclineCode: "invalid_account"}, false
+	case err != nil:
+		t.logger.WarnContext(ctx, "test rail could not read a saved card", "token", ref.Token, "error", err)
+		return "", Result{Outcome: Unknown}, false
+	}
+	method, known := testCardNumbers[c.Number]
+	if !known {
+		return liveCard, Result{}, true
+	}
+	return method, Result{}, true
+}
+
 func decideAuthorization(op *db.PaymentsTestRail, r AuthorizeRequest) {
 	switch r.PaymentMethod {
+	case liveCard:
+		op.Status, op.Detail = railDeclined, "test_mode_live_card"
+		return
 	case TestCardDeclined:
 		op.Status, op.Detail = railDeclined, "generic_decline"
 		return

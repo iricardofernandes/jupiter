@@ -36,16 +36,22 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/vault"
+	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
 )
 
 var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
-	os.Exit(postgrestest.Main(m, &server, ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate))
+	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate},
+		vaulttest.Template:           {vaulttest.Migrate},
+	}))
 }
 
 // Phase 3 exit criterion: SIM_PAYMENTS seeded payments (10,000 in CI) with injected
-// faults end with zero invariant violations. SIM_SEED replays a run.
+// faults end with zero invariant violations. SIM_SEED replays a run. Since phase 4 some
+// payments use cards saved in the vault, which fails now and then too.
 func TestSimulation(t *testing.T) {
 	seed := envUint("SIM_SEED", 0)
 	if seed == 0 {
@@ -117,13 +123,13 @@ type sim struct {
 }
 
 type stats struct {
-	requests, crashes, duplicates, lostRequests, lostResponses, lostQueries, resolverRuns, checks, expiryJumps int
-	outcomes                                                                                                   map[string]int
+	requests, crashes, duplicates, lostRequests, lostResponses, lostQueries, vaultFaults, resolverRuns, checks, expiryJumps int
+	outcomes                                                                                                                map[string]int
 }
 
 func (s stats) String() string {
-	return fmt.Sprintf("%d requests, %d crashed between phases, %d duplicates, rail lost %d requests, %d responses and %d queries, %d background runs, %d jumps past authorization expiry, %d invariant checks, final statuses %v",
-		s.requests, s.crashes, s.duplicates, s.lostRequests, s.lostResponses, s.lostQueries, s.resolverRuns, s.expiryJumps, s.checks, s.outcomes)
+	return fmt.Sprintf("%d requests, %d crashed between phases, %d duplicates, rail lost %d requests, %d responses and %d queries, %d vault calls failed, %d background runs, %d jumps past authorization expiry, %d invariant checks, final statuses %v",
+		s.requests, s.crashes, s.duplicates, s.lostRequests, s.lostResponses, s.lostQueries, s.vaultFaults, s.resolverRuns, s.expiryJumps, s.checks, s.outcomes)
 }
 
 func newSim(t *testing.T, seed uint64) *sim {
@@ -157,13 +163,24 @@ func newSim(t *testing.T, seed uint64) *sim {
 	}
 	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent, Now: s.clock.Now})
 	s.ledger = ledger.New(ledger.WithClock(s.clock.Now))
+	vaultURL, dropVault, err := server.DatabaseFrom(t.Context(), vaulttest.Template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dropVault(context.WithoutCancel(t.Context())) })
+	vaultPool, err := postgres.Connect(t.Context(), vaultURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(vaultPool.Close)
+	cards := &faultyVault{sim: s, inner: vaulttest.Start(t, vaultPool, vaulttest.Options{Now: s.clock.Now}).Client}
 	s.payments = payments.New(payments.Config{
 		Ledger: s.ledger, Events: eventService, Now: s.clock.Now,
-		TestRail: &faultyRail{sim: s, inner: payments.NewTestRail(pool, s.clock.Now, nil)},
+		TestRail: &faultyRail{sim: s, inner: payments.NewTestRail(pool, s.clock.Now, nil).WithCards(cards)},
 	})
 	merchants := merchant.New(s.clock.Now)
 	s.api = api.New(api.Deps{
-		Pool: pool, Merchants: merchants, Events: eventService, Payments: s.payments, Box: box, Now: s.clock.Now,
+		Pool: pool, Merchants: merchants, Events: eventService, Payments: s.payments, Vault: cards, Box: box, Now: s.clock.Now,
 		// A retry of a request that died finds its key locked until the completer runs;
 		// waiting in real time for it would only slow the run down.
 		IdempotencyWait: time.Nanosecond,
@@ -246,6 +263,60 @@ func (f *faultyRail) Query(ctx context.Context, key string) payments.Result {
 	res := f.inner.Query(ctx, key)
 	f.sim.record("rail query: %s", res.Outcome)
 	return res
+}
+
+// faultyVault fails calls to the vault as the seed decides: a request that never
+// arrives, or, for tokenization, one whose answer is lost after the vault acted.
+type faultyVault struct {
+	sim   *sim
+	inner *vault.Client
+}
+
+func (f *faultyVault) fail(call string, lostAfter bool) (lost, done bool) {
+	switch roll := f.sim.rng.IntN(100); {
+	case roll < 3:
+		f.sim.stats.vaultFaults++
+		f.sim.record("vault %s: unavailable", call)
+		return true, false
+	case lostAfter && roll < 6:
+		f.sim.stats.vaultFaults++
+		f.sim.record("vault %s: answer lost", call)
+		return true, true
+	}
+	return false, false
+}
+
+func (f *faultyVault) Tokenize(ctx context.Context, r vault.TokenizeRequest) (vault.Card, error) {
+	lost, after := f.fail("tokenize", true)
+	if lost && !after {
+		return vault.Card{}, vault.ErrUnavailable
+	}
+	c, err := f.inner.Tokenize(ctx, r)
+	if lost {
+		return vault.Card{}, vault.ErrUnavailable
+	}
+	return c, err
+}
+
+func (f *faultyVault) Card(ctx context.Context, token string) (vault.Card, error) {
+	if lost, _ := f.fail("card", false); lost {
+		return vault.Card{}, vault.ErrUnavailable
+	}
+	return f.inner.Card(ctx, token)
+}
+
+func (f *faultyVault) Claim(ctx context.Context, token, owner string) (vault.Card, error) {
+	if lost, _ := f.fail("claim", false); lost {
+		return vault.Card{}, vault.ErrUnavailable
+	}
+	return f.inner.Claim(ctx, token, owner)
+}
+
+func (f *faultyVault) Detokenize(ctx context.Context, token, owner string) (vault.CardData, error) {
+	if lost, _ := f.fail("detokenize", false); lost {
+		return vault.CardData{}, vault.ErrUnavailable
+	}
+	return f.inner.Detokenize(ctx, token, owner)
 }
 
 type response struct {

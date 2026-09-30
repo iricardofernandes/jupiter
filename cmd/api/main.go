@@ -17,6 +17,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
+	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
 func main() {
@@ -30,6 +31,10 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	box, err := secretbox.FromBase64(os.Getenv("JUPITER_SECRET_KEY"))
 	if err != nil {
 		return service.App{}, errors.New("JUPITER_SECRET_KEY must be 32 random bytes in base64: " + err.Error())
+	}
+	cards, err := vault.ClientFromEnv(os.Getenv)
+	if err != nil {
+		return service.App{}, err
 	}
 	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -45,7 +50,8 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		Pool:      pool,
 		Merchants: merchant.New(nil),
 		Events:    eventService,
-		Payments:  newPayments(pool, eventService, logger),
+		Payments:  newPayments(pool, eventService, cards, logger),
+		Vault:     cards,
 		Box:       box,
 		Logger:    logger,
 	})
@@ -54,10 +60,10 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 
 // newPayments serves test mode with the test rail. Live mode has no rail until the card
 // network connector of phase 5.
-func newPayments(pool *pgxpool.Pool, eventService *events.Service, logger *slog.Logger) *payments.Service {
+func newPayments(pool *pgxpool.Pool, eventService *events.Service, cards *vault.Client, logger *slog.Logger) *payments.Service {
 	return payments.New(payments.Config{
 		Ledger:   ledger.New(),
 		Events:   eventService,
-		TestRail: payments.NewTestRail(pool, nil, logger),
+		TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
 	})
 }

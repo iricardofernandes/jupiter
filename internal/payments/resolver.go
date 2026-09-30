@@ -81,7 +81,7 @@ func (s *Service) resolveAttempt(ctx context.Context, pool *pgxpool.Pool, attemp
 	if err != nil {
 		return false, err
 	}
-	op, ok := s.pendingOperation(ctx, owner, intentID, intent, attempt)
+	op, ok := s.pendingOperation(ctx, pool, owner, intentID, intent, attempt)
 	if !ok {
 		return false, nil
 	}
@@ -118,12 +118,12 @@ type pendingOperation struct {
 	apply         func(pgx.Tx, Result) error
 }
 
-func (s *Service) pendingOperation(ctx context.Context, owner Owner, intentID id.ID, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (pendingOperation, bool) {
+func (s *Service) pendingOperation(ctx context.Context, q db.DBTX, owner Owner, intentID id.ID, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (pendingOperation, bool) {
 	switch attemptStatus(attempt.Status) {
 	case attemptAuthorizing, attemptAuthorizationUnknown:
 		return pendingOperation{
 			key: attempt.ID, authorization: true,
-			retry: func() (Result, error) { return s.authorizeOnRail(ctx, intent, attempt) },
+			retry: func() (Result, error) { return s.authorizeOnRail(ctx, q, owner, intent, attempt) },
 			apply: func(tx pgx.Tx, r Result) error {
 				_, _, err := s.FinishAuthorization(ctx, tx, owner, intentID, r)
 				return err

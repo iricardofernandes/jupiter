@@ -349,8 +349,11 @@ func paymentsError(err error, objectID string) error {
 	}
 	if errors.Is(err, payments.ErrNotFound) {
 		resource := "payment_intent"
-		if strings.HasPrefix(objectID, "re_") {
+		switch {
+		case strings.HasPrefix(objectID, "re_"):
 			resource = "refund"
+		case strings.HasPrefix(objectID, "pm_"):
+			resource = "payment_method"
 		}
 		return notFound(resource, objectID)
 	}

@@ -4,6 +4,7 @@ COMPOSE ?= docker compose
 
 # Local infrastructure from compose.yaml.
 DATABASE_URL ?= postgres://jupiter:jupiter@127.0.0.1:55432/jupiter?sslmode=disable
+VAULT_DATABASE_URL ?= postgres://vault:vault@127.0.0.1:55433/vault?sslmode=disable
 
 # Cases per property in test-property. `make test` uses rapid's default of 100.
 RAPID_CHECKS ?= 1000
@@ -68,7 +69,7 @@ bench-ledger: ## The hot-account load recorded in docs/benchmarks
 	JUPITER_LEDGER_BENCH=1 $(GO) test -count=1 -tags=integration -run=TestConcurrentWritersToAHotAccount -v ./internal/ledger/ | grep 'hot account'
 
 .PHONY: test-integration
-test-integration: ## Integration tests against real dependencies in Docker (testcontainers)
+test-integration: ## Integration tests against real dependencies in Docker (testcontainers), including test/pci
 	$(GO) test -race -count=1 -tags=integration -run=. ./...
 
 .PHONY: test-e2e
@@ -92,8 +93,13 @@ build: ## Build every binary into bin/
 	$(GO) build -o bin/ ./cmd/...
 
 .PHONY: migrate
-migrate: ## Apply migrations to the local database
+migrate: ## Apply migrations to the local databases, Jupiter's and the vault's
 	JUPITER_DATABASE_URL='$(DATABASE_URL)' $(GO) run ./cmd/jupiterctl migrate
+	JUPITER_DATABASE_URL='$(VAULT_DATABASE_URL)' $(GO) run ./cmd/vault migrate
+
+.PHONY: certs
+certs: ## Write a development CA and the vault's, API's and worker's mTLS certificates to .certs/
+	$(GO) run ./cmd/jupiterctl dev-certs .certs
 
 .PHONY: merchant
 merchant: ## Create a merchant on the local database: make merchant NAME="Loja"

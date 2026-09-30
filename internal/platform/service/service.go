@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,7 +37,9 @@ type Config struct {
 }
 
 type App struct {
-	Handler    http.Handler
+	Handler http.Handler
+	// TLS, if set, serves HTTPS with this configuration, health checks included.
+	TLS        *tls.Config
 	Ready      func(context.Context) error
 	Background []func(context.Context) error
 	Close      func()
@@ -102,6 +105,9 @@ func Run(ctx context.Context, cfg Config, app App, logger *slog.Logger) error {
 // Serve runs the app's background tasks beside the HTTP server. The first task to fail
 // stops the whole process, so a broken worker restarts instead of limping on.
 func Serve(ctx context.Context, ln net.Listener, app App, logger *slog.Logger) error {
+	if app.TLS != nil {
+		ln = tls.NewListener(ln, app.TLS)
+	}
 	group, ctx := errgroup.WithContext(ctx)
 	for _, task := range app.Background {
 		group.Go(func() error { return task(ctx) })

@@ -32,6 +32,7 @@ type Deps struct {
 	Merchants *merchant.Service
 	Events    *events.Service
 	Payments  *payments.Service
+	Vault     Vault
 	Box       *secretbox.Box
 	Logger    *slog.Logger
 	Now       func() time.Time

@@ -29,6 +29,7 @@ func (a *API) registerOperations() map[string]operation {
 		{name: "resend_event", scope: merchant.ScopeEventsWrite, phases: []phase{{point: pointStarted, atomic: a.resendEvent}}},
 	}
 	ops = append(ops, a.paymentOperations()...)
+	ops = append(ops, a.paymentMethodOperations()...)
 	out := make(map[string]operation, len(ops))
 	for _, op := range ops {
 		out[op.name] = op

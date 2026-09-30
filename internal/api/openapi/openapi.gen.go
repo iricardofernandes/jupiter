@@ -131,6 +131,21 @@ func (e CreatePaymentIntentRequestCaptureMethod) Valid() bool {
 	}
 }
 
+// Defines values for CreatePaymentMethodRequestType.
+const (
+	CreatePaymentMethodRequestTypeCard CreatePaymentMethodRequestType = "card"
+)
+
+// Valid indicates whether the value is a known member of the CreatePaymentMethodRequestType enum.
+func (e CreatePaymentMethodRequestType) Valid() bool {
+	switch e {
+	case CreatePaymentMethodRequestTypeCard:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateRefundRequestReason.
 const (
 	CreateRefundRequestReasonDuplicate           CreateRefundRequestReason = "duplicate"
@@ -326,6 +341,66 @@ func (e PaymentIntentListObject) Valid() bool {
 	}
 }
 
+// Defines values for PaymentMethodObject.
+const (
+	PaymentMethodObjectPaymentMethod PaymentMethodObject = "payment_method"
+)
+
+// Valid indicates whether the value is a known member of the PaymentMethodObject enum.
+func (e PaymentMethodObject) Valid() bool {
+	switch e {
+	case PaymentMethodObjectPaymentMethod:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentMethodType.
+const (
+	PaymentMethodTypeCard PaymentMethodType = "card"
+)
+
+// Valid indicates whether the value is a known member of the PaymentMethodType enum.
+func (e PaymentMethodType) Valid() bool {
+	switch e {
+	case PaymentMethodTypeCard:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PaymentMethodCardBrand.
+const (
+	Amex       PaymentMethodCardBrand = "amex"
+	Elo        PaymentMethodCardBrand = "elo"
+	Hipercard  PaymentMethodCardBrand = "hipercard"
+	Mastercard PaymentMethodCardBrand = "mastercard"
+	Unknown    PaymentMethodCardBrand = "unknown"
+	Visa       PaymentMethodCardBrand = "visa"
+)
+
+// Valid indicates whether the value is a known member of the PaymentMethodCardBrand enum.
+func (e PaymentMethodCardBrand) Valid() bool {
+	switch e {
+	case Amex:
+		return true
+	case Elo:
+		return true
+	case Hipercard:
+		return true
+	case Mastercard:
+		return true
+	case Unknown:
+		return true
+	case Visa:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RefundObject.
 const (
 	RefundObjectRefund RefundObject = "refund"
@@ -489,6 +564,15 @@ type CapturePaymentIntentRequest struct {
 	AmountToCapture *int64 `json:"amount_to_capture,omitempty"`
 }
 
+// CardDetails Either number and expiry, with an optional cvc, or a token from the vault.
+type CardDetails struct {
+	Cvc      *string `json:"cvc,omitempty"`
+	ExpMonth *int    `json:"exp_month,omitempty"`
+	ExpYear  *int    `json:"exp_year,omitempty"`
+	Number   *string `json:"number,omitempty"`
+	Token    *string `json:"token,omitempty"`
+}
+
 // CompleteActionRequest defines model for CompleteActionRequest.
 type CompleteActionRequest struct {
 	Outcome CompleteActionRequestOutcome `json:"outcome"`
@@ -520,6 +604,16 @@ type CreatePaymentIntentRequest struct {
 
 // CreatePaymentIntentRequestCaptureMethod defines model for CreatePaymentIntentRequest.CaptureMethod.
 type CreatePaymentIntentRequestCaptureMethod string
+
+// CreatePaymentMethodRequest defines model for CreatePaymentMethodRequest.
+type CreatePaymentMethodRequest struct {
+	// Card Either number and expiry, with an optional cvc, or a token from the vault.
+	Card CardDetails                    `json:"card"`
+	Type CreatePaymentMethodRequestType `json:"type"`
+}
+
+// CreatePaymentMethodRequestType defines model for CreatePaymentMethodRequest.Type.
+type CreatePaymentMethodRequestType string
 
 // CreateRefundRequest defines model for CreateRefundRequest.
 type CreateRefundRequest struct {
@@ -661,6 +755,38 @@ type PaymentIntentList struct {
 
 // PaymentIntentListObject defines model for PaymentIntentList.Object.
 type PaymentIntentListObject string
+
+// PaymentMethod defines model for PaymentMethod.
+type PaymentMethod struct {
+	Card     PaymentMethodCard   `json:"card"`
+	Created  int64               `json:"created"`
+	Id       string              `json:"id"`
+	Livemode bool                `json:"livemode"`
+	Object   PaymentMethodObject `json:"object"`
+	Type     PaymentMethodType   `json:"type"`
+}
+
+// PaymentMethodObject defines model for PaymentMethod.Object.
+type PaymentMethodObject string
+
+// PaymentMethodType defines model for PaymentMethod.Type.
+type PaymentMethodType string
+
+// PaymentMethodCard defines model for PaymentMethodCard.
+type PaymentMethodCard struct {
+	// Bin The first eight digits of a number of sixteen or more, else the first six.
+	Bin      string                 `json:"bin"`
+	Brand    PaymentMethodCardBrand `json:"brand"`
+	ExpMonth int                    `json:"exp_month"`
+	ExpYear  int                    `json:"exp_year"`
+
+	// Fingerprint The same for the same card number across this merchant's payment methods.
+	Fingerprint string `json:"fingerprint"`
+	Last4       string `json:"last4"`
+}
+
+// PaymentMethodCardBrand defines model for PaymentMethodCard.Brand.
+type PaymentMethodCardBrand string
 
 // Refund defines model for Refund.
 type Refund struct {
@@ -869,6 +995,11 @@ type ConfirmPaymentIntentParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
+// CreatePaymentMethodParams defines parameters for CreatePaymentMethod.
+type CreatePaymentMethodParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // ListRefundsParams defines parameters for ListRefunds.
 type ListRefundsParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
@@ -938,6 +1069,9 @@ type CapturePaymentIntentJSONRequestBody = CapturePaymentIntentRequest
 // ConfirmPaymentIntentJSONRequestBody defines body for ConfirmPaymentIntent for application/json ContentType.
 type ConfirmPaymentIntentJSONRequestBody = ConfirmPaymentIntentRequest
 
+// CreatePaymentMethodJSONRequestBody defines body for CreatePaymentMethod for application/json ContentType.
+type CreatePaymentMethodJSONRequestBody = CreatePaymentMethodRequest
+
 // CreateRefundJSONRequestBody defines body for CreateRefund for application/json ContentType.
 type CreateRefundJSONRequestBody = CreateRefundRequest
 
@@ -997,6 +1131,12 @@ type ServerInterface interface {
 
 	// (POST /v1/payment_intents/{id}/confirm)
 	ConfirmPaymentIntent(w http.ResponseWriter, r *http.Request, id ID, params ConfirmPaymentIntentParams)
+
+	// (POST /v1/payment_methods)
+	CreatePaymentMethod(w http.ResponseWriter, r *http.Request, params CreatePaymentMethodParams)
+
+	// (GET /v1/payment_methods/{id})
+	GetPaymentMethod(w http.ResponseWriter, r *http.Request, id ID)
 
 	// (GET /v1/refunds)
 	ListRefunds(w http.ResponseWriter, r *http.Request, params ListRefundsParams)
@@ -1717,6 +1857,73 @@ func (siw *ServerInterfaceWrapper) ConfirmPaymentIntent(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// CreatePaymentMethod operation middleware
+func (siw *ServerInterfaceWrapper) CreatePaymentMethod(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreatePaymentMethodParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePaymentMethod(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPaymentMethod operation middleware
+func (siw *ServerInterfaceWrapper) GetPaymentMethod(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPaymentMethod(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListRefunds operation middleware
 func (siw *ServerInterfaceWrapper) ListRefunds(w http.ResponseWriter, r *http.Request) {
 
@@ -2278,6 +2485,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payment_methods", wrapper.CreatePaymentMethod)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/payment_methods/{id}", wrapper.GetPaymentMethod)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/payment_intents", wrapper.ListPaymentIntents)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/payment_intents", wrapper.CreatePaymentIntent)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/payment_intents/{id}", wrapper.GetPaymentIntent)
@@ -2311,67 +2520,76 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"WqMrUVpdrf4zAA==",
+	"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",
+	"PGp5HY3nVaF941l/nY1GV+u5ulr9/wA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

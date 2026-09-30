@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,7 +20,9 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/merchant"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
+	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
 const usage = `usage: jupiterctl <command>
@@ -29,6 +32,7 @@ commands:
   merchant create <name>   create a merchant and print its API keys, which are shown only once
   ledger check             verify ledger invariants; exits 1 if any is violated
   ledger repair <account>  reset a drifted account's cached balance from its entries
+  dev-certs <dir>          write a development CA and the vault's, API's and worker's mTLS certificates
 
 JUPITER_DATABASE_URL selects the database.`
 
@@ -51,6 +55,9 @@ func main() {
 var errUsage = errors.New("usage")
 
 func run(ctx context.Context, args []string) error {
+	if len(args) == 2 && args[0] == "dev-certs" {
+		return devCerts(args[1])
+	}
 	url := os.Getenv("JUPITER_DATABASE_URL")
 	if url == "" || len(args) == 0 {
 		return errUsage
@@ -128,4 +135,39 @@ func createMerchant(ctx context.Context, pool *pgxpool.Pool, name string) error 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(out)
+}
+
+// devCerts writes a CA, a server certificate for the vault valid on localhost and
+// "vault", and the client certificates the API and the worker present.
+func devCerts(dir string) error {
+	pki, err := mtls.NewPKI("Jupiter development CA")
+	if err != nil {
+		return err
+	}
+	server, err := pki.Server("localhost", "vault", "127.0.0.1")
+	if err != nil {
+		return err
+	}
+	client, err := pki.Client(vault.APIIdentity)
+	if err != nil {
+		return err
+	}
+	worker, err := pki.Client(vault.WorkerIdentity)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // the operator names the directory
+		return err
+	}
+	for name, data := range map[string][]byte{
+		"ca.pem": pki.CAPEM(), "vault.pem": server.CertPEM, "vault-key.pem": server.KeyPEM,
+		"api.pem": client.CertPEM, "api-key.pem": client.KeyPEM,
+		"worker.pem": worker.CertPEM, "worker-key.pem": worker.KeyPEM,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil { //nolint:gosec // the operator names the directory
+			return err
+		}
+	}
+	fmt.Println("wrote ca.pem and the key pairs vault, api and worker to", dir)
+	return nil
 }

@@ -24,10 +24,16 @@ func FromBase64(key string) (*Box, error) {
 	if err != nil {
 		return nil, fmt.Errorf("secretbox: key is not base64: %w", err)
 	}
-	if len(raw) != keySize {
-		return nil, fmt.Errorf("secretbox: key has %d bytes, want %d", len(raw), keySize)
+	return New(raw)
+}
+
+// New seals with a raw 32-byte key. The Box keeps its own cipher state, so the caller
+// may clear key afterwards.
+func New(key []byte) (*Box, error) {
+	if len(key) != keySize {
+		return nil, fmt.Errorf("secretbox: key has %d bytes, want %d", len(key), keySize)
 	}
-	block, err := aes.NewCipher(raw)
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("secretbox: %w", err)
 	}

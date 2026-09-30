@@ -93,9 +93,13 @@ type phase struct {
 }
 
 type operation struct {
-	name   string
-	scope  merchant.Scope
-	phases []phase
+	name  string
+	scope merchant.Scope
+	// prepare, if set, runs before anything is recorded and may rewrite the request
+	// body, which is then what the key stores and fingerprints. It keeps secrets such as
+	// card numbers out of the database, and must give the same body for the same request.
+	prepare func(ctx context.Context, req *request, idempotencyKey string) error
+	phases  []phase
 }
 
 func (o operation) phase(point string) (phase, bool) {
@@ -142,10 +146,15 @@ func (a *API) serve(w http.ResponseWriter, r *http.Request, opName, pathID strin
 	var raw []byte
 	key := r.Header.Get(idempotencyHdr)
 	switch {
-	case key == "":
-		status, raw, err = a.runPhases(r.Context(), op, req, 0, pgtype.UUID{}, pointStarted)
 	case len(key) > maxKeyLength:
 		err = invalidRequest("idempotency_key_invalid", idempotencyHdr, "Idempotency-Key is longer than %d characters.", maxKeyLength)
+	case op.prepare != nil:
+		err = op.prepare(r.Context(), req, key)
+	}
+	switch {
+	case err != nil:
+	case key == "":
+		status, raw, err = a.runPhases(r.Context(), op, req, 0, pgtype.UUID{}, pointStarted)
 	default:
 		status, raw, err = a.runKeyed(r.Context(), op, req, key)
 	}

@@ -30,18 +30,24 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/vault"
+	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
 	"github.com/iricardofernandes/jupiter/pkg/webhook"
 )
 
 var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
-	os.Exit(postgrestest.Main(m, &server, ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate))
+	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate},
+		vaulttest.Template:           {vaulttest.Migrate},
+	}))
 }
 
-// The golden path, as far as phase 3 reaches: a customer pays R$ 600.00 by card, the
-// merchant captures it, and the ledger and a signed webhook both say so. Later phases
-// extend this test with installments, receivables, split, settlement and payout.
+// The golden path, as far as phase 4 reaches: a customer's card goes from their browser
+// to the vault, the customer pays R$ 600.00 with it, the merchant captures it, and the
+// ledger and a signed webhook both say so. Later phases extend this test with
+// installments, receivables, split, settlement and payout.
 func TestGoldenPath(t *testing.T) {
 	ctx := t.Context()
 	pool := server.Pool(t)
@@ -56,10 +62,15 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent, AllowPrivateNetworks: true})
+	cardVault := vaulttest.Start(t, server.PoolFrom(t, vaulttest.Template), vaulttest.Options{})
 	l := ledger.New()
-	paymentService := payments.New(payments.Config{Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, nil)})
+	paymentService := payments.New(payments.Config{
+		Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client),
+	})
 	merchants := merchant.New(nil)
-	jupiter := httptest.NewServer(api.New(api.Deps{Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Box: box}).Handler())
+	jupiter := httptest.NewServer(api.New(api.Deps{
+		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Box: box,
+	}).Handler())
 	defer jupiter.Close()
 
 	workers := river.NewWorkers()
@@ -74,12 +85,16 @@ func TestGoldenPath(t *testing.T) {
 	defer func() { stopWorker(); <-workerDone }()
 
 	t.Log("1. a merchant signs up and receives its test keys")
-	var secretKey string
+	var secretKey, publishableKey string
 	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
 		_, keys, err := merchants.Create(ctx, tx, "Loja do Caminho Dourado", api.CurrentVersion)
 		for _, k := range keys {
-			if k.Kind == merchant.Secret && !k.Livemode {
+			switch {
+			case k.Livemode:
+			case k.Kind == merchant.Secret:
 				secretKey = k.Value
+			case k.Kind == merchant.Publishable:
+				publishableKey = k.Value
 			}
 		}
 		return err
@@ -107,7 +122,29 @@ func TestGoldenPath(t *testing.T) {
 	client.post("/v1/webhook_endpoints", map[string]any{"url": receiver.URL, "enabled_events": []string{"payment_intent.succeeded"}}, &endpoint)
 	receiverSecret <- endpoint.Secret
 
-	t.Log("3. a customer pays R$ 600.00 by card; the issuer authorizes it")
+	t.Log("3. the customer types their card into the checkout page, which sends it to the vault")
+	browser := &apiClient{t: t, base: cardVault.PublicURL, key: publishableKey, noIdempotencyKey: true}
+	var token struct {
+		ID    string `json:"id"`
+		Last4 string `json:"last4"`
+	}
+	browser.post(vault.PublicTokensPath, map[string]any{"number": "4242 4242 4242 4242", "exp_month": 12, "exp_year": 2030, "cvc": "123"}, &token)
+	t.Logf("   the page gets back %s, a token for the card ending %s; the number never reaches the merchant or Jupiter's API", token.ID[:8]+"…", token.Last4)
+
+	t.Log("4. the merchant's server saves the card with the token")
+	var method struct {
+		ID   string `json:"id"`
+		Card struct {
+			Brand string `json:"brand"`
+			BIN   string `json:"bin"`
+		} `json:"card"`
+	}
+	client.post("/v1/payment_methods", map[string]any{"type": "card", "card": map[string]any{"token": token.ID}}, &method)
+	if method.Card.Brand != "visa" || method.Card.BIN != "42424242" {
+		t.Fatalf("payment method = %+v", method)
+	}
+
+	t.Log("5. the customer pays R$ 600.00 with it; the issuer authorizes it")
 	var intent struct {
 		ID               string `json:"id"`
 		Status           string `json:"status"`
@@ -116,7 +153,7 @@ func TestGoldenPath(t *testing.T) {
 	}
 	client.post("/v1/payment_intents", map[string]any{
 		"amount": 60000, "currency": "brl", "capture_method": "manual",
-		"payment_method": payments.TestCardVisa, "confirm": true,
+		"payment_method": method.ID, "confirm": true,
 	}, &intent)
 	if intent.Status != "requires_capture" || intent.AmountCapturable != 60000 {
 		t.Fatalf("after authorization: %+v", intent)
@@ -127,7 +164,7 @@ func TestGoldenPath(t *testing.T) {
 	}
 	t.Log("   the ledger holds R$ 600.00 as pending for the merchant")
 
-	t.Log("4. the merchant captures it")
+	t.Log("6. the merchant captures it")
 	client.post("/v1/payment_intents/"+intent.ID+"/capture", nil, &intent)
 	if intent.Status != "succeeded" || intent.AmountReceived != 60000 {
 		t.Fatalf("after capture: %+v", intent)
@@ -137,7 +174,7 @@ func TestGoldenPath(t *testing.T) {
 	}
 	t.Log("   the ledger posts R$ 600.00 to the merchant's balance")
 
-	t.Log("5. a signed webhook reports the payment")
+	t.Log("7. a signed webhook reports the payment")
 	select {
 	case body := <-delivered:
 		var event struct {
@@ -151,7 +188,7 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal("no webhook arrived")
 	}
 
-	t.Log("6. every invariant holds")
+	t.Log("8. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}
@@ -169,6 +206,9 @@ type apiClient struct {
 	t    *testing.T
 	base string
 	key  string
+	// noIdempotencyKey is for the browser, whose body holds the card number: the key
+	// derived from the body would carry it too.
+	noIdempotencyKey bool
 }
 
 func (c *apiClient) post(path string, body, out any) {
@@ -179,7 +219,9 @@ func (c *apiClient) post(path string, body, out any) {
 		c.t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.key)
-	req.Header.Set("Idempotency-Key", path+string(raw))
+	if !c.noIdempotencyKey {
+		req.Header.Set("Idempotency-Key", path+string(raw))
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		c.t.Fatal(err)

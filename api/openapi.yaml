@@ -17,6 +17,7 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Payment methods
   - name: Payment intents
   - name: Refunds
   - name: Test helpers
@@ -25,6 +26,45 @@ tags:
   - name: Events
 
 paths:
+  /v1/payment_methods:
+    post:
+      operationId: createPaymentMethod
+      tags: [Payment methods]
+      description: |
+        Saves a card, from its number or from a token the vault issued to a web page.
+
+        A number sent here passes through Jupiter's API on its way to the vault, which
+        puts the merchant's server in PCI DSS scope. A token keeps it out: the page sends
+        the card to the vault's tokenization route with the publishable key, and the
+        server sends only the token here. Tokens must be claimed within an hour, with a
+        secret key of the same merchant and mode as the publishable key.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePaymentMethodRequest" }
+      responses:
+        "200":
+          description: The payment method.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentMethod" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/payment_methods/{id}:
+    get:
+      operationId: getPaymentMethod
+      tags: [Payment methods]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The payment method.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentMethod" }
+        default: { $ref: "#/components/responses/Failure" }
   /v1/payment_intents:
     get:
       operationId: listPaymentIntents
@@ -513,6 +553,48 @@ components:
         object: { type: string, enum: [list] }
         has_more: { type: boolean }
         url: { type: string }
+
+    PaymentMethod:
+      type: object
+      required: [id, object, livemode, type, card, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [payment_method] }
+        livemode: { type: boolean }
+        type: { type: string, enum: [card] }
+        card: { $ref: "#/components/schemas/PaymentMethodCard" }
+        created: { type: integer, format: int64 }
+    PaymentMethodCard:
+      type: object
+      required: [brand, bin, last4, exp_month, exp_year, fingerprint]
+      properties:
+        brand: { type: string, enum: [visa, mastercard, amex, elo, hipercard, unknown] }
+        bin:
+          type: string
+          description: The first eight digits of a number of sixteen or more, else the first six.
+        last4: { type: string }
+        exp_month: { type: integer }
+        exp_year: { type: integer }
+        fingerprint:
+          type: string
+          description: The same for the same card number across this merchant's payment methods.
+    CreatePaymentMethodRequest:
+      type: object
+      required: [type, card]
+      additionalProperties: false
+      properties:
+        type: { type: string, enum: [card] }
+        card: { $ref: "#/components/schemas/CardDetails" }
+    CardDetails:
+      type: object
+      description: Either number and expiry, with an optional cvc, or a token from the vault.
+      additionalProperties: false
+      properties:
+        number: { type: string }
+        exp_month: { type: integer }
+        exp_year: { type: integer }
+        cvc: { type: string }
+        token: { type: string }
 
     PaymentIntent:
       type: object

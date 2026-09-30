@@ -211,6 +211,60 @@ func (q *Queries) GetLedgerAccounts(ctx context.Context, arg GetLedgerAccountsPa
 	return items, nil
 }
 
+const getPaymentMethod = `-- name: GetPaymentMethod :one
+SELECT id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at FROM payments.payment_methods WHERE id = $1 AND merchant_id = $2 AND livemode = $3
+`
+
+type GetPaymentMethodParams struct {
+	ID         string
+	MerchantID string
+	Livemode   bool
+}
+
+func (q *Queries) GetPaymentMethod(ctx context.Context, arg GetPaymentMethodParams) (PaymentsPaymentMethod, error) {
+	row := q.db.QueryRow(ctx, getPaymentMethod, arg.ID, arg.MerchantID, arg.Livemode)
+	var i PaymentsPaymentMethod
+	err := row.Scan(
+		&i.ID,
+		&i.MerchantID,
+		&i.Livemode,
+		&i.Type,
+		&i.VaultToken,
+		&i.Brand,
+		&i.Bin,
+		&i.Last4,
+		&i.ExpMonth,
+		&i.ExpYear,
+		&i.VaultFingerprint,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPaymentMethodByToken = `-- name: GetPaymentMethodByToken :one
+SELECT id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at FROM payments.payment_methods WHERE vault_token = $1
+`
+
+func (q *Queries) GetPaymentMethodByToken(ctx context.Context, vaultToken string) (PaymentsPaymentMethod, error) {
+	row := q.db.QueryRow(ctx, getPaymentMethodByToken, vaultToken)
+	var i PaymentsPaymentMethod
+	err := row.Scan(
+		&i.ID,
+		&i.MerchantID,
+		&i.Livemode,
+		&i.Type,
+		&i.VaultToken,
+		&i.Brand,
+		&i.Bin,
+		&i.Last4,
+		&i.ExpMonth,
+		&i.ExpYear,
+		&i.VaultFingerprint,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getRailOperation = `-- name: GetRailOperation :one
 SELECT key, kind, authorization_key, amount, status, reference, detail, calls, queries, created_at FROM payments.test_rail WHERE key = $1 FOR UPDATE
 `
@@ -379,6 +433,61 @@ func (q *Queries) InsertLedgerAccount(ctx context.Context, arg InsertLedgerAccou
 		arg.AccountID,
 	)
 	return err
+}
+
+const insertPaymentMethod = `-- name: InsertPaymentMethod :one
+INSERT INTO payments.payment_methods (id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month,
+                                      exp_year, vault_fingerprint, created_at)
+VALUES ($1, $2, $3, 'card', $4, $5, $6, $7, $8, $9,
+        $10, $11)
+ON CONFLICT (vault_token) DO NOTHING
+RETURNING id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at
+`
+
+type InsertPaymentMethodParams struct {
+	ID               string
+	MerchantID       string
+	Livemode         bool
+	VaultToken       string
+	Brand            string
+	Bin              string
+	Last4            string
+	ExpMonth         int32
+	ExpYear          int32
+	VaultFingerprint string
+	CreatedAt        pgtype.Timestamptz
+}
+
+func (q *Queries) InsertPaymentMethod(ctx context.Context, arg InsertPaymentMethodParams) (PaymentsPaymentMethod, error) {
+	row := q.db.QueryRow(ctx, insertPaymentMethod,
+		arg.ID,
+		arg.MerchantID,
+		arg.Livemode,
+		arg.VaultToken,
+		arg.Brand,
+		arg.Bin,
+		arg.Last4,
+		arg.ExpMonth,
+		arg.ExpYear,
+		arg.VaultFingerprint,
+		arg.CreatedAt,
+	)
+	var i PaymentsPaymentMethod
+	err := row.Scan(
+		&i.ID,
+		&i.MerchantID,
+		&i.Livemode,
+		&i.Type,
+		&i.VaultToken,
+		&i.Brand,
+		&i.Bin,
+		&i.Last4,
+		&i.ExpMonth,
+		&i.ExpYear,
+		&i.VaultFingerprint,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const insertRailOperation = `-- name: InsertRailOperation :exec

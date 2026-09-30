@@ -59,6 +59,21 @@ type PaymentsLedgerAccount struct {
 	AccountID  string
 }
 
+type PaymentsPaymentMethod struct {
+	ID               string
+	MerchantID       string
+	Livemode         bool
+	Type             string
+	VaultToken       string
+	Brand            string
+	Bin              string
+	Last4            string
+	ExpMonth         int32
+	ExpYear          int32
+	VaultFingerprint string
+	CreatedAt        pgtype.Timestamptz
+}
+
 type PaymentsRefund struct {
 	ID            string
 	IntentID      string

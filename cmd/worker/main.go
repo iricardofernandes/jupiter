@@ -18,6 +18,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
+	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
 const (
@@ -50,6 +51,10 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	if err != nil {
 		return service.App{}, errors.New("JUPITER_SECRET_KEY must be 32 random bytes in base64: " + err.Error())
 	}
+	cards, err := vault.ClientFromEnv(os.Getenv)
+	if err != nil {
+		return service.App{}, err
+	}
 	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return service.App{}, err
@@ -73,9 +78,11 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	}
 	l := ledger.New()
 	paymentService := payments.New(payments.Config{
-		Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, logger),
+		Ledger: l, Events: eventService, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
 	})
-	a := api.New(api.Deps{Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Box: box, Logger: logger})
+	a := api.New(api.Deps{
+		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Vault: cards, Box: box, Logger: logger,
+	})
 
 	return service.App{
 		Ready: pool.Ping,

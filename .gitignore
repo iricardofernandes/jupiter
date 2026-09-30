@@ -15,3 +15,6 @@ coverage.html
 # Personal Claude Code settings
 .claude/settings.local.json
 .claude/*.lock
+
+# Development certificates from make certs
+/.certs/

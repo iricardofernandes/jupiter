@@ -64,6 +64,7 @@ type harness struct {
 	payments  *payments.Service
 	ledger    *ledger.Ledger
 	clock     *clock
+	vault     *fakeVault
 	server    *httptest.Server
 	keys      map[string]string
 }
@@ -92,18 +93,18 @@ func newHarness(t *testing.T, apiVersion string, opts ...harnessOption) *harness
 		t.Fatal(err)
 	}
 	c := &clock{}
-	h := &harness{t: t, pool: pool, clock: c, merchants: merchant.New(c.Now), keys: map[string]string{}}
+	h := &harness{t: t, pool: pool, clock: c, merchants: merchant.New(c.Now), vault: newFakeVault(), keys: map[string]string{}}
 	h.events = events.New(events.Config{
 		Box: box, Jobs: inserter, Render: api.RenderEvent, Now: c.Now,
 		AllowPrivateNetworks: true, RetryBase: 20 * time.Millisecond,
 	})
 	h.ledger = ledger.New(ledger.WithClock(c.Now))
-	cfg := payments.Config{Ledger: h.ledger, Events: h.events, TestRail: payments.NewTestRail(pool, c.Now, nil), Now: c.Now}
+	cfg := payments.Config{Ledger: h.ledger, Events: h.events, TestRail: payments.NewTestRail(pool, c.Now, nil).WithCards(h.vault), Now: c.Now}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 	h.payments = payments.New(cfg)
-	h.api = api.New(api.Deps{Pool: pool, Merchants: h.merchants, Events: h.events, Payments: h.payments, Box: box, Now: c.Now})
+	h.api = api.New(api.Deps{Pool: pool, Merchants: h.merchants, Events: h.events, Payments: h.payments, Vault: h.vault, Box: box, Now: c.Now})
 	h.server = httptest.NewServer(h.api.Handler())
 	t.Cleanup(h.server.Close)
 	h.newMerchant(apiVersion)

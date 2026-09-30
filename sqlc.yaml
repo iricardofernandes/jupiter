@@ -45,3 +45,12 @@ sql:
         out: internal/payments/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/vault/server/migrations
+    queries: internal/vault/server/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/vault/server/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

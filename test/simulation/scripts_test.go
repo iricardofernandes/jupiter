@@ -25,6 +25,7 @@ type script struct {
 	intent    string
 	amount    int64
 	method    string
+	card      string // a card number to save in the vault first, and then pay with
 	manual    bool
 	capture   int64 // 0 captures everything
 	cancel    bool
@@ -68,6 +69,9 @@ func (s *sim) newScript(n int) *script {
 	default:
 		sc.method = payments.TestCardAuthenticationRequired
 	}
+	if r.IntN(10) < 3 {
+		sc.card = savedCards[sc.method]
+	}
 	sc.manual = r.IntN(2) == 0
 	sc.authPass = r.IntN(5) != 0
 	sc.retry = r.IntN(2) == 0
@@ -82,7 +86,7 @@ func (s *sim) newScript(n int) *script {
 			sc.refunds = append(sc.refunds, 1+r.Int64N(sc.amount/2+1))
 		}
 	}
-	s.record("script %d: %d %s manual=%t cancel=%t capture=%d refunds=%v", n, sc.amount, sc.method, sc.manual, sc.cancel, sc.capture, sc.refunds)
+	s.record("script %d: %d %s saved=%t manual=%t cancel=%t capture=%d refunds=%v", n, sc.amount, sc.method, sc.card != "", sc.manual, sc.cancel, sc.capture, sc.refunds)
 	return sc
 }
 
@@ -113,6 +117,14 @@ func (s *sim) step(sc *script) {
 		return // leave it pending: the next step sends it again and must get the same answer
 	}
 	sc.pending = nil
+	if p.path == "/v1/payment_methods" {
+		var pm struct{ ID string }
+		if err := json.Unmarshal(resp.body, &pm); err != nil || resp.status != http.StatusOK {
+			s.t.Fatalf("script %d: saving a card answered %d %s", sc.id, resp.status, resp.body)
+		}
+		sc.method, sc.card = pm.ID, ""
+		return
+	}
 	if sc.intent == "" && p.method == http.MethodPost && p.path == "/v1/payment_intents" {
 		var v struct {
 			ID    string `json:"id"`
@@ -131,6 +143,14 @@ func (s *sim) step(sc *script) {
 	}
 }
 
+// savedCards are the test card numbers that behave as each test payment method.
+var savedCards = map[string]string{
+	payments.TestCardVisa:                   "4242424242424242",
+	payments.TestCardDeclined:               "4000000000000002",
+	payments.TestCardInsufficientFunds:      "4000000000009995",
+	payments.TestCardAuthenticationRequired: "4000002500003155",
+}
+
 func (s *sim) request(sc *script, path string, body any) *pendingRequest {
 	sc.sequence++
 	return &pendingRequest{method: http.MethodPost, path: path, body: body, key: fmt.Sprintf("script-%d-%d", sc.id, sc.sequence)}
@@ -139,6 +159,11 @@ func (s *sim) request(sc *script, path string, body any) *pendingRequest {
 // next decides the script's next request from the intent's current status.
 func (s *sim) next(sc *script) *pendingRequest {
 	sc.waiting = false
+	if sc.card != "" {
+		return s.request(sc, "/v1/payment_methods", map[string]any{"type": "card", "card": map[string]any{
+			"number": sc.card, "exp_month": 12, "exp_year": 2030, "cvc": "123",
+		}})
+	}
 	if sc.intent == "" {
 		body := map[string]any{"amount": sc.amount, "currency": "brl", "payment_method": sc.method, "confirm": true}
 		if sc.manual {

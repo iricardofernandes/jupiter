@@ -51,6 +51,8 @@ const (
 	ScopeWebhookEndpointWrite Scope = "webhook_endpoints:write"
 	ScopeEventsRead           Scope = "events:read"
 	ScopeEventsWrite          Scope = "events:write"
+	ScopePaymentMethodsRead   Scope = "payment_methods:read"
+	ScopePaymentMethodsWrite  Scope = "payment_methods:write"
 	ScopePaymentIntentsRead   Scope = "payment_intents:read"
 	ScopePaymentIntentsWrite  Scope = "payment_intents:write"
 	ScopeRefundsRead          Scope = "refunds:read"
@@ -63,6 +65,7 @@ var AllScopes = []Scope{
 	ScopeAPIKeysRead, ScopeAPIKeysWrite,
 	ScopeWebhookEndpointsRead, ScopeWebhookEndpointWrite,
 	ScopeEventsRead, ScopeEventsWrite,
+	ScopePaymentMethodsRead, ScopePaymentMethodsWrite,
 	ScopePaymentIntentsRead, ScopePaymentIntentsWrite,
 	ScopeRefundsRead, ScopeRefundsWrite,
 }

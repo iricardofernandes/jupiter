@@ -165,3 +165,17 @@ WHERE authorization_key = @authorization_key AND kind = @kind AND status = 'appr
 
 -- name: SaveRailOperation :exec
 UPDATE payments.test_rail SET status = $2, detail = $3, calls = $4, queries = $5 WHERE key = $1;
+
+-- name: InsertPaymentMethod :one
+INSERT INTO payments.payment_methods (id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month,
+                                      exp_year, vault_fingerprint, created_at)
+VALUES (@id, @merchant_id, @livemode, 'card', @vault_token, @brand, @bin, @last4, @exp_month, @exp_year,
+        @vault_fingerprint, @created_at)
+ON CONFLICT (vault_token) DO NOTHING
+RETURNING *;
+
+-- name: GetPaymentMethod :one
+SELECT * FROM payments.payment_methods WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode;
+
+-- name: GetPaymentMethodByToken :one
+SELECT * FROM payments.payment_methods WHERE vault_token = @vault_token;

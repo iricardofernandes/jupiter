@@ -32,7 +32,15 @@ type AuthorizeRequest struct {
 	Key           string
 	Amount        money.Amount
 	PaymentMethod string
+	// Card names the vault token behind a saved card. The rail detokenizes it for the
+	// one call that needs the number, so the number is never held anywhere else.
+	Card          *CardReference
 	Authenticated bool
+}
+
+type CardReference struct {
+	Token string
+	Owner string
 }
 
 // OperationRequest acts on an earlier authorization, named by the key it was sent with,
@@ -56,9 +64,9 @@ type Rail interface {
 	Query(ctx context.Context, key string) Result
 }
 
-// Test payment methods stand for cards until the vault (phase 4) accepts real test card
-// numbers. Amounts whose last two minor digits are 91 to 93 make the rail misbehave:
-// see TestRail.
+// Test payment methods stand for cards without going through the vault; saved cards
+// made from the test card numbers behave the same way. Amounts whose last two minor
+// digits are 91 to 93 make the rail misbehave: see TestRail.
 const (
 	TestCardVisa                   = "pm_card_visa"
 	TestCardMastercard             = "pm_card_mastercard"

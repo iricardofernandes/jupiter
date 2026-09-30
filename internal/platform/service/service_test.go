@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
 )
 
@@ -258,4 +260,39 @@ func fetch(ctx context.Context, url string) (int, string, error) {
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(body), err
+}
+
+func TestServeWithTLSRequiresTheClientCertificate(t *testing.T) {
+	pki, err := mtls.NewPKI("service test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := pki.Server("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := pki.Client("spiffe://jupiter/api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln := listen(t)
+	app := service.App{TLS: mtls.ServerConfig(server.TLS, pki.Pool(), "spiffe://jupiter/api")}
+	go func() { _ = service.Serve(t.Context(), ln, app, slog.New(slog.DiscardHandler)) }()
+
+	url := "https://" + ln.Addr().String() + "/healthz"
+	for name, cfg := range map[string]*tls.Config{
+		"with":    mtls.ClientConfig(client.TLS, pki.Pool()),
+		"without": {MinVersion: tls.VersionTLS13, RootCAs: pki.Pool()},
+	} {
+		httpClient := &http.Client{Transport: &http.Transport{TLSClientConfig: cfg}}
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+		resp, err := httpClient.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		if (err == nil) != (name == "with") {
+			t.Errorf("GET %s %s the client certificate: err = %v", url, name, err)
+		}
+		httpClient.CloseIdleConnections()
+	}
 }
