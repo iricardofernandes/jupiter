@@ -35,6 +35,8 @@ point at its replacement.
 | [0026](0026-pix-payments-refunds-and-strays.md) | A Pix payment waits on a charge; refunds are returns; stray Pix go back | Accepted |
 | [0027](0027-payouts-by-pix.md) | Payouts: held on the balance, sent by Pix, never abandoned | Accepted |
 | [0028](0028-subscriptions-by-pix-automatico.md) | Subscriptions charge by Pix Automático, one payment intent per cycle | Accepted |
+| [0029](0029-card-fees-taken-at-capture.md) | Card fees are a dated price table, taken from the merchant at capture | Accepted |
+| [0030](0030-receivable-units-and-the-registry.md) | Receivable units kept beside the ledger, registered and reconciled with a registry | Accepted |
 
 ## Template
 

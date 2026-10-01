@@ -6,7 +6,7 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **8 — Pix Automático** · milestone M2 reached
+> ### Current phase: **9 — Receivables and the registry** · milestone M2 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
 > kept in a separate vault, live payments over ISO 8583 to a card network and issuer
@@ -22,8 +22,15 @@ This repository is the **backend only**.
 >   customer's bank or a QR code, a charge per cycle debited on its due date, and retries.
 >   A year of them runs in accelerated time in CI.
 >
+> And the receivables between a card capture and its settlement:
+> - one unit per installment date, net of Jupiter's fee;
+> - registered with a registry simulator whose Convenção waterfall is property-tested
+>   against a reference model;
+> - reconciled daily, weekly and fortnightly on a Brazilian business-day calendar;
+> - shown to each merchant as an agenda that can be read as of any moment.
+>
 > A deterministic simulation runs 10,000 payments with faults on every push. Next are
-> receivables and the registry (phase 9); see [`docs/plan.md`](docs/plan.md).
+> anticipation, split and recipients (phase 10); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -67,7 +74,7 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, payouts and subscriptions |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, payouts, subscriptions and receivables |
 | [`api/bacen-pix/`](api/bacen-pix/) | The Banco Central's API Pix specification, pinned, which `pkg/pixapi` is generated from |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |
@@ -114,7 +121,9 @@ Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
 To run the binaries, start the vault first (`go run ./cmd/vault`) and, for live mode, the
 card network and 3-D Secure simulators (`go run ./cmd/sim-card-network`,
 `go run ./cmd/sim-3ds`) and, for Pix in either mode, the Pix bank (`go run ./cmd/sim-pix`,
-see [its README](internal/sim/pix/README.md)), then the API and the worker
+see [its README](internal/sim/pix/README.md)) and, to register receivables, the registry
+(`go run ./cmd/sim-registry`, see [its README](internal/sim/registry/README.md)), then the
+API and the worker
 (`go run ./cmd/api`, `go run ./cmd/worker`). [`.env.example`](.env.example) lists
 what each reads: databases, keys (`openssl rand -base64 32`) and the certificates from
 `make certs`. Then save a card and pay with it:
