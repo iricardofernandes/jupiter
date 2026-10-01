@@ -58,3 +58,13 @@ reconciliation with the registry sees them.
 
 The merchant's CPF or CNPJ is who the units belong to at the registry. Until it is set
 (`jupiterctl merchant set-tax-id`), units are kept but not registered.
+
+## Settlement
+
+On a unit's date, the card network pays it through centralized settlement (the SLC):
+- what a financier holds goes straight to the financier;
+- the rest is paid into Jupiter's account, and becomes your available balance (or the
+  recipient's), which a payout can send out.
+
+A unit settles once, on its date or, if Jupiter could not settle it then, the next business
+day. Its `settled_amount` and `settled_on` show it in the agenda.

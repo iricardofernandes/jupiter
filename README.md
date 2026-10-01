@@ -6,7 +6,7 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **10 — Anticipation, split and recipients** · milestone M2 reached
+> ### Current phase: **11 — Settlement, payouts and boleto** · milestone M3 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
 > kept in a separate vault, live payments over ISO 8583 to a card network and issuer
@@ -36,8 +36,16 @@ This repository is the **backend only**.
 > - anticipation priced as present value and registered as an ownership transfer to
 >   Jupiter, on demand or automatically.
 >
+> And the money's way in and out:
+> - card receivables settled through a centralized settlement (SLC) simulator, gross, in a
+>   daily grade built from the registry's split, with anticipations reported to it;
+> - payouts by Pix or bank transfer, scheduled or on demand, with minimums, holds and
+>   transfers the receiving bank returns;
+> - boletos, hybrid with a Pix QR code, sent to a bank simulator in CNAB 240 files by a Go
+>   library of its own (fuzzed, strict both ways) and settled from its return files.
+>
 > A deterministic simulation runs 10,000 payments with faults on every push. Next are
-> settlement, payouts and boleto (phase 11); see [`docs/plan.md`](docs/plan.md).
+> disputes and chargebacks (phase 12); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -81,7 +89,7 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, payouts, subscriptions, receivables, recipients and anticipation |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, boleto, payouts, subscriptions, receivables, recipients and anticipation |
 | [`api/bacen-pix/`](api/bacen-pix/) | The Banco Central's API Pix specification, pinned, which `pkg/pixapi` is generated from |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |
