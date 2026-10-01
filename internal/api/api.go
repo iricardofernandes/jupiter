@@ -103,7 +103,7 @@ func (a *API) Handler() http.Handler {
 			Message: "Unrecognized request URL (" + r.Method + " " + r.URL.Path + ").",
 		})
 	})
-	return a.withRequestID(a.withRecovery(a.withLogging(a.withAuthentication(a.withVersion(mux)))))
+	return a.withRequestID(a.withLogging(a.withRecovery(a.withAuthentication(a.withVersion(withRoute(mux))))))
 }
 
 type contextKey int
@@ -172,7 +172,9 @@ func (a *API) withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		began := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(rec, r)
+		route := new(string)
+		next.ServeHTTP(rec, r.WithContext(context.WithValue(r.Context(), routeKey{}, route)))
+		measure(r.Context(), *route, rec.status, time.Since(began))
 		p := principalFrom(r.Context())
 		a.deps.Logger.InfoContext(r.Context(), "request",
 			"method", r.Method, "path", r.URL.Path, "status", rec.status,
@@ -197,7 +199,7 @@ func (a *API) withAuthentication(next http.Handler) http.Handler {
 			a.fail(w, r, err)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
+		next.ServeHTTP(w, r.WithContext(payments.WithMemo(context.WithValue(r.Context(), principalKey, p))))
 	})
 }
 

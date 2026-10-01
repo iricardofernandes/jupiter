@@ -477,6 +477,44 @@ func (q *Queries) GetAttempt(ctx context.Context, id string) (PaymentsAttempt, e
 	return i, err
 }
 
+const getCardLedgerAccounts = `-- name: GetCardLedgerAccounts :many
+SELECT merchant_id, role, account_id FROM payments.ledger_accounts
+WHERE merchant_id IN ($1::text, '') AND livemode = $2 AND currency = $3
+`
+
+type GetCardLedgerAccountsParams struct {
+	MerchantID string
+	Livemode   bool
+	Currency   string
+}
+
+type GetCardLedgerAccountsRow struct {
+	MerchantID string
+	Role       string
+	AccountID  string
+}
+
+// A merchant's accounts and the platform's, in one read.
+func (q *Queries) GetCardLedgerAccounts(ctx context.Context, arg GetCardLedgerAccountsParams) ([]GetCardLedgerAccountsRow, error) {
+	rows, err := q.db.Query(ctx, getCardLedgerAccounts, arg.MerchantID, arg.Livemode, arg.Currency)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCardLedgerAccountsRow{}
+	for rows.Next() {
+		var i GetCardLedgerAccountsRow
+		if err := rows.Scan(&i.MerchantID, &i.Role, &i.AccountID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getIntent = `-- name: GetIntent :one
 SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at, split, boleto_options FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
@@ -843,6 +881,42 @@ func (q *Queries) GetRefundByID(ctx context.Context, id string) (PaymentsRefund,
 		&i.ClearedOn,
 		&i.FeeReturned,
 		&i.SplitBack,
+	)
+	return i, err
+}
+
+const health = `-- name: Health :one
+SELECT
+    (SELECT count(*) FROM payments.attempts
+     WHERE status IN ('authenticating', 'authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown')
+       AND updated_at < $1::timestamptz)::bigint AS attempts_unresolved,
+    (SELECT count(*) FROM payments.refunds WHERE status IN ('pending', 'refund_unknown') AND updated_at < $1::timestamptz)::bigint AS refunds_unresolved,
+    (SELECT count(*) FROM payments.payouts WHERE status IN ('sending', 'unknown') AND updated_at < $2::timestamptz)::bigint AS payouts_unresolved,
+    (SELECT count(*) FROM payments.pix_received WHERE status IN ('unmatched', 'returning') AND updated_at < $2::timestamptz)::bigint AS pix_unreturned
+`
+
+type HealthParams struct {
+	AttemptsBefore pgtype.Timestamptz
+	PayoutsBefore  pgtype.Timestamptz
+}
+
+type HealthRow struct {
+	AttemptsUnresolved int64
+	RefundsUnresolved  int64
+	PayoutsUnresolved  int64
+	PixUnreturned      int64
+}
+
+// What has waited too long for the resolver: attempts, refunds and payouts whose outcome
+// is not final, and Pix received that paid nothing and are not returned.
+func (q *Queries) Health(ctx context.Context, arg HealthParams) (HealthRow, error) {
+	row := q.db.QueryRow(ctx, health, arg.AttemptsBefore, arg.PayoutsBefore)
+	var i HealthRow
+	err := row.Scan(
+		&i.AttemptsUnresolved,
+		&i.RefundsUnresolved,
+		&i.PayoutsUnresolved,
+		&i.PixUnreturned,
 	)
 	return i, err
 }

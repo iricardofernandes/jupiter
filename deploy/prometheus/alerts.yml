@@ -1,0 +1,184 @@
+# Jupiter's alerts. Each names its runbook in docs/runbooks; test/observability checks
+# that every alert has one, and every runbook an alert, and that every Jupiter metric an
+# alert reads is one Jupiter reports. deploy/prometheus/alerts_test.yml tests the rules
+# themselves (make check-alerts).
+#
+# Severity: critical pages someone now; warning is for working hours.
+
+groups:
+  - name: jupiter.money
+    rules:
+      - alert: JupiterLedgerInvariantViolated
+        expr: max(jupiter_ledger_violations) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "The ledger's check found {{ $value }} invariant violations."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterLedgerInvariantViolated.md
+
+      - alert: JupiterLedgerBalanceDrift
+        expr: max(jupiter_ledger_drifted_accounts) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $value }} ledger accounts have a cached balance that disagrees with their entries."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterLedgerBalanceDrift.md
+
+      - alert: JupiterLedgerQueueLagging
+        expr: max(jupiter_ledger_queue_oldest) > 60
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "The oldest batched balance delta has waited {{ $value }}s to be applied."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterLedgerQueueLagging.md
+
+      - alert: JupiterAttemptsUnresolved
+        expr: max(jupiter_payments_attempts_unresolved) > 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} card attempts have had no final outcome for over 15 minutes."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterAttemptsUnresolved.md
+
+      - alert: JupiterRefundsUnresolved
+        expr: max(jupiter_payments_refunds_unresolved) > 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} refunds have had no final outcome for over 15 minutes."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterRefundsUnresolved.md
+
+      - alert: JupiterPayoutsUnresolved
+        expr: max(jupiter_payouts_unresolved) > 0
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} payouts were sent and have had no final outcome for over an hour."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterPayoutsUnresolved.md
+
+      - alert: JupiterPixUnreturned
+        expr: max(jupiter_pix_unreturned) > 0
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} Pix received paid nothing and have not been returned in two hours."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterPixUnreturned.md
+
+      - alert: JupiterNetworkForwardsPending
+        expr: max(jupiter_acquirer_forwards_pending) > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} reversals or advices have gone unacknowledged by the card network."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterNetworkForwardsPending.md
+
+      - alert: JupiterClearingExceptions
+        expr: max(jupiter_acquirer_clearing_exceptions) > 0
+        for: 24h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} clearing records have matched no capture or refund for a day."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterClearingExceptions.md
+
+      - alert: JupiterReconciliationBreaksAgeing
+        expr: max by (counterparty) (jupiter_reconciliation_breaks_ageing) > 0
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} reconciliation breaks with {{ $labels.counterparty }} have been open for over a day."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterReconciliationBreaksAgeing.md
+
+      - alert: JupiterReconciliationBehind
+        expr: max(jupiter_reconciliation_days_behind) > 1
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "Live mode was last reconciled {{ $value }} days before yesterday."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterReconciliationBehind.md
+
+      - alert: JupiterDisputeDeadlineNear
+        expr: max(jupiter_disputes_due_soon) > 0
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} disputes wait for the merchant's answer with a deadline in the next 48 hours."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterDisputeDeadlineNear.md
+
+  - name: jupiter.service
+    rules:
+      - alert: JupiterAPIErrors
+        expr: |
+          sum(rate(jupiter_api_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+            / sum(rate(jupiter_api_request_duration_seconds_count[5m])) > 0.01
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of API requests fail with a server error."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterAPIErrors.md
+
+      - alert: JupiterPaymentLatencyHigh
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(jupiter_api_request_duration_seconds_bucket{http_route=~"POST /v1/payment_intents(/\\{id\\}/confirm)?"}[5m]))) > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "The p99 of creating and confirming payments is {{ $value | humanizeDuration }}."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterPaymentLatencyHigh.md
+
+      - alert: JupiterDatabasePoolSaturated
+        expr: |
+          sum by (service_name) (rate(jupiter_db_pool_waited_acquires_total[5m]))
+            / sum by (service_name) (rate(jupiter_db_pool_acquires_total[5m])) > 0.2
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of {{ $labels.service_name }}'s database connections were waited for."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterDatabasePoolSaturated.md
+
+      - alert: JupiterRequestsUnfinished
+        expr: max(jupiter_api_requests_unfinished) > 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} requests stopped between phases and the completer has not finished them."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterRequestsUnfinished.md
+
+      - alert: JupiterWorkerDown
+        expr: absent(jupiter_task_interval{service_name="worker"})
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "The worker has reported no background task for five minutes."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterWorkerDown.md
+
+      - alert: JupiterTaskFailing
+        expr: |
+          sum by (service_name, task) (increase(jupiter_task_runs_total{outcome="error"}[15m])) > 0
+            unless sum by (service_name, task) (increase(jupiter_task_runs_total{outcome="ok"}[15m])) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Every run of {{ $labels.task }} in the last 15 minutes failed."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterTaskFailing.md
+
+      - alert: JupiterTaskStalled
+        expr: |
+          (time() - jupiter_task_last_success) > 3 * jupiter_task_interval
+            and (time() - jupiter_task_last_success) > 600
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.task }} last succeeded {{ $value | humanizeDuration }} ago."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterTaskStalled.md
+
+      - alert: JupiterJobsBacklog
+        expr: max(jupiter_jobs_waiting_oldest) > 300
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "The oldest job due to run has waited {{ $value | humanizeDuration }}."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterJobsBacklog.md
+
+      - alert: JupiterJobsDiscarded
+        expr: max by (kind) (jupiter_jobs_discarded) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} {{ $labels.kind }} jobs were given up in the past hour."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterJobsDiscarded.md

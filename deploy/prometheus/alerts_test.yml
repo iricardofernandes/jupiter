@@ -1,0 +1,163 @@
+# Unit tests of alerts.yml: make check-alerts runs them with promtool.
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: a ledger violation pages at once, and clears when the check finds none
+    interval: 1m
+    input_series:
+      - series: 'jupiter_ledger_violations{service_name="worker"}'
+        values: '0 2 2 0'
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: JupiterLedgerInvariantViolated
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: JupiterLedgerInvariantViolated
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "The ledger's check found 2 invariant violations."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterLedgerInvariantViolated.md
+      - eval_time: 3m
+        alertname: JupiterLedgerInvariantViolated
+        exp_alerts: []
+
+  - name: a task fails only when every run in 15 minutes failed
+    interval: 1m
+    input_series:
+      - series: 'jupiter_task_runs_total{service_name="worker", task="payments.resolve", outcome="error"}'
+        values: '0+1x30'
+      - series: 'jupiter_task_runs_total{service_name="worker", task="payments.resolve", outcome="ok"}'
+        values: '0+1x10 10x20'
+      - series: 'jupiter_task_runs_total{service_name="worker", task="ledger.check", outcome="error"}'
+        values: '0+1x30'
+      - series: 'jupiter_task_runs_total{service_name="worker", task="ledger.check", outcome="ok"}'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: JupiterTaskFailing
+        exp_alerts: []
+      - eval_time: 27m
+        alertname: JupiterTaskFailing
+        exp_alerts:
+          - exp_labels: { severity: warning, service_name: worker, task: payments.resolve }
+            exp_annotations:
+              summary: "Every run of payments.resolve in the last 15 minutes failed."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterTaskFailing.md
+
+  - name: a stalled task is one whose last success is three intervals and ten minutes old
+    interval: 1m
+    input_series:
+      # Succeeded at 0s and never again; runs every minute.
+      - series: 'jupiter_task_last_success{service_name="worker", task="reconciliation.run"}'
+        values: '0x30'
+      - series: 'jupiter_task_interval{service_name="worker", task="reconciliation.run"}'
+        values: '60x30'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: JupiterTaskStalled
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: JupiterTaskStalled
+        exp_alerts:
+          - exp_labels: { severity: warning, service_name: worker, task: reconciliation.run }
+            exp_annotations:
+              summary: "reconciliation.run last succeeded 16m 0s ago."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterTaskStalled.md
+
+  - name: the worker is down when it reports no task, five minutes after its last report goes stale
+    interval: 1m
+    input_series:
+      - series: 'jupiter_task_interval{service_name="worker", task="ledger.check"}'
+        values: '60 60 _ _ _ _ _ _ _ _ _ _ _ _ _'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: JupiterWorkerDown
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: JupiterWorkerDown
+        exp_alerts:
+          - exp_labels: { severity: critical, service_name: worker }
+            exp_annotations:
+              summary: "The worker has reported no background task for five minutes."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterWorkerDown.md
+
+  - name: server errors above 1% of requests
+    interval: 1m
+    input_series:
+      - series: 'jupiter_api_request_duration_seconds_count{http_route="POST /v1/payment_intents", http_response_status_code="200"}'
+        values: '0+100x20'
+      - series: 'jupiter_api_request_duration_seconds_count{http_route="POST /v1/payment_intents", http_response_status_code="500"}'
+        values: '0x5 0+5x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: JupiterAPIErrors
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: JupiterAPIErrors
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "4.762% of API requests fail with a server error."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterAPIErrors.md
+
+  - name: the payment p99 above a second
+    interval: 1m
+    input_series:
+      - series: 'jupiter_api_request_duration_seconds_bucket{http_route="POST /v1/payment_intents", le="0.1"}'
+        values: '0+90x20'
+      - series: 'jupiter_api_request_duration_seconds_bucket{http_route="POST /v1/payment_intents", le="2.5"}'
+        values: '0+100x20'
+      - series: 'jupiter_api_request_duration_seconds_bucket{http_route="POST /v1/payment_intents", le="+Inf"}'
+        values: '0+100x20'
+      - series: 'jupiter_api_request_duration_seconds_bucket{http_route="GET /v1/payment_intents", le="0.1"}'
+        values: '0+1000x20'
+      - series: 'jupiter_api_request_duration_seconds_bucket{http_route="GET /v1/payment_intents", le="+Inf"}'
+        values: '0+1000x20'
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: JupiterPaymentLatencyHigh
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "The p99 of creating and confirming payments is 2.26s."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterPaymentLatencyHigh.md
+
+  - name: a pool is saturated when a fifth of its connections are waited for
+    interval: 1m
+    input_series:
+      - series: 'jupiter_db_pool_acquires_total{service_name="api", pool="jupiter"}'
+        values: '0+1000x20'
+      - series: 'jupiter_db_pool_waited_acquires_total{service_name="api", pool="jupiter"}'
+        values: '0+500x20'
+      - series: 'jupiter_db_pool_acquires_total{service_name="worker", pool="jupiter"}'
+        values: '0+1000x20'
+      - series: 'jupiter_db_pool_waited_acquires_total{service_name="worker", pool="jupiter"}'
+        values: '0+10x20'
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: JupiterDatabasePoolSaturated
+        exp_alerts:
+          - exp_labels: { severity: warning, service_name: api }
+            exp_annotations:
+              summary: "50% of api's database connections were waited for."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterDatabasePoolSaturated.md
+
+  - name: ageing breaks alert per counterparty
+    interval: 1m
+    input_series:
+      - series: 'jupiter_reconciliation_breaks_ageing{service_name="worker", counterparty="bank"}'
+        values: '2x70'
+      - series: 'jupiter_reconciliation_breaks_ageing{service_name="worker", counterparty="slc"}'
+        values: '0x70'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: JupiterReconciliationBreaksAgeing
+        exp_alerts:
+          - exp_labels: { severity: warning, counterparty: bank }
+            exp_annotations:
+              summary: "2 reconciliation breaks with bank have been open for over a day."
+              runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterReconciliationBreaksAgeing.md

@@ -69,6 +69,10 @@ const (
 // DisputedPaymentByNetworkID finds the captured payment a network transaction id or a
 // Pix end-to-end id names.
 func (s *Service) DisputedPaymentByNetworkID(ctx context.Context, q db.DBTX, livemode bool, networkID string) (DisputedPayment, error) {
+	if networkID == "" {
+		// An empty id names nothing; it would match every payment that has none.
+		return DisputedPayment{}, fmt.Errorf("%w: no network transaction id", ErrNotFound)
+	}
 	attempt, err := db.New(q).CapturedAttemptByNetworkID(ctx, db.CapturedAttemptByNetworkIDParams{NetworkID: networkID, Livemode: livemode})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DisputedPayment{}, fmt.Errorf("%w: no captured payment %s", ErrNotFound, networkID)

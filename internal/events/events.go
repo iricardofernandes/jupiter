@@ -151,17 +151,12 @@ func (s *Service) Publish(ctx context.Context, tx pgx.Tx, owner Owner, eventType
 	}
 	e := Event{ID: EventPrefix.New(), Owner: owner, Type: eventType, Object: object, CreatedAt: s.cfg.Now().UTC()}
 	q := db.New(tx)
-	if err := q.InsertEvent(ctx, db.InsertEventParams{
+	endpoints, err := q.InsertEvent(ctx, db.InsertEventParams{
 		ID: e.ID.String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 		Type: e.Type, ObjectID: object.ID, ObjectType: object.Type, CreatedAt: timestamptz(e.CreatedAt),
-	}); err != nil {
-		return Event{}, fmt.Errorf("recording event: %w", err)
-	}
-	endpoints, err := q.SubscribedEndpoints(ctx, db.SubscribedEndpointsParams{
-		MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Type: e.Type,
 	})
 	if err != nil {
-		return Event{}, fmt.Errorf("finding subscribers: %w", err)
+		return Event{}, fmt.Errorf("recording event: %w", err)
 	}
 	for _, endpointID := range endpoints {
 		if err := s.enqueue(ctx, tx, e.ID.String(), endpointID); err != nil {

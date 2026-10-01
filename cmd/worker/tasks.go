@@ -43,12 +43,15 @@ func expireDue(l *ledger.Ledger, pool *pgxpool.Pool, logger *slog.Logger) func(c
 	}
 }
 
-func check(l *ledger.Ledger, pool *pgxpool.Pool, logger *slog.Logger) func(context.Context) error {
+func check(l *ledger.Ledger, pool *pgxpool.Pool, m *monitor, logger *slog.Logger) func(context.Context) error {
 	return func(ctx context.Context) error {
 		report, err := l.Check(ctx, pool, checkOptions)
 		for _, v := range report.Violations {
 			logger.ErrorContext(ctx, "ledger invariant violated",
 				"kind", string(v.Kind), "subject", v.Subject, "detail", v.Detail)
+		}
+		if err == nil {
+			m.checked(len(report.Violations))
 		}
 		return err
 	}
@@ -117,13 +120,14 @@ func importClearing(c *acquirer.Connector, p *payments.Service, logger *slog.Log
 // tasks are the worker's background loops; the card network's run only when one is
 // configured.
 func tasks(jobClient *jobs.Client, l *ledger.Ledger, pool *pgxpool.Pool, a *api.API, p *payments.Service, network *acquirer.Connector,
-	pixRails []*pix.Connector, logger *slog.Logger, more ...func(context.Context) error,
+	pixRails []*pix.Connector, m *monitor, logger *slog.Logger, more ...func(context.Context) error,
 ) []func(context.Context) error {
 	background := []func(context.Context) error{
 		jobs.Run(jobClient),
 		service.Every(logger, "ledger.apply_queued", applyInterval, applyQueued(l, pool)),
 		service.Every(logger, "ledger.expire_due", expiryInterval, expireDue(l, pool, logger)),
-		service.Every(logger, "ledger.check", checkInterval, check(l, pool, logger)),
+		service.Every(logger, "ledger.check", checkInterval, check(l, pool, m, logger)),
+		service.Every(logger, "monitor.sample", sampleEvery, m.sample),
 		service.Every(logger, "api.complete_abandoned", completerInterval, completeAbandoned(a, logger)),
 		service.Every(logger, "api.reap_idempotency_keys", reaperInterval, reap(a, logger)),
 		service.Every(logger, "payments.resolve", resolveInterval, resolve(p, pool, logger)),

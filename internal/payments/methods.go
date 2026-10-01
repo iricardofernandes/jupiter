@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -80,13 +82,63 @@ func (s *Service) PaymentMethod(ctx context.Context, q db.DBTX, owner Owner, met
 }
 
 func (s *Service) methodRow(ctx context.Context, q db.DBTX, owner Owner, methodID string) (db.PaymentsPaymentMethod, error) {
+	m, _ := ctx.Value(memoKey{}).(*memo)
+	key := owner.Merchant.String() + "/" + strconv.FormatBool(owner.Livemode) + "/" + methodID
+	if row, ok := m.method(key); ok {
+		return row, nil
+	}
 	row, err := db.New(q).GetPaymentMethod(ctx, db.GetPaymentMethodParams{
 		ID: methodID, MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.PaymentsPaymentMethod{}, fmt.Errorf("%w: %s", ErrNotFound, methodID)
 	}
+	if err == nil {
+		m.remember(key, row)
+	}
 	return row, err
+}
+
+type memoKey struct{}
+
+// memo keeps the payment methods one request reads: its phases would read the same one
+// again and again.
+type memo struct {
+	mu      sync.Mutex
+	methods map[string]db.PaymentsPaymentMethod
+}
+
+// WithMemo is a context for one request, in which each payment method is read once.
+func WithMemo(ctx context.Context) context.Context {
+	return context.WithValue(ctx, memoKey{}, &memo{methods: map[string]db.PaymentsPaymentMethod{}})
+}
+
+func (m *memo) method(key string) (db.PaymentsPaymentMethod, bool) {
+	if m == nil {
+		return db.PaymentsPaymentMethod{}, false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	row, ok := m.methods[key]
+	return row, ok
+}
+
+// forget drops what the request read of payment methods, after it changed one.
+func forget(ctx context.Context) {
+	if m, _ := ctx.Value(memoKey{}).(*memo); m != nil {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		clear(m.methods)
+	}
+}
+
+func (m *memo) remember(key string, row db.PaymentsPaymentMethod) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.methods[key] = row
 }
 
 // checkPaymentMethod accepts a saved payment method of the owner's, or in test mode a

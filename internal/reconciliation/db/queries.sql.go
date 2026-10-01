@@ -130,6 +130,39 @@ func (q *Queries) GetRecord(ctx context.Context, id int64) (ReconciliationRecord
 	return i, err
 }
 
+const health = `-- name: Health :many
+SELECT counterparty, count(*)::bigint AS open, count(*) FILTER (WHERE opened_on < $1::date)::bigint AS ageing
+FROM reconciliation.breaks WHERE status = 'open'
+GROUP BY counterparty ORDER BY counterparty
+`
+
+type HealthRow struct {
+	Counterparty string
+	Open         int64
+	Ageing       int64
+}
+
+// Open breaks by counterparty, and how many have been open more than a day.
+func (q *Queries) Health(ctx context.Context, yesterday pgtype.Date) ([]HealthRow, error) {
+	rows, err := q.db.Query(ctx, health, yesterday)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HealthRow{}
+	for rows.Next() {
+		var i HealthRow
+		if err := rows.Scan(&i.Counterparty, &i.Open, &i.Ageing); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertBreak = `-- name: InsertBreak :exec
 INSERT INTO reconciliation.breaks (
     id, livemode, counterparty, stream, kind, record_id, other_record_id, key, subject, detail, merchant_id, amount, value_date,

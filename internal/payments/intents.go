@@ -533,6 +533,7 @@ func (s *Service) authorized(ctx context.Context, tx pgx.Tx, row *db.PaymentsInt
 		}); err != nil {
 			return StepDone, err
 		}
+		forget(ctx)
 	}
 	attempt.LedgerHold = text(hold.ID.String())
 	attempt.AuthorizationExpiresAt = ts(expires)

@@ -209,3 +209,13 @@ UPDATE ledger.balances b
        drifted_at      = NULL
   FROM recomputed r, queued q
  WHERE b.account_id = @account_id::text;
+
+-- name: Health :one
+-- The batched balance deltas not yet applied, when the oldest was posted, and the
+-- accounts the checker found drifted.
+SELECT
+    (SELECT count(*) FROM ledger.balance_queue)::bigint AS queued,
+    (SELECT t.created_at FROM ledger.balance_queue q
+     JOIN ledger.entries e ON e.seq = q.entry_seq JOIN ledger.transactions t ON t.id = e.transaction_id
+     ORDER BY q.entry_seq LIMIT 1)::timestamptz AS oldest_queued,
+    (SELECT count(*) FROM ledger.balances WHERE drifted_at IS NOT NULL)::bigint AS drifted;

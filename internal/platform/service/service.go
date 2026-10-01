@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/iricardofernandes/jupiter/internal/platform/telemetry"
 )
 
 const (
@@ -83,6 +85,11 @@ func Main(name, defaultAddr string, build Build) {
 }
 
 func run(ctx context.Context, cfg Config, build Build, logger *slog.Logger) error {
+	shutdown, err := telemetry.Start(ctx, cfg.Name, os.Getenv)
+	if err != nil {
+		return fmt.Errorf("starting telemetry: %w", err)
+	}
+	defer func() { _ = shutdown(context.WithoutCancel(ctx)) }()
 	app, err := build(ctx, cfg, logger)
 	if err != nil {
 		return fmt.Errorf("starting %s: %w", cfg.Name, err)
@@ -185,8 +192,12 @@ func Every(logger *slog.Logger, name string, interval time.Duration, fn func(con
 	return func(ctx context.Context) error {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		state := tasks.add(name, interval)
 		for {
-			if err := fn(ctx); err != nil && ctx.Err() == nil {
+			began := time.Now()
+			err := fn(ctx)
+			state.ran(ctx, began, err)
+			if err != nil && ctx.Err() == nil {
 				logger.ErrorContext(ctx, "background task failed", "task", name, "error", err)
 			}
 			select {

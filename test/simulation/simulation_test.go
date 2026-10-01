@@ -31,6 +31,8 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
+	"github.com/iricardofernandes/jupiter/internal/bank"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -39,9 +41,13 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
+	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
 	"github.com/iricardofernandes/jupiter/pkg/cardnet"
@@ -51,32 +57,33 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate},
-		vaulttest.Template:           {vaulttest.Migrate},
+		postgrestest.DefaultTemplate: {
+			ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate,
+			authentication.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate, reconciliation.Migrate, subscriptions.Migrate,
+		},
+		vaulttest.Template: {vaulttest.Migrate},
 	}))
 }
 
 // Phase 3 exit criterion: SIM_PAYMENTS seeded payments (10,000 in CI) with injected
-// faults end with zero invariant violations. SIM_SEED replays a run. Since phase 4 some
-// payments use cards saved in the vault, which fails now and then too; since phase 5
-// some are live, over ISO 8583 to the card network simulator, which loses requests and
-// answers, answers late and answers twice.
+// faults end with zero invariant violations. Since phase 4 some payments use cards saved
+// in the vault, which fails now and then too; since phase 5 some are live, over ISO 8583
+// to the card network simulator, which loses requests and answers, answers late and
+// answers twice. SIM_SEEDS chooses the seeds (see seeds); SIM_SEED replays one.
 func TestSimulation(t *testing.T) {
-	seed := envUint("SIM_SEED", 0)
-	if seed == 0 {
-		var b [8]byte
-		_, _ = rand.Read(b[:])
-		seed = binary.LittleEndian.Uint64(b[:])
-	}
 	payments := int(min(envUint("SIM_PAYMENTS", 300), 1_000_000))
-	t.Logf("seed %d, %d payments; replay with SIM_SEED=%d SIM_PAYMENTS=%d make test-simulation", seed, payments, seed, payments)
-	sim := newSim(t, seed)
-	digest := sim.run(payments)
-	t.Logf("trace digest %x; %s", digest, sim.stats)
-	if path := os.Getenv("SIM_TRACE"); path != "" {
-		if err := os.WriteFile(path, sim.trace, 0o600); err != nil { //nolint:gosec // a path the developer chose
-			t.Fatal(err)
-		}
+	for _, seed := range seeds(t) {
+		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
+			t.Logf("seed %d, %d payments; replay with SIM_SEED=%d SIM_PAYMENTS=%d make test-simulation", seed, payments, seed, payments)
+			sim := newSim(t, seed)
+			digest := sim.run(payments)
+			t.Logf("trace digest %x; %s", digest, sim.stats)
+			if path := os.Getenv("SIM_TRACE"); path != "" {
+				if err := os.WriteFile(path, sim.trace, 0o600); err != nil { //nolint:gosec // a path the developer chose
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }
 

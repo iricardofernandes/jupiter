@@ -1,6 +1,13 @@
--- name: InsertEvent :exec
-INSERT INTO events.events (id, merchant_id, livemode, type, object_id, object_type, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7);
+-- name: InsertEvent :many
+-- Records an event and returns the endpoints subscribed to it.
+WITH inserted AS (
+    INSERT INTO events.events (id, merchant_id, livemode, type, object_id, object_type, created_at)
+    VALUES (@id, @merchant_id, @livemode, @type, @object_id, @object_type, @created_at)
+    RETURNING merchant_id, livemode, type
+)
+SELECT e.id FROM events.endpoints e JOIN inserted i ON e.merchant_id = i.merchant_id AND e.livemode = i.livemode
+WHERE e.deleted_at IS NULL AND e.status = 'enabled' AND (i.type = ANY(e.enabled_events) OR '*' = ANY(e.enabled_events))
+ORDER BY e.id;
 
 -- name: GetEvent :one
 SELECT * FROM events.events WHERE id = $1 AND merchant_id = $2 AND livemode = $3;

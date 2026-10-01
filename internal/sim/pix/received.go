@@ -216,7 +216,17 @@ func (s *Sim) requestReturn(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, out)
 	if p != nil {
 		ctx := context.WithoutCancel(r.Context())
-		s.background.Go(func() { s.settleReturn(ctx, p, d) })
+		s.mu.Lock()
+		previous, done := s.settled, make(chan struct{})
+		s.settled = done
+		s.mu.Unlock()
+		s.background.Go(func() {
+			defer close(done)
+			if previous != nil {
+				<-previous
+			}
+			s.settleReturn(ctx, p, d)
+		})
 	}
 }
 

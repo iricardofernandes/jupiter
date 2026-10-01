@@ -119,9 +119,15 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		Reconciliation: s.reconciliation, Box: box, Logger: logger,
 	})
 
+	m, err := newMonitor(pool, l, a, s, r.network)
+	if err != nil {
+		r.close()
+		pool.Close()
+		return service.App{}, err
+	}
 	return service.App{
 		Ready:      pool.Ping,
-		Background: tasks(jobClient, l, pool, a, s.payments, r.network, []*pix.Connector{r.livePix, r.testPix}, logger, domainTasks(s, r, pool, logger)...),
+		Background: tasks(jobClient, l, pool, a, s.payments, r.network, []*pix.Connector{r.livePix, r.testPix}, m, logger, domainTasks(s, r, pool, logger)...),
 		Close: func() {
 			r.close()
 			pool.Close()

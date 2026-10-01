@@ -298,6 +298,20 @@ func (q *Queries) GetTestCase(ctx context.Context, id string) (DisputesTestCase,
 	return i, err
 }
 
+const health = `-- name: Health :one
+SELECT count(*)::bigint FROM disputes.disputes
+WHERE (status IN ('needs_response', 'under_review') OR pending_action <> '') AND status = 'needs_response' AND due_by < $1::timestamptz
+`
+
+// Disputes that need the merchant's answer before a deadline soon. The first condition
+// is the open disputes' index's.
+func (q *Queries) Health(ctx context.Context, soon pgtype.Timestamptz) (int64, error) {
+	row := q.db.QueryRow(ctx, health, soon)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const historyOf = `-- name: HistoryOf :many
 SELECT id, dispute_id, at, kind, detail FROM disputes.history WHERE dispute_id = $1 ORDER BY id
 `

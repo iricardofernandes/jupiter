@@ -1,3 +1,7 @@
+# bash with pipefail, so a test piped through grep still fails the target when it fails.
+SHELL       := bash
+.SHELLFLAGS := -o pipefail -c
+
 GO      ?= go
 TOOL    := $(GO) tool -modfile=tools/go.mod
 COMPOSE ?= docker compose
@@ -53,7 +57,7 @@ fmt-check: ## Fail if any file is not formatted
 
 .PHONY: vet
 vet: ## Run go vet, including code behind build tags
-	$(GO) vet -tags=integration,e2e,simulation ./...
+	$(GO) vet -tags=integration,e2e,simulation,load ./...
 
 .PHONY: lint
 lint: ## Run golangci-lint
@@ -75,6 +79,21 @@ test-property: ## Property tests only, including those against PostgreSQL, with 
 bench-ledger: ## The hot-account load recorded in docs/benchmarks
 	JUPITER_LEDGER_BENCH=1 $(GO) test -count=1 -tags=integration -run=TestConcurrentWritersToAHotAccount -v ./internal/ledger/ | grep 'hot account'
 
+PROMETHEUS_IMAGE = $(shell awk '/image: prom\/prometheus/ {print $$2}' compose.yaml)
+
+.PHONY: check-alerts
+check-alerts: ## Check deploy/prometheus's alert rules and run their unit tests with promtool (Docker)
+	docker run --rm -v $(CURDIR)/deploy/prometheus:/rules:ro -w /rules --entrypoint promtool $(PROMETHEUS_IMAGE) check rules alerts.yml
+	docker run --rm -v $(CURDIR)/deploy/prometheus:/rules:ro -w /rules --entrypoint promtool $(PROMETHEUS_IMAGE) test rules alerts_test.yml
+
+.PHONY: bench-ledger-sweep
+bench-ledger-sweep: ## The ledger's saturation sweep recorded in docs/benchmarks
+	JUPITER_LEDGER_SWEEP=1 $(GO) test -count=1 -timeout=60m -tags=integration -run=TestLedgerSaturation -v ./internal/ledger/ | grep -E '\||^(---|ok|FAIL)'
+
+.PHONY: bench-authorization
+bench-authorization: ## The authorization path's load test recorded in docs/benchmarks; LOAD_LEVELS, LOAD_POOL_CONNS, LOAD_DIAGNOSE, LOAD_PROFILE_DIR
+	$(GO) test -count=1 -timeout=60m -tags=load -run=TestAuthorizationPath -v ./test/load/ | grep -E 'load_test.go|^(---|ok|FAIL)'
+
 .PHONY: test-integration
 test-integration: ## Integration tests against real dependencies in Docker (testcontainers), including test/pci
 	$(GO) test -race -count=1 -tags=integration -run=. ./...
@@ -84,10 +103,12 @@ test-e2e: ## The golden path, end to end
 	$(GO) test -race -count=1 -tags=e2e ./test/e2e/...
 
 SIM_PAYMENTS ?= 300
+SIM_RAIL_SCENARIOS ?= 300
 
 .PHONY: test-simulation
-test-simulation: ## Deterministic simulation: SIM_PAYMENTS payments with faults; SIM_SEED replays a run
-	SIM_PAYMENTS=$(SIM_PAYMENTS) SIM_SEED=$(SIM_SEED) $(GO) test -count=1 -timeout=60m -tags=simulation -v ./test/simulation/ | grep -E 'simulation_test.go|scripts_test.go|^(---|ok|FAIL)'
+test-simulation: ## Deterministic simulation: SIM_PAYMENTS card payments and SIM_RAIL_SCENARIOS on every rail, with faults, for each of SIM_SEEDS; SIM_SEED replays one
+	SIM_PAYMENTS=$(SIM_PAYMENTS) SIM_RAIL_SCENARIOS=$(SIM_RAIL_SCENARIOS) SIM_SEED=$(SIM_SEED) SIM_SEEDS=$(SIM_SEEDS) \
+		$(GO) test -count=1 -timeout=120m -tags=simulation -run='$(SIM_RUN)' -v ./test/simulation/ | grep -E '_test.go:[0-9]+:|--- |^(ok|FAIL)'
 
 
 .PHONY: tidy

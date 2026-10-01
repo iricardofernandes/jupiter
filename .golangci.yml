@@ -5,6 +5,7 @@ run:
     - integration
     - e2e
     - simulation
+    - load
 
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused

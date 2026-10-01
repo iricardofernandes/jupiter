@@ -35,8 +35,11 @@ type accounts struct {
 // accounts exist, takes no lock at all.
 func (s *Service) ledgerAccounts(ctx context.Context, tx pgx.Tx, owner Owner, currency money.Currency) (accounts, error) {
 	q := db.New(tx)
+	if found, ok, err := existingAccounts(ctx, q, owner, currency); err != nil || ok {
+		return found, err
+	}
 	merchantID, err := s.scopedAccount(ctx, tx, q, owner.Merchant.String(), owner.Livemode, currency, roleMerchantBalance,
-		ledger.AccountSpec{Book: ledger.ClientFunds, Code: "merchant_balance", Currency: currency, Normal: ledger.CreditNormal})
+		ledger.AccountSpec{Book: ledger.ClientFunds, Code: "merchant_balance", Currency: currency, Normal: ledger.CreditNormal, Batched: true})
 	if err != nil {
 		return accounts{}, err
 	}
@@ -48,6 +51,31 @@ func (s *Service) ledgerAccounts(ctx context.Context, tx pgx.Tx, owner Owner, cu
 		return accounts{}, err
 	}
 	return accounts{merchantBalance: merchantID, networkReceivable: networkID}, nil
+}
+
+// existingAccounts reads a card payment's two accounts at once, if both exist.
+func existingAccounts(ctx context.Context, q *db.Queries, owner Owner, currency money.Currency) (accounts, bool, error) {
+	rows, err := q.GetCardLedgerAccounts(ctx, db.GetCardLedgerAccountsParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Currency: currency.Code()})
+	if err != nil {
+		return accounts{}, false, err
+	}
+	var out accounts
+	var merchant, network bool
+	for _, row := range rows {
+		var target *id.ID
+		switch {
+		case row.MerchantID != "" && row.Role == roleMerchantBalance:
+			target, merchant = &out.merchantBalance, true
+		case row.MerchantID == "" && row.Role == roleNetworkReceivable:
+			target, network = &out.networkReceivable, true
+		default:
+			continue
+		}
+		if *target, err = ledger.AccountPrefix.Parse(row.AccountID); err != nil {
+			return accounts{}, false, err
+		}
+	}
+	return out, merchant && network, nil
 }
 
 // pixAccounts are Jupiter's account at its Pix bank, where every Pix in and out of a

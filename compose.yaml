@@ -67,6 +67,7 @@ services:
     image: prom/prometheus:v3.15.0-busybox
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:${JUPITER_PROMETHEUS_PORT:-59090}:9090"

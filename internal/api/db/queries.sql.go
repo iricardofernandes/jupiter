@@ -113,6 +113,19 @@ func (q *Queries) FinishIdempotencyKey(ctx context.Context, arg FinishIdempotenc
 	return result.RowsAffected(), nil
 }
 
+const health = `-- name: Health :one
+SELECT count(*)::bigint FROM api.idempotency_keys WHERE response_status IS NULL AND last_run_at < $1::timestamptz
+`
+
+// Requests that stopped between phases and have waited longer than the completer should
+// take to finish them.
+func (q *Queries) Health(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	row := q.db.QueryRow(ctx, health, before)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const insertIdempotencyKey = `-- name: InsertIdempotencyKey :one
 INSERT INTO api.idempotency_keys (
     merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version,

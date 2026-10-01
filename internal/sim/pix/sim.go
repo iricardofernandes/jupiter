@@ -129,6 +129,9 @@ type Sim struct {
 	infractions map[string]*infraction
 	delivered   []Delivery
 	background  sync.WaitGroup
+	// settled closes when the last return asked for has settled: returns settle one at a
+	// time, in the order they were asked for.
+	settled chan struct{}
 }
 
 type account struct {

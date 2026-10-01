@@ -311,6 +311,26 @@ func (q *Queries) GetExchange(ctx context.Context, key string) (AcquirerExchange
 	return i, err
 }
 
+const health = `-- name: Health :one
+SELECT
+    (SELECT count(*) FROM acquirer.exchanges WHERE next_forward_at IS NOT NULL AND created_at < $1::timestamptz)::bigint AS forwards_pending,
+    (SELECT count(*) FROM acquirer.clearing_exceptions WHERE resolved_at IS NULL)::bigint AS clearing_exceptions
+`
+
+type HealthRow struct {
+	ForwardsPending    int64
+	ClearingExceptions int64
+}
+
+// Reversals and advices the network has not acknowledged in time, and clearing records
+// that match nothing.
+func (q *Queries) Health(ctx context.Context, before pgtype.Timestamptz) (HealthRow, error) {
+	row := q.db.QueryRow(ctx, health, before)
+	var i HealthRow
+	err := row.Scan(&i.ForwardsPending, &i.ClearingExceptions)
+	return i, err
+}
+
 const insertClearingException = `-- name: InsertClearingException :exec
 INSERT INTO acquirer.clearing_exceptions (business_date, kind, rrn, network_transaction_id, amount, merchant_code, reason)
 VALUES ($1, $2, $3, $4, $5, $6, $7)

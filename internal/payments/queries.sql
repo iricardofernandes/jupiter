@@ -126,6 +126,11 @@ LIMIT @max_count::integer;
 SELECT role, account_id FROM payments.ledger_accounts
 WHERE merchant_id = $1 AND livemode = $2 AND currency = $3;
 
+-- name: GetCardLedgerAccounts :many
+-- A merchant's accounts and the platform's, in one read.
+SELECT merchant_id, role, account_id FROM payments.ledger_accounts
+WHERE merchant_id IN (@merchant_id::text, '') AND livemode = @livemode AND currency = @currency;
+
 -- name: InsertLedgerAccount :exec
 INSERT INTO payments.ledger_accounts (merchant_id, livemode, currency, role, account_id) VALUES ($1, $2, $3, $4, $5);
 
@@ -478,3 +483,14 @@ SELECT f.reference, f.merchant_id, f.amount, f.status, f.withdrawn_at, f.updated
 JOIN payments.attempts a ON a.id = f.attempt_id
 WHERE f.livemode = @livemode AND a.payment_method = 'pix' AND f.status IN ('withdrawn', 'reinstated') AND f.withdrawn_at >= @since
 ORDER BY f.withdrawn_at, f.reference;
+
+-- name: Health :one
+-- What has waited too long for the resolver: attempts, refunds and payouts whose outcome
+-- is not final, and Pix received that paid nothing and are not returned.
+SELECT
+    (SELECT count(*) FROM payments.attempts
+     WHERE status IN ('authenticating', 'authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown')
+       AND updated_at < @attempts_before::timestamptz)::bigint AS attempts_unresolved,
+    (SELECT count(*) FROM payments.refunds WHERE status IN ('pending', 'refund_unknown') AND updated_at < @attempts_before::timestamptz)::bigint AS refunds_unresolved,
+    (SELECT count(*) FROM payments.payouts WHERE status IN ('sending', 'unknown') AND updated_at < @payouts_before::timestamptz)::bigint AS payouts_unresolved,
+    (SELECT count(*) FROM payments.pix_received WHERE status IN ('unmatched', 'returning') AND updated_at < @payouts_before::timestamptz)::bigint AS pix_unreturned;

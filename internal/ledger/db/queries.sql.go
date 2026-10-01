@@ -359,6 +359,30 @@ func (q *Queries) GetTransaction(ctx context.Context, id string) (GetTransaction
 	return i, err
 }
 
+const health = `-- name: Health :one
+SELECT
+    (SELECT count(*) FROM ledger.balance_queue)::bigint AS queued,
+    (SELECT t.created_at FROM ledger.balance_queue q
+     JOIN ledger.entries e ON e.seq = q.entry_seq JOIN ledger.transactions t ON t.id = e.transaction_id
+     ORDER BY q.entry_seq LIMIT 1)::timestamptz AS oldest_queued,
+    (SELECT count(*) FROM ledger.balances WHERE drifted_at IS NOT NULL)::bigint AS drifted
+`
+
+type HealthRow struct {
+	Queued       int64
+	OldestQueued pgtype.Timestamptz
+	Drifted      int64
+}
+
+// The batched balance deltas not yet applied, when the oldest was posted, and the
+// accounts the checker found drifted.
+func (q *Queries) Health(ctx context.Context) (HealthRow, error) {
+	row := q.db.QueryRow(ctx, health)
+	var i HealthRow
+	err := row.Scan(&i.Queued, &i.OldestQueued, &i.Drifted)
+	return i, err
+}
+
 const inconsistentLinks = `-- name: InconsistentLinks :many
 SELECT l.id, l.kind
 FROM ledger.transactions l

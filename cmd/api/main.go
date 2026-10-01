@@ -19,6 +19,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
+	"github.com/iricardofernandes/jupiter/internal/platform/telemetry"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 )
@@ -41,6 +42,10 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	}
 	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
+		return service.App{}, err
+	}
+	if err := telemetry.ObservePool(telemetry.Meter(), "jupiter", pool); err != nil {
+		pool.Close()
 		return service.App{}, err
 	}
 	inserter, err := jobs.NewInserter(pool, logger)

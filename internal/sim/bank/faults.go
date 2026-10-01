@@ -14,6 +14,8 @@ import (
 type Event struct {
 	Kind      string
 	Reference string
+	// Paid is set on a return record that reports a payment.
+	Paid bool
 }
 
 // Fault is what happens to one record: lost, written twice, or late (a statement line on
@@ -59,7 +61,7 @@ func (s *Sim) book(c *client, e Entry) {
 
 // queue puts a return record in the next return file, as a fault says.
 func (s *Sim) queue(c *client, t cnab240.ReturnTitle) {
-	f := s.fault(Event{Kind: "return", Reference: t.T.OurNumber})
+	f := s.fault(Event{Kind: "return", Reference: t.T.OurNumber, Paid: t.T.Occurrence.Paid() && t.U.Paid > 0})
 	switch {
 	case f.Drop:
 	case f.Delay:

@@ -258,9 +258,15 @@ func (q *Queries) InsertEndpoint(ctx context.Context, arg InsertEndpointParams) 
 	return err
 }
 
-const insertEvent = `-- name: InsertEvent :exec
-INSERT INTO events.events (id, merchant_id, livemode, type, object_id, object_type, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+const insertEvent = `-- name: InsertEvent :many
+WITH inserted AS (
+    INSERT INTO events.events (id, merchant_id, livemode, type, object_id, object_type, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING merchant_id, livemode, type
+)
+SELECT e.id FROM events.endpoints e JOIN inserted i ON e.merchant_id = i.merchant_id AND e.livemode = i.livemode
+WHERE e.deleted_at IS NULL AND e.status = 'enabled' AND (i.type = ANY(e.enabled_events) OR '*' = ANY(e.enabled_events))
+ORDER BY e.id
 `
 
 type InsertEventParams struct {
@@ -273,8 +279,9 @@ type InsertEventParams struct {
 	CreatedAt  pgtype.Timestamptz
 }
 
-func (q *Queries) InsertEvent(ctx context.Context, arg InsertEventParams) error {
-	_, err := q.db.Exec(ctx, insertEvent,
+// Records an event and returns the endpoints subscribed to it.
+func (q *Queries) InsertEvent(ctx context.Context, arg InsertEventParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, insertEvent,
 		arg.ID,
 		arg.MerchantID,
 		arg.Livemode,
@@ -283,7 +290,22 @@ func (q *Queries) InsertEvent(ctx context.Context, arg InsertEventParams) error 
 		arg.ObjectType,
 		arg.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertSecret = `-- name: InsertSecret :exec

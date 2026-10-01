@@ -316,6 +316,11 @@ func (t *TestRail) Query(ctx context.Context, key string) Result {
 			result = Result{Outcome: Pending}
 		default:
 			result = stored(&op)
+			// Asked after its answer was lost, an approved authorization answers as it would
+			// have: with its network transaction id.
+			if op.Kind == "authorize" && result.Outcome == Approved {
+				result.NetworkTransactionID = op.Reference
+			}
 		}
 		return q.SaveRailOperation(ctx, db.SaveRailOperationParams{
 			Key: op.Key, Status: op.Status, Detail: op.Detail, Calls: op.Calls, Queries: op.Queries,

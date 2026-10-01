@@ -29,16 +29,48 @@ func hotAccountLoad() (writers, perWriter int) {
 // as merchants and customers do. Transactions run without InTx's retry, so a deadlock
 // or serialization failure fails the test instead of being absorbed.
 func TestConcurrentWritersToAHotAccount(t *testing.T) {
-	for _, batched := range []bool{true, false} {
-		t.Run(fmt.Sprintf("batched=%t", batched), func(t *testing.T) {
+	for _, target := range []target{hotBatched, hotSynchronous} {
+		t.Run(string(target), func(t *testing.T) {
 			writers, perWriter := hotAccountLoad()
-			result := runHotAccount(t, batched, writers, perWriter)
+			result := runPostings(t, target, writers, perWriter)
 			t.Logf("hot account batched=%t: %d writers × %d postings in %v = %.0f postings/s; latency p50 %v p99 %v max %v",
-				batched, writers, perWriter, result.elapsed.Round(time.Millisecond), result.throughput(),
+				target == hotBatched, writers, perWriter, result.elapsed.Round(time.Millisecond), result.throughput(),
 				result.percentile(50), result.percentile(99), result.percentile(100))
 		})
 	}
 }
+
+// With JUPITER_LEDGER_SWEEP=1, postings at rising concurrency until the ledger saturates:
+// each writer into an account of its own, and all into one hot account, batched or not.
+func TestLedgerSaturation(t *testing.T) {
+	if os.Getenv("JUPITER_LEDGER_SWEEP") == "" {
+		t.Skip("set JUPITER_LEDGER_SWEEP=1 to sweep")
+	}
+	const postings = 8000
+	for _, target := range []target{independent, hotBatched, hotSynchronous} {
+		t.Run(string(target), func(t *testing.T) {
+			t.Logf("| Writers | Postings/s | p50 | p95 | p99 | Max |")
+			t.Logf("|---|---|---|---|---|---|")
+			for _, writers := range []int{1, 2, 4, 8, 16, 32, 64, 128, 256} {
+				r := runPostings(t, target, writers, max(20, postings/writers))
+				t.Logf("| %d | %.0f | %v | %v | %v | %v |", writers, r.throughput(), r.percentile(50), r.percentile(95), r.percentile(99), r.percentile(100))
+			}
+		})
+	}
+}
+
+// maxConns keeps the pool under PostgreSQL's default of 100 connections; writers beyond
+// it queue for one, as a service's requests would.
+const maxConns = 64
+
+// target is where writers post: into accounts of their own, or one shared account.
+type target string
+
+const (
+	independent    target = "independent"
+	hotBatched     target = "hot_batched"
+	hotSynchronous target = "hot_synchronous"
+)
 
 type loadResult struct {
 	elapsed   time.Duration
@@ -56,20 +88,23 @@ func (r loadResult) percentile(p int) time.Duration {
 	return sorted[i].Round(10 * time.Microsecond)
 }
 
-func runHotAccount(t *testing.T, batched bool, writers, perWriter int) loadResult {
+func runPostings(t *testing.T, to target, writers, perWriter int) loadResult {
 	t.Helper()
 	const unit = 10
-	pool, err := postgres.Connect(t.Context(), server.URL(t)+"&pool_max_conns="+strconv.Itoa(writers+4))
+	pool, err := postgres.Connect(t.Context(), server.URL(t)+"&pool_max_conns="+strconv.Itoa(min(writers+4, maxConns)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer pool.Close()
 	f := &fixture{t: t, pool: pool, ledger: ledger.New(), clock: newClock()}
 	cash := f.cash()
-	platform := f.account(ledger.AccountSpec{Code: "platform", Normal: ledger.CreditNormal, Batched: batched})
-	wallets := make([]ledger.Account, writers)
+	platform := f.account(ledger.AccountSpec{Code: "platform", Normal: ledger.CreditNormal, Batched: to == hotBatched})
+	wallets, sinks := make([]ledger.Account, writers), make([]ledger.Account, writers)
 	for i := range wallets {
-		wallets[i] = f.wallet()
+		wallets[i], sinks[i] = f.wallet(), platform
+		if to == independent {
+			sinks[i] = f.account(ledger.AccountSpec{Code: "sink", Normal: ledger.CreditNormal})
+		}
 		f.mustPost(ledger.Debit(cash.ID, brl(t, unit*int64(perWriter))), ledger.Credit(wallets[i].ID, brl(t, unit*int64(perWriter))))
 	}
 
@@ -84,7 +119,7 @@ func runHotAccount(t *testing.T, batched bool, writers, perWriter int) loadResul
 				began := time.Now()
 				err := pgx.BeginTxFunc(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 					_, err := f.ledger.Post(t.Context(), tx, ledger.Posting{Legs: []ledger.Leg{
-						ledger.Debit(wallets[w].ID, brl(t, unit)), ledger.Credit(platform.ID, brl(t, unit)),
+						ledger.Debit(wallets[w].ID, brl(t, unit)), ledger.Credit(sinks[w].ID, brl(t, unit)),
 					}})
 					return err
 				})
@@ -117,7 +152,13 @@ func runHotAccount(t *testing.T, batched bool, writers, perWriter int) loadResul
 			break
 		}
 	}
-	if got, want := f.fields(platform), [4]int64{0, unit * int64(writers*perWriter), 0, 0}; got != want {
+	if to == independent {
+		for _, sink := range sinks {
+			if got, want := f.fields(sink), [4]int64{0, unit * int64(perWriter), 0, 0}; got != want {
+				t.Fatalf("sink = %v, want %v: an update was lost", got, want)
+			}
+		}
+	} else if got, want := f.fields(platform), [4]int64{0, unit * int64(writers*perWriter), 0, 0}; got != want {
 		t.Fatalf("platform = %v, want %v: an update was lost", got, want)
 	}
 	for _, w := range wallets {

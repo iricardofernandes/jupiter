@@ -94,4 +94,5 @@ VALUES (@merchant_id, @livemode, @started_at, @until, @ratio, @attempts)
 ON CONFLICT DO NOTHING;
 
 -- name: LockMerchant :exec
+-- A decision's lock: on a card, an address at a merchant, or a merchant.
 SELECT pg_advisory_xact_lock(hashtextextended('risk/' || @key::text, 0));

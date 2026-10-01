@@ -105,3 +105,9 @@ WHERE livemode = @livemode AND (@merchant_id::text = '' OR merchant_id = @mercha
   AND (@ending_before::text = '' OR id > @ending_before)
 ORDER BY CASE WHEN @ending_before::text <> '' THEN id END ASC, id DESC
 LIMIT @max_count::integer;
+
+-- name: Health :many
+-- Open breaks by counterparty, and how many have been open more than a day.
+SELECT counterparty, count(*)::bigint AS open, count(*) FILTER (WHERE opened_on < @yesterday::date)::bigint AS ageing
+FROM reconciliation.breaks WHERE status = 'open'
+GROUP BY counterparty ORDER BY counterparty;

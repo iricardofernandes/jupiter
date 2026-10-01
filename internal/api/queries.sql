@@ -58,3 +58,8 @@ WHERE created_at < @created_before::timestamptz
 -- name: ReleaseStaleStartedKeys :exec
 UPDATE api.idempotency_keys SET lock_token = NULL, locked_at = NULL
 WHERE response_status IS NULL AND recovery_point = 'started' AND locked_at < @stale_before::timestamptz;
+
+-- name: Health :one
+-- Requests that stopped between phases and have waited longer than the completer should
+-- take to finish them.
+SELECT count(*)::bigint FROM api.idempotency_keys WHERE response_status IS NULL AND last_run_at < @before::timestamptz;

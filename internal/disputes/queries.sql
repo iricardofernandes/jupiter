@@ -142,3 +142,9 @@ UPDATE disputes.test_cases
 SET stage = @stage, status = @status, outcome = @outcome, respond_by = @respond_by, decide_by = @decide_by,
     escalated_evidence = @escalated_evidence, version = @version
 WHERE id = @id;
+
+-- name: Health :one
+-- Disputes that need the merchant's answer before a deadline soon. The first condition
+-- is the open disputes' index's.
+SELECT count(*)::bigint FROM disputes.disputes
+WHERE (status IN ('needs_response', 'under_review') OR pending_action <> '') AND status = 'needs_response' AND due_by < @soon::timestamptz;

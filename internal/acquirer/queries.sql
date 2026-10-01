@@ -86,3 +86,10 @@ SELECT key, kind, authorization_key, rrn, amount, created_at FROM acquirer.excha
 WHERE created_at >= @since AND ((kind = 'capture' AND state = 'acknowledged') OR (kind = 'refund' AND state = 'approved'))
 ORDER BY created_at, key
 LIMIT 100000;
+
+-- name: Health :one
+-- Reversals and advices the network has not acknowledged in time, and clearing records
+-- that match nothing.
+SELECT
+    (SELECT count(*) FROM acquirer.exchanges WHERE next_forward_at IS NOT NULL AND created_at < @before::timestamptz)::bigint AS forwards_pending,
+    (SELECT count(*) FROM acquirer.clearing_exceptions WHERE resolved_at IS NULL)::bigint AS clearing_exceptions;

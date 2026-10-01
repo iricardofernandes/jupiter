@@ -479,6 +479,7 @@ const lockMerchant = `-- name: LockMerchant :exec
 SELECT pg_advisory_xact_lock(hashtextextended('risk/' || $1::text, 0))
 `
 
+// A decision's lock: on a card, an address at a merchant, or a merchant.
 func (q *Queries) LockMerchant(ctx context.Context, key string) error {
 	_, err := q.db.Exec(ctx, lockMerchant, key)
 	return err

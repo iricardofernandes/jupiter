@@ -55,13 +55,8 @@ type Decision struct {
 // records the decision and the attempt for the velocity counters.
 func (s *Service) Decide(ctx context.Context, tx pgx.Tx, in Input) (Decision, error) {
 	q := db.New(tx)
-	// One decision at a time per merchant and mode, so the velocity counts and the
-	// card-testing throttle see every attempt before it.
-	if err := q.LockMerchant(ctx, in.Owner.Merchant.String()+"/"+strconv.FormatBool(in.Owner.Livemode)); err != nil {
-		return Decision{}, err
-	}
 	now := s.cfg.Now().UTC()
-	f, err := s.features(ctx, q, in, now)
+	f, throttled, err := s.serialized(ctx, q, in, now)
 	if err != nil {
 		return Decision{}, err
 	}
@@ -77,7 +72,7 @@ func (s *Service) Decide(ctx context.Context, tx pgx.Tx, in Input) (Decision, er
 		if d.Rules, err = s.rules(ctx, q, in.Owner, f); err != nil {
 			return Decision{}, err
 		}
-		fired, err := s.cardTesting(ctx, q, in.Owner, &f, now)
+		fired, err := s.cardTesting(ctx, q, in.Owner, &f, throttled, now)
 		if err != nil {
 			return Decision{}, err
 		}
@@ -90,6 +85,51 @@ func (s *Service) Decide(ctx context.Context, tx pgx.Tx, in Input) (Decision, er
 	}
 	d.Features = f
 	return d, s.record(ctx, q, in, d)
+}
+
+// serialized takes the locks a decision needs and reads its features under them. One
+// decision at a time per card, and per address at a merchant, so their velocity counts
+// see every attempt before them. A merchant's decisions are serialized too while its
+// declines run at the card-testing ratio or it is throttled, so the throttle starts on the
+// attempt that crosses it and its rate counts every attempt; ordinary traffic decides in
+// parallel, its merchant counts off by at most the attempts in flight.
+func (s *Service) serialized(ctx context.Context, q *db.Queries, in Input, now time.Time) (Features, bool, error) {
+	mode := "/" + strconv.FormatBool(in.Owner.Livemode)
+	if err := q.LockMerchant(ctx, "card/"+in.CardFingerprint+mode); err != nil {
+		return Features{}, false, err
+	}
+	if in.IP != "" {
+		if err := q.LockMerchant(ctx, "ip/"+in.Owner.Merchant.String()+"/"+in.IP+mode); err != nil {
+			return Features{}, false, err
+		}
+	}
+	f, err := s.features(ctx, q, in, now)
+	if err != nil {
+		return Features{}, false, err
+	}
+	throttled, err := s.throttled(ctx, q, in.Owner, now)
+	if err != nil || (!throttled && f.MerchantDeclineRatio10m < s.cfg.CardTesting.Ratio) {
+		return f, throttled, err
+	}
+	if err := q.LockMerchant(ctx, "merchant/"+in.Owner.Merchant.String()+mode); err != nil {
+		return Features{}, false, err
+	}
+	if f, err = s.features(ctx, q, in, now); err != nil {
+		return Features{}, false, err
+	}
+	throttled, err = s.throttled(ctx, q, in.Owner, now)
+	return f, throttled, err
+}
+
+func (s *Service) throttled(ctx context.Context, q *db.Queries, owner Owner, now time.Time) (bool, error) {
+	_, err := q.ActiveThrottle(ctx, db.ActiveThrottleParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Now: ts(now)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("reading throttle: %w", err)
+	}
+	return true, nil
 }
 
 func (s *Service) features(ctx context.Context, q *db.Queries, in Input, now time.Time) (Features, error) {
@@ -177,14 +217,11 @@ func (s *Service) rules(ctx context.Context, q *db.Queries, owner Owner, f Featu
 
 // cardTesting throttles a merchant whose recent attempts look like card testing, and
 // blocks what goes over the throttle's rate.
-func (s *Service) cardTesting(ctx context.Context, q *db.Queries, owner Owner, f *Features, now time.Time) ([]Fired, error) {
+func (s *Service) cardTesting(ctx context.Context, q *db.Queries, owner Owner, f *Features, throttled bool, now time.Time) ([]Fired, error) {
 	ct := s.cfg.CardTesting
-	_, err := q.ActiveThrottle(ctx, db.ActiveThrottleParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Now: ts(now)})
 	switch {
-	case err == nil:
+	case throttled:
 		f.Throttled = true
-	case !errors.Is(err, pgx.ErrNoRows):
-		return nil, fmt.Errorf("reading throttle: %w", err)
 	case f.MerchantAttempts10m >= ct.MinAttempts && f.MerchantDeclineRatio10m >= ct.Ratio:
 		if err := q.InsertThrottle(ctx, db.InsertThrottleParams{
 			MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, StartedAt: ts(now), Until: ts(now.Add(ct.Throttle)),

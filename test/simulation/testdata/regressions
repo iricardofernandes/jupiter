@@ -1,0 +1,5 @@
+# Seeds that once found a bug, run again on every push: <simulation> <seed> <size> # what it found.
+# simulation is cards (size: payments) or rails (size: scenarios).
+rails 430055340553490307 500 # the test rail's query gave an approved authorization no network transaction id, and a chargeback looked up "" and found a boleto
+rails 12683425046027491229 500 # the same, on another seed
+rails 398780562576854063 500 # a lost MED notice was polled for at the simulation's 30-minute cadence, not the worker's 5, and held late
