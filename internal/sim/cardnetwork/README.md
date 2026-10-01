@@ -86,6 +86,9 @@ bearer token (`JUPITER_CARDNET_TOKEN`), at:
 
 ## Faults
 
+`Config.ClearingFaults` is asked about every record before it goes into a clearing file,
+and can lose it, list it twice, or hold it for the next day's file.
+
 In-process, `Config.Faults` is asked about every request and advice and can lose the
 request, lose the answer, answer late (after `Config.LateAfter`) or answer twice. The
 deterministic simulation uses it to draw faults from its seed.

@@ -18,6 +18,7 @@ JUPITER_SIM_SLC_PARTICIPANTS='<token>:11222333000181:30000001' \
 | A participant submits each business day a grade: each payment of each unit due by that day, to its beneficiary at its domicile | Sourced in principle: Res. BCB 522/2025, Núclea. The grade's shape is the simulator's |
 | The same grade again is answered as before; another for the same day is refused | The simulator's |
 | At the settlement window, entries at the participant's own ISPB are credited to its settlement account, and the rest is paid to the other institutions directly | Sourced in principle: a payment's domicile is where the registry says it settles |
+| What is credited reaches the participant's account at its bank as a statement line, `SLC/<day>`: through `Config.Credit`, or, in the binary, sim-bank's `/admin/credits` at `JUPITER_SIM_SLC_CREDIT_URL` | The simulator's; Núclea pays through the STR |
 | Anticipations are reported per unit; one reported after the business day following it is listed as late | Sourced: the "informativo via antecipação", same day or D+1 (NDM Advogados, via the research) |
 | Not simulated: the network's side (what each acquirer pays in), the windows' times, rejections of single entries, netting between participants, JWS signatures and the RSFN | |
 

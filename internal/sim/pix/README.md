@@ -85,6 +85,16 @@ DICT's names, since neither the DICT's interface nor a bank's could be read.
 | `POST /infracoes/{id}/analise` (scope `infracao.write`): `AGREED` with `refundId` and `valor` returns that much to the payer as a devolução of nature `MED_FRAUDE`, listed under the Pix; `DISAGREED` ends the block. Either closes the report, with the client's `fundsTrace` | The nature is the API Pix's; the rest the simulator's |
 | `POST /infracoes/{id}/contestacao`: the client contests a MED return within 80 days of it; the payer's bank decides at once, as `upheld` scripted, crediting the amount back when it upholds it | IN BCB 766/2026's 80 days, as reported (meutudo, Sep 2026). How the payer's bank decides is the simulator's |
 
+## Statement
+
+`GET /extrato?data=YYYY-MM-DD` (scope `pix.read`) lists every movement the SPI settled in
+the client's account that day, in Brasília, a line each with an id of its own: Pix
+received and sent, returns, MED returns and what contestations gave back. Its `referencia`
+is what the client knows the movement by: a Pix received's endToEndId, a transfer's
+idEnvio, a return's id. The API Pix has no statement; the format is the simulator's
+(`pkg/pixapi/statement.go`). A fault on an event of kind `statement` loses a line, writes
+it twice, or puts it on the next day.
+
 ## Payers and operators
 
 The admin handler takes no credentials and must listen on loopback only.

@@ -6,7 +6,7 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **12 — Disputes** · milestone M3 reached
+> ### Current phase: **13 — Reconciliation** · milestone M3 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
 > kept in a separate vault, live payments over ISO 8583 to a card network and issuer
@@ -55,8 +55,21 @@ This repository is the **backend only**.
 > - fraud reports kept apart, and a monthly dispute ratio per merchant in the style of
 >   Visa's VAMP.
 >
+> And three-way reconciliation:
+> - every movement matched across Jupiter's ledger, the rail's own record (the card
+>   network's clearing files, the SLC's grades, the bank's CNAB returns) and the account's
+>   statement (the bank's, the Pix bank's SPI statement), with the registry's divergences
+>   alongside;
+> - exact matches resolved at once, everything else a scored break with its reasons, in an
+>   aged queue;
+> - reports per day, per counterparty and per merchant.
+>
+> The algorithm, which the research found nowhere published, is in
+> [`docs/reconciliation.md`](docs/reconciliation.md). The simulators lose, duplicate and
+> delay records on purpose, and reconciliation finds each, and nothing else.
+>
 > A deterministic simulation runs 10,000 payments with faults on every push. Next is
-> three-way reconciliation (phase 13); see [`docs/plan.md`](docs/plan.md).
+> correctness and performance (phase 14); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -100,7 +113,8 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, boleto, payouts, subscriptions, receivables, recipients and anticipation, disputes |
+| [`docs/reconciliation.md`](docs/reconciliation.md) | How every movement is reconciled three ways, and what a break is |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, boleto, payouts, subscriptions, receivables, recipients and anticipation, disputes, reconciliation |
 | [`api/bacen-pix/`](api/bacen-pix/) | The Banco Central's API Pix specification, pinned, which `pkg/pixapi` is generated from |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |

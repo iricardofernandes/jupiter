@@ -32,7 +32,15 @@ JUPITER_SIM_BANK_CLIENTS='<token>:11222333000181:CONVENIO-0001:00001-0:000000123
 |---|---|
 | A transfer is named by the client: the same id again answers the same transfer; with other terms, it is refused | The simulator's |
 | A transfer is made at the next close. One to account `999999` fails at once (reason `AC01`, account does not exist); one to `888888` is made and returned at the close after (`AC04`, account closed) | The reason codes are ISO 20022's, as Brazilian banks use them; the test accounts are the simulator's |
-| A day's statement lists the account's credits and debits | The simulator's format |
+| A day's statement (`GET /v1/statements?date=`) lists the account's credits and debits, each line with an id of its own | The simulator's format |
+| What another institution pays in, such as the SLC's settlement, is credited by `POST /admin/credits {tax_id, date, amount, reference, description}`: sim-slc calls it | The simulator's |
+
+## Faults
+
+`Config.Faults` is asked before each statement line (kind `statement`) and each return
+record (kind `return`) is written, by its reference: a nosso número, a transfer's id, a
+settlement's `SLC/<day>`. It can lose the record, write it twice, or delay it: a line to
+the next business day, a return record by two files. Reconciliation's tests use these.
 
 ## Operator controls
 
