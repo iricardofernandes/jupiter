@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -43,7 +44,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, subscriptions.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, subscriptions.Migrate, disputes.Migrate},
 	}))
 }
 
@@ -81,6 +82,7 @@ type harness struct {
 	connector *pix.Connector
 	payments  *payments.Service
 	subs      *subscriptions.Service
+	disputes  *disputes.Service
 	ledger    *ledger.Ledger
 	api       *httptest.Server
 	liveKey   string
@@ -155,15 +157,18 @@ func newHarness(t *testing.T) *harness {
 		TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil),
 	})
 	h.subs = subscriptions.New(subscriptions.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveBank: h.connector, Now: h.clock.Now})
+	h.disputes = disputes.New(disputes.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveBank: h.connector, Now: h.clock.Now})
 	mux := http.NewServeMux()
-	mux.Handle("/pix/live/", http.StripPrefix("/pix/live", h.connector.Handler(h.payments, h.subs)))
+	mux.Handle("/pix/live/", http.StripPrefix("/pix/live", h.connector.Handler(h.payments, h.subs, h.disputes)))
 	notifications = mux
 	if err := h.connector.RegisterWebhook(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
 	merchants := merchant.New(h.clock.Now)
-	a := api.New(api.Deps{Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Subscriptions: h.subs, Box: box, Now: h.clock.Now})
+	a := api.New(api.Deps{
+		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Subscriptions: h.subs, Disputes: h.disputes, Box: box, Now: h.clock.Now,
+	})
 	h.api = httptest.NewServer(a.Handler())
 	t.Cleanup(h.api.Close)
 	err = postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {
@@ -289,6 +294,13 @@ func (h *harness) consistent() {
 	}
 	for _, v := range violations {
 		h.t.Errorf("payments violation: %+v", v)
+	}
+	found, err := h.disputes.Check(h.t.Context(), h.pool)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	for _, v := range found {
+		h.t.Errorf("disputes violation: %+v", v)
 	}
 }
 

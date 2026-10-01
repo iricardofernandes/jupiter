@@ -349,6 +349,56 @@ func (q *Queries) CountOptIns(ctx context.Context, arg CountOptInsParams) (int64
 	return count, err
 }
 
+const debtors = `-- name: Debtors :many
+SELECT d.recipient_id, d.livemode, d.currency, d.owed, d.key FROM (
+    SELECT recipient_id, livemode, currency, (-sum(amount))::bigint AS owed,
+           (recipient_id || '/' || livemode::text || '/' || currency)::text AS key
+    FROM receivables.movements
+    WHERE bucket = 'available' AND recipient_id <> ''
+    GROUP BY recipient_id, livemode, currency
+    HAVING sum(amount) < 0
+) d
+WHERE d.key > $1::text
+ORDER BY d.key
+LIMIT 200
+`
+
+type DebtorsRow struct {
+	RecipientID string
+	Livemode    bool
+	Currency    string
+	Owed        int64
+	Key         string
+}
+
+// Recipients whose available balance is below zero, and by how much: what disputes and
+// refunds took that they did not have. A page follows the last one's key.
+func (q *Queries) Debtors(ctx context.Context, after string) ([]DebtorsRow, error) {
+	rows, err := q.db.Query(ctx, debtors, after)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DebtorsRow{}
+	for rows.Next() {
+		var i DebtorsRow
+		if err := rows.Scan(
+			&i.RecipientID,
+			&i.Livemode,
+			&i.Currency,
+			&i.Owed,
+			&i.Key,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAnticipation = `-- name: GetAnticipation :one
 SELECT id, merchant_id, livemode, recipient_id, currency, amount, price, monthly_rate, automatic, ledger_txn, created_at FROM receivables.anticipations WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
@@ -499,6 +549,36 @@ func (q *Queries) InsertAnticipationUnit(ctx context.Context, arg InsertAnticipa
 		arg.Contract,
 	)
 	return err
+}
+
+const insertDispute = `-- name: InsertDispute :execrows
+INSERT INTO receivables.disputes (reference, recipient_id, livemode, currency, amount, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (reference) DO NOTHING
+`
+
+type InsertDisputeParams struct {
+	Reference   string
+	RecipientID string
+	Livemode    bool
+	Currency    string
+	Amount      int64
+	Now         pgtype.Timestamptz
+}
+
+func (q *Queries) InsertDispute(ctx context.Context, arg InsertDisputeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertDispute,
+		arg.Reference,
+		arg.RecipientID,
+		arg.Livemode,
+		arg.Currency,
+		arg.Amount,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertGrade = `-- name: InsertGrade :exec
@@ -666,6 +746,32 @@ func (q *Queries) InsertReconciliation(ctx context.Context, arg InsertReconcilia
 		arg.RanOn,
 		arg.RanAt,
 		arg.Divergences,
+	)
+	return err
+}
+
+const insertRecovery = `-- name: InsertRecovery :exec
+INSERT INTO receivables.recoveries (recipient_id, unit_id, amount, from_free, from_contracts, at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type InsertRecoveryParams struct {
+	RecipientID   string
+	UnitID        string
+	Amount        int64
+	FromFree      int64
+	FromContracts []byte
+	At            pgtype.Timestamptz
+}
+
+func (q *Queries) InsertRecovery(ctx context.Context, arg InsertRecoveryParams) error {
+	_, err := q.db.Exec(ctx, insertRecovery,
+		arg.RecipientID,
+		arg.UnitID,
+		arg.Amount,
+		arg.FromFree,
+		arg.FromContracts,
+		arg.At,
 	)
 	return err
 }
@@ -856,6 +962,41 @@ func (q *Queries) InstallmentsOfIntent(ctx context.Context, paymentIntent string
 	return items, nil
 }
 
+const installmentsOfUnit = `-- name: InstallmentsOfUnit :many
+SELECT attempt_id, number, payment_intent, unit_id, gross, fee, net, reduced, recipient_id, fee_reduced FROM receivables.installments WHERE unit_id = $1 ORDER BY attempt_id, recipient_id, number FOR UPDATE
+`
+
+func (q *Queries) InstallmentsOfUnit(ctx context.Context, unitID string) ([]ReceivablesInstallment, error) {
+	rows, err := q.db.Query(ctx, installmentsOfUnit, unitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceivablesInstallment{}
+	for rows.Next() {
+		var i ReceivablesInstallment
+		if err := rows.Scan(
+			&i.AttemptID,
+			&i.Number,
+			&i.PaymentIntent,
+			&i.UnitID,
+			&i.Gross,
+			&i.Fee,
+			&i.Net,
+			&i.Reduced,
+			&i.RecipientID,
+			&i.FeeReduced,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lastReconciliation = `-- name: LastReconciliation :one
 SELECT coalesce(max(ran_on), '0001-01-01'::date)::date FROM receivables.reconciliations WHERE livemode = $1 AND kind = $2
 `
@@ -966,6 +1107,25 @@ SELECT pg_advisory_xact_lock(hashtext('receivables/accounts/' || $1::text))
 func (q *Queries) LockAccountCreation(ctx context.Context, scope string) error {
 	_, err := q.db.Exec(ctx, lockAccountCreation, scope)
 	return err
+}
+
+const lockDispute = `-- name: LockDispute :one
+SELECT reference, recipient_id, livemode, currency, amount, reinstated, created_at FROM receivables.disputes WHERE reference = $1 FOR UPDATE
+`
+
+func (q *Queries) LockDispute(ctx context.Context, reference string) (ReceivablesDispute, error) {
+	row := q.db.QueryRow(ctx, lockDispute, reference)
+	var i ReceivablesDispute
+	err := row.Scan(
+		&i.Reference,
+		&i.RecipientID,
+		&i.Livemode,
+		&i.Currency,
+		&i.Amount,
+		&i.Reinstated,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const lockGrade = `-- name: LockGrade :one
@@ -1104,6 +1264,15 @@ func (q *Queries) LockUnitByID(ctx context.Context, id string) (ReceivablesUnit,
 		&i.GradeDate,
 	)
 	return i, err
+}
+
+const markDisputeReinstated = `-- name: MarkDisputeReinstated :exec
+UPDATE receivables.disputes SET reinstated = true WHERE reference = $1
+`
+
+func (q *Queries) MarkDisputeReinstated(ctx context.Context, reference string) error {
+	_, err := q.db.Exec(ctx, markDisputeReinstated, reference)
+	return err
 }
 
 const markGraded = `-- name: MarkGraded :exec
@@ -1585,6 +1754,108 @@ func (q *Queries) PendingFromUnits(ctx context.Context) ([]PendingFromUnitsRow, 
 			&i.Livemode,
 			&i.Currency,
 			&i.Pending,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recoverableUnits = `-- name: RecoverableUnits :many
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units
+WHERE recipient_id = $1 AND livemode = $2 AND currency = $3 AND settled_on IS NULL
+  AND settlement_date > $4 AND value - anticipated - blocked > 0
+  AND (NOT $5::boolean OR registered_version = version)
+ORDER BY settlement_date, id
+LIMIT 400
+FOR UPDATE
+`
+
+type RecoverableUnitsParams struct {
+	RecipientID string
+	Livemode    bool
+	Currency    string
+	Today       pgtype.Date
+	Registered  bool
+}
+
+// A recipient's units that can be reduced to recover what it owes, locked, nearest
+// settlement first: unsettled, settling after today, with something not bought by
+// Jupiter nor blocked, and, where a registry keeps them, registered as they are.
+func (q *Queries) RecoverableUnits(ctx context.Context, arg RecoverableUnitsParams) ([]ReceivablesUnit, error) {
+	rows, err := q.db.Query(ctx, recoverableUnits,
+		arg.RecipientID,
+		arg.Livemode,
+		arg.Currency,
+		arg.Today,
+		arg.Registered,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceivablesUnit{}
+	for rows.Next() {
+		var i ReceivablesUnit
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.Livemode,
+			&i.Arrangement,
+			&i.SettlementDate,
+			&i.Value,
+			&i.Blocked,
+			&i.Currency,
+			&i.ConstitutedOn,
+			&i.Version,
+			&i.RegisteredVersion,
+			&i.RegisteredAt,
+			&i.RegisterError,
+			&i.RegisterRetryAt,
+			&i.SettledOn,
+			&i.SettledAmount,
+			&i.Payments,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RecipientID,
+			&i.Anticipated,
+			&i.GradeDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recoveriesOf = `-- name: RecoveriesOf :many
+SELECT id, recipient_id, unit_id, amount, from_free, from_contracts, at FROM receivables.recoveries WHERE recipient_id = $1 ORDER BY id
+`
+
+func (q *Queries) RecoveriesOf(ctx context.Context, recipientID string) ([]ReceivablesRecovery, error) {
+	rows, err := q.db.Query(ctx, recoveriesOf, recipientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceivablesRecovery{}
+	for rows.Next() {
+		var i ReceivablesRecovery
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecipientID,
+			&i.UnitID,
+			&i.Amount,
+			&i.FromFree,
+			&i.FromContracts,
+			&i.At,
 		); err != nil {
 			return nil, err
 		}

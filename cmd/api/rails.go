@@ -10,6 +10,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
 	"github.com/iricardofernandes/jupiter/internal/bank"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -76,6 +77,7 @@ type services struct {
 	subscriptions *subscriptions.Service
 	receivables   *receivables.Service
 	recipients    *recipients.Service
+	disputes      *disputes.Service
 }
 
 func (r rails) services(pool *pgxpool.Pool, l *ledger.Ledger, e *events.Service, riskEngine *risk.Service, cards *vault.Client, logger *slog.Logger) services {
@@ -88,7 +90,24 @@ func (r rails) services(pool *pgxpool.Pool, l *ledger.Ledger, e *events.Service,
 	s.payments = payments.New(cfg)
 	s.receivables.UsePayments(s.payments)
 	s.subscriptions = r.subscriptions(pool, s.payments, e, logger)
+	s.disputes = r.disputes(pool, s.payments, e, logger)
 	return s
+}
+
+// disputes keeps chargebacks from the card network in live mode, the test network's in
+// test mode, and MED claims from each mode's Pix bank.
+func (r rails) disputes(pool *pgxpool.Pool, p *payments.Service, e *events.Service, logger *slog.Logger) *disputes.Service {
+	cfg := disputes.Config{Pool: pool, Payments: p, Events: e, Logger: logger}
+	if r.network != nil {
+		cfg.LiveNetwork = r.network
+	}
+	if r.livePix != nil {
+		cfg.LiveBank = r.livePix
+	}
+	if r.testPix != nil {
+		cfg.TestBank = r.testPix
+	}
+	return disputes.New(cfg)
 }
 
 // receivables keeps card receivables, registered in the modes that have a registry.

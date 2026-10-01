@@ -33,6 +33,7 @@ var allScopes = []string{
 	pixapi.ScopeRecWrite, pixapi.ScopeRecRead, pixapi.ScopeSolicRecWrite, pixapi.ScopeSolicRecRead,
 	pixapi.ScopeCobRWrite, pixapi.ScopeCobRRead, pixapi.ScopeWebhookRecWrite, pixapi.ScopeWebhookRecRead,
 	pixapi.ScopeWebhookCobRWrite, pixapi.ScopeWebhookCobRRead, pixapi.ScopePayloadLocationRecWrite, pixapi.ScopePayloadLocationRecRead,
+	pixapi.ScopeInfractionRead, pixapi.ScopeInfractionWrite,
 }
 
 // thumbprint is the certificate's x5t#S256: the base64url SHA-256 of its DER encoding.

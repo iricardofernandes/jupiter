@@ -54,9 +54,11 @@ type env struct {
 	token    string
 	received chan pixapi.WebhookPixBody
 	// recs and cobrs receive the Pix Automático notifications.
-	recs   chan pixapi.RecNotification
-	cobrs  chan pixapi.CobRNotification
-	faults func(pix.Event) pix.Fault
+	recs  chan pixapi.RecNotification
+	cobrs chan pixapi.CobRNotification
+	// infractions receive MED claims.
+	infractions chan pixapi.InfractionReport
+	faults      func(pix.Event) pix.Fault
 }
 
 func newEnv(t *testing.T) *env {
@@ -68,6 +70,7 @@ func newEnv(t *testing.T) *env {
 	e := &env{
 		t: t, pki: pki, clock: &clock{now: time.Date(2026, 10, 5, 15, 0, 0, 0, time.UTC)}, received: make(chan pixapi.WebhookPixBody, 10),
 		recs: make(chan pixapi.RecNotification, 50), cobrs: make(chan pixapi.CobRNotification, 50),
+		infractions: make(chan pixapi.InfractionReport, 10),
 	}
 
 	// Jupiter's side of notifications: mutual TLS, admitting the bank's identity.
@@ -79,6 +82,12 @@ func newEnv(t *testing.T) *env {
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			for _, n := range *body.Recs {
 				e.recs <- n
+			}
+		case strings.HasSuffix(r.URL.Path, "/infracoes"):
+			var body pixapi.InfractionReports
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			for _, n := range body.InfractionReports {
+				e.infractions <- n
 			}
 		case strings.HasSuffix(r.URL.Path, "/cobr"):
 			var body pixapi.WebhookCobRBody

@@ -269,10 +269,14 @@ func (s *Sim) settleReturn(ctx context.Context, p *received, d *devolucao) {
 		return
 	}
 	acct := s.clients[p.client]
+	if d.nature == string(pixapi.DevolucaoNaturezaMEDFRAUDE) {
+		s.releaseForReturnLocked(d)
+	}
 	switch {
 	case s.closedPayers[p.payerTaxID]:
 		d.status, d.reason = returnFailed, "Conta do pagador encerrada."
-	case acct.balance < d.amount:
+	case acct.balance-acct.blocked < d.amount:
+		// A MED return's block is released to pay it; other returns cannot spend a block.
 		d.status, d.reason = returnFailed, "Saldo insuficiente."
 	default:
 		acct.balance -= d.amount
@@ -301,6 +305,7 @@ func (s *Sim) settleDue(ctx context.Context) {
 			s.settleTransferLocked(t)
 		}
 	}
+	s.releaseLapsedLocked(now)
 	s.mu.Unlock()
 	for _, f := range due {
 		f()

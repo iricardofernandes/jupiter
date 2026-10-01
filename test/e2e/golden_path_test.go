@@ -27,6 +27,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
 	"github.com/iricardofernandes/jupiter/internal/bank"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
@@ -61,7 +62,7 @@ func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
 		postgrestest.DefaultTemplate: {
 			ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate,
-			authentication.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate,
+			authentication.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate,
 		},
 		vaulttest.Template: {vaulttest.Migrate},
 	}))
@@ -106,14 +107,23 @@ func TestGoldenPath(t *testing.T) {
 	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent, HTTPClient: receiver.Client()})
 	cardVault := vaulttest.Start(t, server.PoolFrom(t, vaulttest.Template), vaulttest.Options{})
 	schemeKey := []byte("golden path scheme key")
-	network := cardnetwork.New(cardnetwork.Config{AuthenticationKey: schemeKey})
+	var jupiterHandler http.Handler
+	jupiter := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { jupiterHandler.ServeHTTP(w, r) }))
+	defer jupiter.Close()
+	network := cardnetwork.New(cardnetwork.Config{
+		AuthenticationKey: schemeKey, DisputeEventsURL: jupiter.URL + acquirer.DisputeEventsPath, DisputeEventsSecret: disputeEventsSecret,
+		AcquirerToken: networkToken,
+	})
 	if err := network.Start("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
 	defer network.Close()
 	networkFiles := httptest.NewServer(network.Handler())
 	defer networkFiles.Close()
-	connector, err := acquirer.New(acquirer.Config{Pool: pool, Addr: network.Addr(), NetworkURL: networkFiles.URL, Cards: cardVault.Client})
+	connector, err := acquirer.New(acquirer.Config{
+		Pool: pool, Addr: network.Addr(), NetworkURL: networkFiles.URL, Cards: cardVault.Client,
+		DisputeEventsSecret: disputeEventsSecret, NetworkToken: networkToken,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,9 +131,6 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = connector.Close() }()
-	var jupiterHandler http.Handler
-	jupiter := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { jupiterHandler.ServeHTTP(w, r) }))
-	defer jupiter.Close()
 	directory := httptest.NewServer(threedssim.New(threedssim.Config{AuthenticationKey: schemeKey, ResultsSecret: "golden"}).Handler())
 	defer directory.Close()
 	authenticator, err := authentication.New(authentication.Config{
@@ -148,13 +155,15 @@ func TestGoldenPath(t *testing.T) {
 		Receivables: receivablesService, Balances: receivablesService, Recipients: recipientService,
 	})
 	receivablesService.UsePayments(paymentService)
+	disputeService := disputes.New(disputes.Config{Pool: pool, Payments: paymentService, Events: eventService, LiveNetwork: connector})
 	jupiterAPI := api.New(api.Deps{
 		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Risk: riskEngine, Box: box,
-		Receivables: receivablesService, Recipients: recipientService,
+		Receivables: receivablesService, Recipients: recipientService, Disputes: disputeService,
 	})
 	authenticator.Attach(paymentService, jupiterAPI.ResumePayment)
 	mux := http.NewServeMux()
 	mux.Handle("/3ds/", authenticator.Handler())
+	mux.Handle("/network/", connector.Handler(paymentService, disputeService))
 	mux.Handle("/", jupiterAPI.Handler())
 	jupiterHandler = mux
 
@@ -435,7 +444,57 @@ func TestGoldenPath(t *testing.T) {
 	}
 	t.Logf("   R$ 90.00 sent through the SPI (%s)", payout.EndToEndID)
 
-	t.Log("14. every invariant holds")
+	t.Log("14. the customer disputes the payment, the goods not received: the network opens a chargeback and tells Jupiter")
+	if _, err := network.OpenDispute(ctx, cardnetwork.DisputeParams{
+		NetworkTransactionID: attempt.NetworkTransactionID, ReasonCode: "13.1", Issuer: cardnetwork.IssuerAccepts,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var disputeList struct {
+		Data []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+			Funds  string `json:"funds"`
+			Amount int64  `json:"amount"`
+		} `json:"data"`
+	}
+	client.get("/v1/disputes?payment_intent="+intent.ID, &disputeList)
+	if len(disputeList.Data) != 1 || disputeList.Data[0].Status != "needs_response" || disputeList.Data[0].Funds != "withdrawn" {
+		t.Fatalf("the dispute: %+v", disputeList)
+	}
+	if b := recipientBalance(t, receivablesService, pool, owner, seller.ID); b.Available != -60000 {
+		t.Fatalf("the seller, liable, bears the R$ 600.00: %+v", b)
+	}
+	recovered, err := receivablesService.Recover(ctx, pool)
+	if err != nil || recovered != 27000 {
+		t.Fatalf("recovered %d, %v", recovered, err)
+	}
+	if b := recipientBalance(t, receivablesService, pool, owner, seller.ID); b.Available != -33000 || b.Pending != 0 {
+		t.Fatalf("the seller after the recovery: %+v", b)
+	}
+	t.Log("   the seller, liable for the split's chargebacks, had nothing available: R$ 600.00 is taken from her, R$ 270.00 of it at once from her three units still pending, free of any contract")
+
+	t.Log("15. the marketplace answers with the delivery's tracking; Jupiter represents it, the issuer accepts, and it all comes back")
+	var won struct {
+		Status string `json:"status"`
+		Funds  string `json:"funds"`
+	}
+	client.post("/v1/disputes/"+disputeList.Data[0].ID, map[string]any{
+		"evidence": map[string]any{"shipping_tracking_number": "BR123456789", "product_description": "Seis parcelas de um tênis"}, "submit": true,
+	}, &won)
+	if won.Status != "won" || won.Funds != "reinstated" {
+		t.Fatalf("the representment: %+v", won)
+	}
+	if b := recipientBalance(t, receivablesService, pool, owner, seller.ID); b.Available != 27000 {
+		t.Fatalf("the seller after winning: %+v", b)
+	}
+	if _, err := receivablesService.Register(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	reconcile(t, receivablesService, pool)
+	t.Log("   won: the R$ 600.00 is the seller's again; her reduced units stay reduced, so R$ 270.00 is available to her now; the registry and Jupiter agree")
+
+	t.Log("16. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}
@@ -451,6 +510,10 @@ func TestGoldenPath(t *testing.T) {
 	if err != nil || len(found) > 0 {
 		t.Fatalf("receivables check: %v %+v", err, found)
 	}
+	stuck, err := disputeService.Check(ctx, pool)
+	if err != nil || len(stuck) > 0 {
+		t.Fatalf("disputes check: %v %+v", err, stuck)
+	}
 }
 
 const (
@@ -460,7 +523,11 @@ const (
 	registryToken  = "golden path registry token"  //nolint:gosec // a test credential for the simulator
 	financierToken = "golden path financier token" //nolint:gosec // a test credential for the simulator
 	slcToken       = "golden path slc token"       //nolint:gosec // a test credential for the simulator
-	jupiterISPB    = "30000001"
+	// disputeEventsSecret signs the network's dispute events; networkToken is Jupiter's at
+	// its dispute system.
+	disputeEventsSecret = "golden path dispute events secret"
+	networkToken        = "golden path network token"
+	jupiterISPB         = "30000001"
 	// fee is Jupiter's on R$ 600.00 in 6 installments financed by the merchant: 3.49%.
 	fee = 2094
 )
@@ -605,6 +672,27 @@ func (c *apiClient) post(path string, body, out any) {
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		c.t.Fatalf("POST %s = %d %s", path, resp.StatusCode, respBody)
+	}
+	if err := json.Unmarshal(respBody, out); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+func (c *apiClient) get(path string, out any) {
+	c.t.Helper()
+	req, err := http.NewRequestWithContext(c.t.Context(), http.MethodGet, c.base+path, nil)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.key)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		c.t.Fatalf("GET %s = %d %s", path, resp.StatusCode, respBody)
 	}
 	if err := json.Unmarshal(respBody, out); err != nil {
 		c.t.Fatal(err)

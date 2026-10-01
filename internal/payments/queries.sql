@@ -138,8 +138,10 @@ WHERE role = 'merchant_balance' ORDER BY merchant_id, livemode, currency;
 
 -- name: MerchantTotals :many
 -- What each merchant's balance should hold: posted, what payments received less what
--- was refunded, Jupiter's fees net of what refunds gave back, and what was paid out; held for the merchant, what open card authorizations hold;
--- held against the merchant, what payouts in flight hold.
+-- was refunded, Jupiter's fees net of what refunds gave back, what was paid out, and what
+-- disputes took net of what recipients gave back for them; held for the merchant, what
+-- open card authorizations hold; held against the merchant, what payouts in flight and
+-- MED claims under analysis hold.
 WITH received AS (
     SELECT i.merchant_id, i.livemode, i.currency,
            sum(i.amount_received - i.amount_refunded
@@ -156,14 +158,20 @@ WITH received AS (
            coalesce(sum(amount) FILTER (WHERE status = 'paid'), 0) AS paid,
            coalesce(sum(amount) FILTER (WHERE status IN ('held', 'sending', 'unknown')), 0) AS in_flight
     FROM payments.payouts WHERE recipient_id = '' GROUP BY merchant_id, livemode, currency
+), disputed AS (
+    SELECT merchant_id, livemode, currency,
+           coalesce(sum(amount - split_back) FILTER (WHERE status = 'withdrawn'), 0) AS withdrawn,
+           coalesce(sum(amount) FILTER (WHERE status = 'held'), 0) AS held
+    FROM payments.dispute_funds GROUP BY merchant_id, livemode, currency
 )
 SELECT r.merchant_id, r.livemode, r.currency,
-       (r.posted - coalesce(p.paid, 0))::bigint AS posted,
+       (r.posted - coalesce(p.paid, 0) - coalesce(d.withdrawn, 0))::bigint AS posted,
        coalesce(h.held, 0)::bigint AS held,
-       coalesce(p.in_flight, 0)::bigint AS paying_out
+       (coalesce(p.in_flight, 0) + coalesce(d.held, 0))::bigint AS paying_out
 FROM received r
 LEFT JOIN held h ON h.merchant_id = r.merchant_id AND h.livemode = r.livemode AND h.currency = r.currency
-LEFT JOIN paid_out p ON p.merchant_id = r.merchant_id AND p.livemode = r.livemode AND p.currency = r.currency;
+LEFT JOIN paid_out p ON p.merchant_id = r.merchant_id AND p.livemode = r.livemode AND p.currency = r.currency
+LEFT JOIN disputed d ON d.merchant_id = r.merchant_id AND d.livemode = r.livemode AND d.currency = r.currency;
 
 -- An intent's status must agree with its latest attempt and its amounts. Statuses that
 -- need an attempt fail the check when it is missing: coalesce turns NULL into false.
@@ -384,3 +392,49 @@ GROUP BY i.livemode, i.currency;
 
 -- name: FeeLedgerAccounts :many
 SELECT livemode, currency, account_id FROM payments.ledger_accounts WHERE merchant_id = '' AND role = 'card_fees';
+
+-- name: CapturedAttemptByNetworkID :one
+-- The captured attempt a card network or the Pix bank names a payment by: its network
+-- transaction id, or its end-to-end id.
+SELECT a.* FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+WHERE a.network_transaction_id = @network_id AND i.livemode = @livemode AND a.status = 'captured'
+ORDER BY a.created_at DESC
+LIMIT 1;
+
+-- name: InsertDisputeFunds :execrows
+INSERT INTO payments.dispute_funds (reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, status, ledger_hold, ledger_txn, created_at, updated_at)
+VALUES (@reference, @intent_id, @attempt_id, @merchant_id, @livemode, @currency, @amount, @status, @ledger_hold, @ledger_txn, @now, @now)
+ON CONFLICT (reference) DO NOTHING;
+
+-- name: LockDisputeFunds :one
+SELECT * FROM payments.dispute_funds WHERE reference = @reference FOR UPDATE;
+
+-- name: SaveDisputeFunds :exec
+UPDATE payments.dispute_funds
+SET status = @status, split_back = @split_back, ledger_txn = @ledger_txn, updated_at = @now
+WHERE reference = @reference;
+
+-- name: DisputedAmount :one
+-- What disputes hold or took of a payment: not refundable.
+SELECT coalesce(sum(amount), 0)::bigint FROM payments.dispute_funds
+WHERE intent_id = @intent_id AND status IN ('held', 'withdrawn');
+
+-- name: PaidOutSince :many
+-- The merchant's own payouts paid since a moment, oldest first: where its balance went.
+SELECT id, amount, e2e_id, method, created_at FROM payments.payouts
+WHERE merchant_id = @merchant_id AND livemode = @livemode AND currency = @currency AND recipient_id = ''
+  AND status = 'paid' AND created_at >= @since
+ORDER BY created_at, id
+LIMIT 100;
+
+-- name: CardAttemptsBetween :one
+-- A merchant's card payments captured in a period, by when they were authorized.
+SELECT count(*)::bigint FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+WHERE i.merchant_id = @merchant_id AND i.livemode = @livemode AND a.status = 'captured'
+  AND a.payment_method NOT IN ('pix', 'boleto') AND a.created_at >= @from_time AND a.created_at < @to_time;
+
+-- name: PixReceivedOf :one
+SELECT * FROM payments.pix_received WHERE livemode = @livemode AND e2e_id = @e2e_id;
+
+-- name: AllDisputeFunds :many
+SELECT reference, status, amount FROM payments.dispute_funds ORDER BY reference;

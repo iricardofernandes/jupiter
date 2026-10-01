@@ -24,6 +24,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/bank"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -47,7 +48,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate},
 	}))
 }
 
@@ -89,6 +90,7 @@ type harness struct {
 	payments    *payments.Service
 	receivables *receivables.Service
 	recipients  *recipients.Service
+	disputes    *disputes.Service
 	registry    *registrysim.Sim
 	slc         *slcsim.Sim
 	bank        *banksim.Sim
@@ -161,9 +163,10 @@ func newHarness(t *testing.T) *harness {
 	})
 	h.receivables.UsePayments(h.payments)
 	h.merchants = merchants
+	h.disputes = disputes.New(disputes.Config{Pool: h.pool, Payments: h.payments, Events: eventService, Now: h.clock.Now})
 	a := api.New(api.Deps{
 		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Receivables: h.receivables,
-		Recipients: h.recipients, Box: box, Now: h.clock.Now,
+		Recipients: h.recipients, Disputes: h.disputes, Box: box, Now: h.clock.Now,
 	})
 	h.api = httptest.NewServer(a.Handler())
 	t.Cleanup(h.api.Close)
@@ -304,5 +307,12 @@ func (h *harness) consistent() {
 	}
 	for _, v := range found {
 		h.t.Errorf("receivables violation: %+v", v)
+	}
+	stuck, err := h.disputes.Check(h.t.Context(), h.pool)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	for _, v := range stuck {
+		h.t.Errorf("disputes violation: %+v", v)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
 	"github.com/iricardofernandes/jupiter/internal/bank"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -43,6 +44,8 @@ commands:
                            record the outcome of a recipient's verification (KYC/KYB)
   recipient hold-payouts <id> | release-payouts <id>
                            hold a recipient's payouts, or lift the hold and send those held
+  dispute decide <id> agreed|disagreed <operator>
+                           decide a MED claim the merchant answered: return the money, or not
   ledger check             verify ledger invariants; exits 1 if any is violated
   ledger repair <account>  reset a drifted account's cached balance from its entries
   dev-certs <dir>          write a development CA and the vault's, API's and worker's mTLS certificates
@@ -96,6 +99,8 @@ func run(ctx context.Context, args []string) error {
 		return verifyRecipient(ctx, pool, args[2], recipients.Status(args[3]))
 	case len(args) == 3 && args[0] == "recipient" && (args[1] == "hold-payouts" || args[1] == "release-payouts"):
 		return holdPayouts(ctx, pool, args[2], args[1] == "hold-payouts")
+	case len(args) == 5 && args[0] == "dispute" && args[1] == "decide" && (args[3] == "agreed" || args[3] == "disagreed"):
+		return decideDispute(ctx, pool, args[2], args[3] == "agreed", args[4])
 	case len(args) == 2 && args[0] == "ledger" && args[1] == "check":
 		return check(ctx, pool)
 	case len(args) == 3 && args[0] == "ledger" && args[1] == "repair":
@@ -132,7 +137,7 @@ func check(ctx context.Context, pool *pgxpool.Pool) error {
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, m := range []func(context.Context, *pgxpool.Pool) error{
 		ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate,
-		subscriptions.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate,
+		subscriptions.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate,
 	} {
 		if err := m(ctx, pool); err != nil {
 			return err
@@ -242,4 +247,13 @@ func holdPayouts(ctx context.Context, pool *pgxpool.Pool, recipientID string, he
 		}
 		return err
 	})
+}
+
+// decideDispute records an operator's decision on a MED claim; the worker tells the bank.
+func decideDispute(ctx context.Context, pool *pgxpool.Pool, disputeID string, agree bool, operator string) error {
+	parsed, err := disputes.DisputePrefix.Parse(disputeID)
+	if err != nil {
+		return err
+	}
+	return disputes.New(disputes.Config{Pool: pool, Payments: payments.New(payments.Config{})}).Decide(ctx, pool, parsed, agree, operator)
 }

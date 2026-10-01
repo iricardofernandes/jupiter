@@ -1,0 +1,27 @@
+# How long each party has at each stage of a dispute, per card network, and Pix's MED.
+# A lookup takes the rows in effect at the moment that starts the clock and prefers an
+# exact network to "*"; among equally specific rows the latest wins, so a change to a
+# rule is a new row with a later date.
+# unit: calendar days, business days, or minutes.
+# verified: "cited" when a source the research read says so, "unverified" otherwise, and
+# "policy" for Jupiter's own choices.
+network,stage,effective_from,length,unit,verified,source
+mastercard,represent,2000-01-01,45,calendar,cited,"Chargebacks911, Mastercard time limits: 45 days for the second presentment"
+mastercard,issuer_response,2000-01-01,30,calendar,cited,"Chargebacks911, Mastercard time limits: 30 days for the issuer to open pre-arbitration"
+mastercard,pre_arbitration,2000-01-01,30,calendar,cited,"Chargebacks911, Mastercard time limits: 30 days to accept or reject a pre-arbitration"
+visa,represent,2000-01-01,30,calendar,unverified,"Visa Claims Resolution as secondary sources describe it: 30 days to respond to a dispute"
+visa,issuer_response,2000-01-01,30,calendar,unverified,"Visa Claims Resolution as secondary sources describe it: 30 days for pre-arbitration"
+visa,pre_arbitration,2000-01-01,30,calendar,unverified,"Visa Claims Resolution as secondary sources describe it: 30 days to answer a pre-arbitration"
+*,represent,2000-01-01,30,calendar,unverified,"Elo, Amex and Hipercard rules were not read; Visa's figures stand in"
+*,issuer_response,2000-01-01,30,calendar,unverified,"Elo, Amex and Hipercard rules were not read; Visa's figures stand in"
+*,pre_arbitration,2000-01-01,30,calendar,unverified,"Elo, Amex and Hipercard rules were not read; Visa's figures stand in"
+*,arbitration,2000-01-01,30,calendar,unverified,"How long a network takes to rule; no source was read"
+*,liability_cap,2026-05-11,180,calendar,cited,"Res. BCB 522/2025 art. 35-G (Voto 159/2025 draft): participants are liable for disputes opened within 180 days of authorization; the date is the rulebooks' deadline"
+*,merchant_margin,2000-01-01,2,calendar,policy,"Jupiter's: the merchant's evidence is due two days before the network's deadline, to send it in time"
+pix,med_request,2026-02-02,80,calendar,cited,"MED (meutudo, Sep 2026): the payer asks for a MED return within 80 days of the Pix"
+pix,med_contestation,2026-02-02,30,calendar,cited,"MED (meutudo, Sep 2026): the receiver contests a MED return within 30 days"
+pix,med_contestation,2026-09-01,80,calendar,cited,"IN BCB 766/2026 (meutudo, Sep 2026): 80 days instead of 30"
+pix,med_notification,2026-02-02,30,minutes,cited,"MED 2.0 (Agência Brasil, Feb 2026): the originating institution notifies the receiving one within 30 minutes"
+pix,med_block,2026-02-02,11,calendar,cited,"MED 2.0 (Agência Brasil, Feb 2026): funds suspected of fraud blocked for up to 11 days"
+pix,med_block_applied,2026-02-02,30,minutes,policy,"Jupiter's: funds blocked within 30 minutes of the bank's notification, the window the originating institution has"
+pix,med_response,2026-02-02,3,calendar,policy,"Jupiter's: the merchant answers a MED claim within three days, leaving time to analyse it inside the block"

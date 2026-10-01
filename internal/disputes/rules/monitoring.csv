@@ -1,0 +1,6 @@
+# The thresholds disputes and fraud are monitored against, per merchant and month, in the
+# style of Visa's acquirer monitoring program (VAMP). A merchant is excessive at or above
+# threshold_bps with at least minimum_count events.
+# verified: "cited" when a source the research read says so, "unverified" otherwise.
+program,effective_from,threshold_bps,minimum_count,verified,source
+dispute_ratio,2025-06-01,150,1500,unverified,"Visa VAMP fact sheet 2025: (TC40 + TC15) / settled CNP transactions, excessive merchants at 150 bps in Latin America with 1,500 events; Brazil's program was to be announced"

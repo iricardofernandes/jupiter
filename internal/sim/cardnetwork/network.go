@@ -32,6 +32,13 @@ type Config struct {
 	// tokens, signed with TokenEventsSecret.
 	TokenEventsURL    string
 	TokenEventsSecret string
+	// DisputeEventsURL is where the network tells the acquirer of its disputes and fraud
+	// reports, signed with DisputeEventsSecret.
+	DisputeEventsURL    string
+	DisputeEventsSecret string
+	// AcquirerToken, if set, is what the acquirer's dispute requests must carry as a
+	// bearer token.
+	AcquirerToken string
 }
 
 type Network struct {
@@ -42,6 +49,8 @@ type Network struct {
 
 	mu    sync.Mutex
 	files map[string][]byte
+	// book is the disputes and fraud reports, guarded by the issuer's lock.
+	book disputeBook
 
 	stop    chan struct{}
 	stopped sync.Once
@@ -60,7 +69,7 @@ func New(cfg Config) *Network {
 	}
 	return &Network{
 		cfg: cfg, issuer: newIssuer(cfg.Now, cfg.AuthenticationKey), tokens: newTokenService(),
-		files: map[string][]byte{}, stop: make(chan struct{}),
+		files: map[string][]byte{}, stop: make(chan struct{}), book: disputeBook{cases: map[string]*disputeCase{}},
 	}
 }
 
@@ -261,6 +270,7 @@ func (n *Network) RunDays(ctx context.Context, every time.Duration) error {
 			return nil
 		case <-ticker.C:
 		}
+		n.AdvanceDisputes(ctx)
 		now := n.cfg.Now().UTC()
 		if now.YearDay() != day.YearDay() || now.Year() != day.Year() {
 			if err := n.CloseDay(day); err != nil {

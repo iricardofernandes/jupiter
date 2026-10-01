@@ -1,7 +1,9 @@
 package cardnetwork
 
 import (
+	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -13,9 +15,13 @@ import (
 //	POST /v1/tokens/{reference}/cryptograms              a one-time cryptogram for a payment
 //	POST /admin/cards/replace                            replace a card: its tokens follow
 //	POST /admin/tokens/{reference}/suspend               suspend a token
+//
+// and disputes, as disputeRoutes lists them. The operator's controls (/admin/) answer on
+// loopback only, to JSON requests, so no web page can drive them.
 func (n *Network) Handler() http.Handler {
 	mux := http.NewServeMux()
 	n.tokenRoutes(mux)
+	n.disputeRoutes(mux)
 	mux.HandleFunc("GET /v1/acquirers/{acquirer}/clearing/{date}", func(w http.ResponseWriter, r *http.Request) {
 		date, err := time.Parse(time.DateOnly, r.PathValue("date"))
 		if err != nil {
@@ -46,5 +52,30 @@ func (n *Network) Handler() http.Handler {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-	return mux
+	return adminOnLoopback(mux)
+}
+
+// adminOnLoopback lets requests to /admin/ through only when addressed to this machine
+// and, for a POST, sent as JSON: a browser cannot send one from a web page without asking
+// first, and a rebound DNS name does not pass for loopback.
+func adminOnLoopback(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/admin/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		host, _, err := net.SplitHostPort(r.Host)
+		if err != nil {
+			host = r.Host
+		}
+		if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			http.Error(w, "the admin controls answer on loopback only", http.StatusForbidden)
+			return
+		}
+		if r.Method == http.MethodPost && r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, "a JSON request is required", http.StatusUnsupportedMediaType)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

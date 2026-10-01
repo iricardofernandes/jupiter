@@ -150,7 +150,7 @@ func (s *Sim) settleTransferLocked(t *transfer) {
 		t.status, t.reason = transferFailed, "Chave não encontrada no DICT."
 	case entry.Closed:
 		t.status, t.reason = transferFailed, "Conta do favorecido encerrada."
-	case acct.balance < t.amount:
+	case acct.balance-acct.blocked < t.amount:
 		t.status, t.reason = transferFailed, "Saldo insuficiente."
 	default:
 		acct.balance -= t.amount

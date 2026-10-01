@@ -49,6 +49,14 @@ const (
 	receivablesEvery = 5 * time.Minute
 	// collectionEvery is how often boletos go to the bank and its return files are read.
 	collectionEvery = time.Minute
+	// disputesEvery is how often deadlines are looked at and answers sent: well within
+	// the 30 minutes a MED claim's funds must be held in.
+	disputesEvery = time.Minute
+	// medEvery is how often the banks' MED claims and the network's cases are read, for
+	// notifications missed;
+	// monitorEvery, how often dispute ratios and the disputes check run.
+	medEvery     = 5 * time.Minute
+	monitorEvery = time.Hour
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -104,17 +112,12 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	s := r.services(pool, l, eventService, riskEngine, cards, logger)
 	a := api.New(api.Deps{
 		Pool: pool, Merchants: s.merchants, Events: eventService, Payments: s.payments, Vault: cards, Risk: riskEngine,
-		Subscriptions: s.subscriptions, Receivables: s.receivables, Recipients: s.recipients, Box: box, Logger: logger,
+		Subscriptions: s.subscriptions, Receivables: s.receivables, Recipients: s.recipients, Disputes: s.disputes, Box: box, Logger: logger,
 	})
 
 	return service.App{
-		Ready: pool.Ping,
-		Background: tasks(jobClient, l, pool, a, s.payments, r.network, []*pix.Connector{r.livePix, r.testPix}, logger,
-			service.Every(logger, "subscriptions.advance", subscriptionsEvery, counted(logger, "looked at subscriptions", func(ctx context.Context) (int, error) {
-				return s.subscriptions.Advance(ctx, pool)
-			})),
-			service.Every(logger, "receivables.advance", receivablesEvery, advanceReceivables(s.receivables, pool, logger)),
-			service.Every(logger, "bank.collection", collectionEvery, collect(s.payments, pool, logger, r.liveBank, r.testBank))),
+		Ready:      pool.Ping,
+		Background: tasks(jobClient, l, pool, a, s.payments, r.network, []*pix.Connector{r.livePix, r.testPix}, logger, domainTasks(s, r, pool, logger)...),
 		Close: func() {
 			r.close()
 			pool.Close()

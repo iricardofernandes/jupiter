@@ -7,9 +7,12 @@ over HTTP. Nothing in it is certified, and no scheme's proprietary behaviour is 
 
 ```sh
 go run ./cmd/sim-card-network   # ISO 8583 on 127.0.0.1:8583 (JUPITER_CARDNET_ADDR), files on 127.0.0.1:8584 (JUPITER_HTTP_ADDR)
-curl -X POST 'http://127.0.0.1:8584/admin/close-day?date=2026-10-01'
+curl -X POST -H 'Content-Type: application/json' 'http://127.0.0.1:8584/admin/close-day?date=2026-10-01'
 curl http://127.0.0.1:8584/v1/acquirers/10000000001/clearing/2026-10-01
 ```
+
+The operator's controls (`/admin/`) answer only when addressed to this machine, and a POST
+only as JSON, so a web page cannot drive them.
 
 ## What it does
 
@@ -54,6 +57,32 @@ token requestor (JUPITER_CARDNET_EVENTS_URL, signed with JUPITER_CARDNET_EVENTS_
 when `POST /admin/cards/replace {pan, new_pan, exp_month, exp_year}` replaces a card or
 `POST /admin/tokens/{reference}/suspend` suspends a token. All of it is unverified
 against real token services.
+
+## Disputes
+
+Chargebacks and fraud reports travel over HTTP, outside ISO 8583, as the networks'
+dispute systems do (Visa's VROL, Mastercard's Mastercom). Their messages are the
+simulator's ([pkg/cardnet/disputes.go](../../../pkg/cardnet/disputes.go)).
+
+| Behaviour | Source |
+|---|---|
+| An issuer opens a chargeback on a completion, for what is left of it: `POST /admin/disputes {network_transaction_id, amount, reason_code, issuer, arbitration}` | The flow (chargeback, representment, pre-arbitration, arbitration) is as the research described Mastercard's |
+| A fraud chargeback (Visa 10.x, Mastercard 4837…) of an authorization 3-D Secure authenticated is refused: the liability shifted to the issuer | Sourced in principle: 3-D Secure's liability shift |
+| The acquirer represents within 45 days (Mastercard, cards starting 5 or 2) or 30 (the others), and answers a pre-arbitration within 30: past that, the case is the issuer's | Mastercard's: Chargebacks911. The others': secondhand, unverified |
+| The issuer, as scripted (`issuer`), accepts a representment, rejects it into pre-arbitration, or stays silent: past 30 days, the acquirer wins. Arbitration rules after 30 days, for whom `arbitration` says | The 30 days: Mastercard's, as above. The scripts are the simulator's |
+| A representment citing the participants' liability cap wins when the dispute came more than 180 days after the authorization | Res. BCB 522/2025, from the draft the research read |
+| An issuer reports fraud apart from any dispute: `POST /admin/fraud-reports {network_transaction_id, fraud_type}` | Visa's TC40 and Mastercard's SAFE, as described |
+
+Every change is posted to the acquirer (`JUPITER_CARDNET_DISPUTE_EVENTS_URL`), signed as
+token events are but with a secret of its own (`JUPITER_CARDNET_DISPUTE_EVENTS_SECRET`):
+`dispute.updated` and `fraud_report.created`. The acquirer answers and reads, with its
+bearer token (`JUPITER_CARDNET_TOKEN`), at:
+- `GET /v1/acquirers/{acquirer}/disputes/{id}`, a case as it stands;
+- `GET /v1/acquirers/{acquirer}/disputes?since=`, the cases changed since, for events
+  that never arrived;
+- `POST /v1/acquirers/{acquirer}/disputes/{id}/actions`, to represent, escalate or
+  accept;
+- `GET /v1/acquirers/{acquirer}/fraud-reports/{id}`, a fraud report.
 
 ## Faults
 

@@ -70,6 +70,21 @@ and the payer and their bank as the rest of the world.
 happen and attempts expire. The binary ticks every ten seconds. Tests call it after moving
 their clock, which is how a year runs in seconds.
 
+## MED
+
+MED claims reach the receiving bank's clients through the bank; the API Pix does not
+cover them. The relay is **the simulator's format** (`pkg/pixapi/med.go`), after the
+DICT's names, since neither the DICT's interface nor a bank's could be read.
+
+| Behaviour | Source |
+|---|---|
+| A payer contests a Pix as fraud (`POST /admin/infraction-reports` `{"endToEndId", "amount", "details", "upheld"}`), within 80 days of it and for no more than is left of it | The 80 days: MED as reported in September 2026 (meutudo), not a primary text |
+| The bank blocks what of the claim the client's account holds, for up to 11 days; neither transfers nor returns can spend it. A claim no one answers loses its block when the 11 days end | MED 2.0 as Agência Brasil reported it (Feb 2026); the regulation was not read |
+| The report reaches the client's webhook at once, `{url}/infracoes` (`{"infractionReports": [...]}`), over mutual TLS | The 30-minute notification window is MED 2.0's, as reported; the path is the simulator's |
+| `GET /infracoes/{id}`, `GET /infracoes?inicio&fim` (scope `infracao.read`) | The simulator's |
+| `POST /infracoes/{id}/analise` (scope `infracao.write`): `AGREED` with `refundId` and `valor` returns that much to the payer as a devolução of nature `MED_FRAUDE`, listed under the Pix; `DISAGREED` ends the block. Either closes the report, with the client's `fundsTrace` | The nature is the API Pix's; the rest the simulator's |
+| `POST /infracoes/{id}/contestacao`: the client contests a MED return within 80 days of it; the payer's bank decides at once, as `upheld` scripted, crediting the amount back when it upholds it | IN BCB 766/2026's 80 days, as reported (meutudo, Sep 2026). How the payer's bank decides is the simulator's |
+
 ## Payers and operators
 
 The admin handler takes no credentials and must listen on loopback only.
@@ -86,10 +101,12 @@ The admin handler takes no credentials and must listen on loopback only.
 | `POST /admin/recurrences/{idRec}/cancel` | The payer revokes a recurrence |
 | `POST /admin/payers/{tax_id}/funds` | Limits what a payer has for recurring debits (`{"balance": "10.00"}`); `{}` lifts the limit |
 | `POST /admin/tick` | Lets the bank's day move now |
+| `POST /admin/infraction-reports` | A payer contests a Pix: a MED claim against the client that received it |
 
 ## Faults
 
-`Config.Faults` is asked before each notification, transfer, return and charge answer. It
+`Config.Faults` is asked before each notification (MED claims' among them), transfer,
+return and charge answer. It
 can drop a notification, hold a transfer or return in processing for a while, or carry out
 a transfer or create a charge and drop the connection before answering. The tests use these to exercise Jupiter's
 unknown-outcome paths.

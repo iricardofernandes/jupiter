@@ -24,6 +24,10 @@ const roleCardFees = "card_fees"
 type Receivables interface {
 	Captured(ctx context.Context, tx pgx.Tx, c CardCapture) (int64, error)
 	Refunded(ctx context.Context, tx pgx.Tx, r CardRefund) (int64, error)
+	// Disputed takes a card dispute from the payment's liable recipient back to the
+	// merchant's balance, and answers how much; DisputeReinstated gives it back.
+	Disputed(ctx context.Context, tx pgx.Tx, d CardDispute) (int64, error)
+	DisputeReinstated(ctx context.Context, tx pgx.Tx, d CardDispute) (int64, error)
 }
 
 // CardCapture is a card payment Jupiter captured: Amount is what was captured and Fee

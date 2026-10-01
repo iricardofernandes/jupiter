@@ -34,10 +34,15 @@ type acquirerSide struct {
 
 func start(t *testing.T, faults func(cardnet.Message) cardnetwork.Fault) *acquirerSide {
 	t.Helper()
-	n := cardnetwork.New(cardnetwork.Config{
+	return startWith(t, cardnetwork.Config{
 		Now:       func() time.Time { return time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC) },
 		LateAfter: 2 * timeout, Faults: faults,
 	})
+}
+
+func startWith(t *testing.T, cfg cardnetwork.Config) *acquirerSide {
+	t.Helper()
+	n := cardnetwork.New(cfg)
 	if err := n.Start("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +397,7 @@ func TestAdminCloseDay(t *testing.T) {
 		query  string
 		status int
 	}{{"?date=2026-10-05", http.StatusNoContent}, {"?date=2026-10-05", http.StatusConflict}, {"?date=bad", http.StatusBadRequest}, {"", http.StatusNoContent}} {
-		res, err := http.Post(srv.URL+"/admin/close-day"+tt.query, "", strings.NewReader("")) //nolint:noctx // a test
+		res, err := http.Post(srv.URL+"/admin/close-day"+tt.query, "application/json", strings.NewReader("")) //nolint:noctx // a test
 		if err != nil {
 			t.Fatal(err)
 		}

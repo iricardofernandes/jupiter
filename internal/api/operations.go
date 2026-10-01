@@ -35,6 +35,7 @@ func (a *API) registerOperations() map[string]operation {
 	ops = append(ops, a.recipientOperations()...)
 	ops = append(ops, a.paymentMethodOperations()...)
 	ops = append(ops, a.riskOperations()...)
+	ops = append(ops, a.disputeOperations()...)
 	out := make(map[string]operation, len(ops))
 	for _, op := range ops {
 		out[op.name] = op

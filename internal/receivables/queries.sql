@@ -322,3 +322,51 @@ LIMIT 500;
 -- name: MarkReported :exec
 UPDATE receivables.anticipation_units SET reported_at = @now
 WHERE anticipation_id = @anticipation_id AND unit_id = @unit_id;
+
+-- name: InsertDispute :execrows
+INSERT INTO receivables.disputes (reference, recipient_id, livemode, currency, amount, created_at)
+VALUES (@reference, @recipient_id, @livemode, @currency, @amount, @now)
+ON CONFLICT (reference) DO NOTHING;
+
+-- name: LockDispute :one
+SELECT * FROM receivables.disputes WHERE reference = @reference FOR UPDATE;
+
+-- name: MarkDisputeReinstated :exec
+UPDATE receivables.disputes SET reinstated = true WHERE reference = @reference;
+
+-- name: Debtors :many
+-- Recipients whose available balance is below zero, and by how much: what disputes and
+-- refunds took that they did not have. A page follows the last one's key.
+SELECT d.recipient_id, d.livemode, d.currency, d.owed, d.key FROM (
+    SELECT recipient_id, livemode, currency, (-sum(amount))::bigint AS owed,
+           (recipient_id || '/' || livemode::text || '/' || currency)::text AS key
+    FROM receivables.movements
+    WHERE bucket = 'available' AND recipient_id <> ''
+    GROUP BY recipient_id, livemode, currency
+    HAVING sum(amount) < 0
+) d
+WHERE d.key > @after::text
+ORDER BY d.key
+LIMIT 200;
+
+-- name: RecoverableUnits :many
+-- A recipient's units that can be reduced to recover what it owes, locked, nearest
+-- settlement first: unsettled, settling after today, with something not bought by
+-- Jupiter nor blocked, and, where a registry keeps them, registered as they are.
+SELECT * FROM receivables.units
+WHERE recipient_id = @recipient_id AND livemode = @livemode AND currency = @currency AND settled_on IS NULL
+  AND settlement_date > @today AND value - anticipated - blocked > 0
+  AND (NOT @registered::boolean OR registered_version = version)
+ORDER BY settlement_date, id
+LIMIT 400
+FOR UPDATE;
+
+-- name: InstallmentsOfUnit :many
+SELECT * FROM receivables.installments WHERE unit_id = @unit_id ORDER BY attempt_id, recipient_id, number FOR UPDATE;
+
+-- name: InsertRecovery :exec
+INSERT INTO receivables.recoveries (recipient_id, unit_id, amount, from_free, from_contracts, at)
+VALUES (@recipient_id, @unit_id, @amount, @from_free, @from_contracts, @at);
+
+-- name: RecoveriesOf :many
+SELECT * FROM receivables.recoveries WHERE recipient_id = @recipient_id ORDER BY id;

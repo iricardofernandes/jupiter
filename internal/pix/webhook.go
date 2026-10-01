@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/pkg/pixapi"
 )
@@ -32,12 +33,16 @@ const (
 	reconcileMaxPages = 500
 )
 
-// Handler takes the bank's notifications, posted to {WebhookURL}/pix, and those of Pix
-// Automático, to {WebhookURL}/rec and /cobr, which sync, if not nil, is told of. It must
-// be served over mutual TLS that admits only the bank's client certificate.
-func (c *Connector) Handler(p *payments.Service, sync RecurrenceSync) http.Handler {
+// Handler takes the bank's notifications, posted to {WebhookURL}/pix, those of Pix
+// Automático, to {WebhookURL}/rec and /cobr, which sync, if not nil, is told of, and MED
+// claims, to {WebhookURL}/infracoes, which claims, if not nil, applies. It must be served
+// over mutual TLS that admits only the bank's client certificate.
+func (c *Connector) Handler(p *payments.Service, sync RecurrenceSync, claims *disputes.Service) http.Handler {
 	mux := http.NewServeMux()
 	c.recurrenceRoutes(mux, sync)
+	if claims != nil {
+		c.infractionRoute(mux, claims)
+	}
 	mux.HandleFunc("POST /pix", func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 {
 			http.Error(w, "a client certificate is required", http.StatusUnauthorized)

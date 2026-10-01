@@ -46,6 +46,16 @@ type ReceivablesAnticipationUnit struct {
 	ReportedAt     pgtype.Timestamptz
 }
 
+type ReceivablesDispute struct {
+	Reference   string
+	RecipientID string
+	Livemode    bool
+	Currency    string
+	Amount      int64
+	Reinstated  bool
+	CreatedAt   pgtype.Timestamptz
+}
+
 type ReceivablesDivergence struct {
 	ID         int64
 	Livemode   bool
@@ -126,6 +136,16 @@ type ReceivablesReconciliation struct {
 	RanOn       pgtype.Date
 	RanAt       pgtype.Timestamptz
 	Divergences int32
+}
+
+type ReceivablesRecovery struct {
+	ID            int64
+	RecipientID   string
+	UnitID        string
+	Amount        int64
+	FromFree      int64
+	FromContracts []byte
+	At            pgtype.Timestamptz
 }
 
 type ReceivablesSplitLine struct {

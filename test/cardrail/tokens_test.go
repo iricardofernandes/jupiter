@@ -17,6 +17,7 @@ func (h *harness) admin(path string, body any) {
 	h.t.Helper()
 	raw, _ := json.Marshal(body)
 	req, _ := http.NewRequestWithContext(h.t.Context(), http.MethodPost, h.files.URL+path, bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		h.t.Fatal(err)

@@ -26,6 +26,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -46,7 +47,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate, disputes.Migrate},
 		vaulttest.Template:           {vaulttest.Migrate},
 	}))
 }
@@ -58,6 +59,10 @@ var schemeKey = []byte("scheme test key")
 const (
 	resultsSecret = "results secret"
 	eventsSecret  = "events secret"
+	// disputeEventsSecret signs dispute events; networkToken is the acquirer's at the
+	// network's dispute system.
+	disputeEventsSecret = "dispute events secret"
+	networkToken        = "acquirer token"
 )
 
 // timeout is the acquirer's: short, so timeouts and late answers take little time.
@@ -88,6 +93,7 @@ type harness struct {
 	files     *httptest.Server
 	connector *acquirer.Connector
 	payments  *payments.Service
+	disputes  *disputes.Service
 	ledger    *ledger.Ledger
 	api       *httptest.Server
 	threeDS   *httptest.Server
@@ -98,6 +104,8 @@ type harness struct {
 	faults func(cardnet.Message) cardnetwork.Fault
 	// directoryDown makes the 3-D Secure directory server unreachable.
 	directoryDown atomic.Bool
+	// disputeEventsDown loses the network's dispute events.
+	disputeEventsDown atomic.Bool
 }
 
 func newHarness(t *testing.T) *harness {
@@ -106,11 +114,18 @@ func newHarness(t *testing.T) *harness {
 	// Jupiter's public address serves the API, the 3DS server's routes and the network's
 	// token events.
 	var jupiter http.Handler
-	h.api = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { jupiter.ServeHTTP(w, r) }))
+	h.api = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if h.disputeEventsDown.Load() && r.URL.Path == acquirer.DisputeEventsPath {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		jupiter.ServeHTTP(w, r)
+	}))
 	t.Cleanup(h.api.Close)
 	h.network = cardnetwork.New(cardnetwork.Config{
 		Now: h.clock.Now, LateAfter: 2 * timeout, Faults: h.fault, AuthenticationKey: schemeKey,
 		TokenEventsURL: h.api.URL + acquirer.EventsPath, TokenEventsSecret: eventsSecret,
+		DisputeEventsURL: h.api.URL + acquirer.DisputeEventsPath, DisputeEventsSecret: disputeEventsSecret, AcquirerToken: networkToken,
 	})
 	if err := h.network.Start("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
@@ -123,6 +138,7 @@ func newHarness(t *testing.T) *harness {
 	connector, err := acquirer.New(acquirer.Config{
 		Pool: h.pool, Addr: h.network.Addr(), NetworkURL: h.files.URL, Timeout: timeout,
 		Cards: cardVault.Client, Tokens: vaulttest.ClientFor(t, cardVault.PKI, cardVault.URL, vault.WorkerIdentity), EventsSecret: eventsSecret, Now: h.clock.Now,
+		DisputeEventsSecret: disputeEventsSecret, NetworkToken: networkToken,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -166,13 +182,15 @@ func newHarness(t *testing.T) *harness {
 		TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil).WithCards(cardVault.Client),
 	})
 	merchants := merchant.New(h.clock.Now)
+	h.disputes = disputes.New(disputes.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveNetwork: connector, Now: h.clock.Now})
 	a := api.New(api.Deps{
 		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Vault: cardVault.Client, Box: box, Now: h.clock.Now,
+		Disputes: h.disputes,
 	})
 	authenticator.Attach(h.payments, a.ResumePayment)
 	mux := http.NewServeMux()
 	mux.Handle("/3ds/", authenticator.Handler())
-	mux.Handle("/network/", connector.Handler(h.payments))
+	mux.Handle("/network/", connector.Handler(h.payments, h.disputes))
 	mux.Handle("/", a.Handler())
 	jupiter = mux
 	err = postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {

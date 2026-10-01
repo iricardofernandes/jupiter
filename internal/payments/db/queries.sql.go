@@ -11,6 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const allDisputeFunds = `-- name: AllDisputeFunds :many
+SELECT reference, status, amount FROM payments.dispute_funds ORDER BY reference
+`
+
+type AllDisputeFundsRow struct {
+	Reference string
+	Status    string
+	Amount    int64
+}
+
+func (q *Queries) AllDisputeFunds(ctx context.Context) ([]AllDisputeFundsRow, error) {
+	rows, err := q.db.Query(ctx, allDisputeFunds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AllDisputeFundsRow{}
+	for rows.Next() {
+		var i AllDisputeFundsRow
+		if err := rows.Scan(&i.Reference, &i.Status, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const attemptByServerTransaction = `-- name: AttemptByServerTransaction :one
 SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out FROM payments.attempts WHERE three_ds_server_trans_id = $1
 `
@@ -126,6 +156,92 @@ func (q *Queries) AttemptsToResolve(ctx context.Context, arg AttemptsToResolvePa
 	return items, nil
 }
 
+const capturedAttemptByNetworkID = `-- name: CapturedAttemptByNetworkID :one
+SELECT a.id, a.intent_id, a.number, a.payment_method, a.amount, a.status, a.authenticated, a.rail_reference, a.decline_code, a.ledger_hold, a.capture_amount, a.amount_captured, a.authorization_expires_at, a.unknown_since, a.resolutions, a.created_at, a.updated_at, a.initiator, a.stores_credential, a.installments, a.installments_financed_by, a.network_transaction_id, a.cleared_on, a.amount_cleared, a.ip, a.risk_decision, a.risk_decision_id, a.three_ds_server_trans_id, a.three_ds_version, a.three_ds_status, a.ds_trans_id, a.acs_trans_id, a.acs_url, a.eci, a.authentication_value, a.liability_shift, a.fee, a.split_out FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+WHERE a.network_transaction_id = $1 AND i.livemode = $2 AND a.status = 'captured'
+ORDER BY a.created_at DESC
+LIMIT 1
+`
+
+type CapturedAttemptByNetworkIDParams struct {
+	NetworkID string
+	Livemode  bool
+}
+
+// The captured attempt a card network or the Pix bank names a payment by: its network
+// transaction id, or its end-to-end id.
+func (q *Queries) CapturedAttemptByNetworkID(ctx context.Context, arg CapturedAttemptByNetworkIDParams) (PaymentsAttempt, error) {
+	row := q.db.QueryRow(ctx, capturedAttemptByNetworkID, arg.NetworkID, arg.Livemode)
+	var i PaymentsAttempt
+	err := row.Scan(
+		&i.ID,
+		&i.IntentID,
+		&i.Number,
+		&i.PaymentMethod,
+		&i.Amount,
+		&i.Status,
+		&i.Authenticated,
+		&i.RailReference,
+		&i.DeclineCode,
+		&i.LedgerHold,
+		&i.CaptureAmount,
+		&i.AmountCaptured,
+		&i.AuthorizationExpiresAt,
+		&i.UnknownSince,
+		&i.Resolutions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Initiator,
+		&i.StoresCredential,
+		&i.Installments,
+		&i.InstallmentsFinancedBy,
+		&i.NetworkTransactionID,
+		&i.ClearedOn,
+		&i.AmountCleared,
+		&i.Ip,
+		&i.RiskDecision,
+		&i.RiskDecisionID,
+		&i.ThreeDsServerTransID,
+		&i.ThreeDsVersion,
+		&i.ThreeDsStatus,
+		&i.DsTransID,
+		&i.AcsTransID,
+		&i.AcsUrl,
+		&i.Eci,
+		&i.AuthenticationValue,
+		&i.LiabilityShift,
+		&i.Fee,
+		&i.SplitOut,
+	)
+	return i, err
+}
+
+const cardAttemptsBetween = `-- name: CardAttemptsBetween :one
+SELECT count(*)::bigint FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+WHERE i.merchant_id = $1 AND i.livemode = $2 AND a.status = 'captured'
+  AND a.payment_method NOT IN ('pix', 'boleto') AND a.created_at >= $3 AND a.created_at < $4
+`
+
+type CardAttemptsBetweenParams struct {
+	MerchantID string
+	Livemode   bool
+	FromTime   pgtype.Timestamptz
+	ToTime     pgtype.Timestamptz
+}
+
+// A merchant's card payments captured in a period, by when they were authorized.
+func (q *Queries) CardAttemptsBetween(ctx context.Context, arg CardAttemptsBetweenParams) (int64, error) {
+	row := q.db.QueryRow(ctx, cardAttemptsBetween,
+		arg.MerchantID,
+		arg.Livemode,
+		arg.FromTime,
+		arg.ToTime,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const claimPaymentMethodsToTokenize = `-- name: ClaimPaymentMethodsToTokenize :many
 UPDATE payments.payment_methods SET network_token_status = 'provisioning', network_token_since = $1
 WHERE id IN (
@@ -194,6 +310,19 @@ func (q *Queries) ClearRefund(ctx context.Context, arg ClearRefundParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const disputedAmount = `-- name: DisputedAmount :one
+SELECT coalesce(sum(amount), 0)::bigint FROM payments.dispute_funds
+WHERE intent_id = $1 AND status IN ('held', 'withdrawn')
+`
+
+// What disputes hold or took of a payment: not refundable.
+func (q *Queries) DisputedAmount(ctx context.Context, intentID string) (int64, error) {
+	row := q.db.QueryRow(ctx, disputedAmount, intentID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const feeLedgerAccounts = `-- name: FeeLedgerAccounts :many
@@ -731,6 +860,46 @@ func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) er
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const insertDisputeFunds = `-- name: InsertDisputeFunds :execrows
+INSERT INTO payments.dispute_funds (reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, status, ledger_hold, ledger_txn, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+ON CONFLICT (reference) DO NOTHING
+`
+
+type InsertDisputeFundsParams struct {
+	Reference  string
+	IntentID   string
+	AttemptID  string
+	MerchantID string
+	Livemode   bool
+	Currency   string
+	Amount     int64
+	Status     string
+	LedgerHold pgtype.Text
+	LedgerTxn  pgtype.Text
+	Now        pgtype.Timestamptz
+}
+
+func (q *Queries) InsertDisputeFunds(ctx context.Context, arg InsertDisputeFundsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertDisputeFunds,
+		arg.Reference,
+		arg.IntentID,
+		arg.AttemptID,
+		arg.MerchantID,
+		arg.Livemode,
+		arg.Currency,
+		arg.Amount,
+		arg.Status,
+		arg.LedgerHold,
+		arg.LedgerTxn,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertIntent = `-- name: InsertIntent :exec
@@ -1370,6 +1539,31 @@ func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, 
 	return i, err
 }
 
+const lockDisputeFunds = `-- name: LockDisputeFunds :one
+SELECT reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, split_back, status, ledger_hold, ledger_txn, created_at, updated_at FROM payments.dispute_funds WHERE reference = $1 FOR UPDATE
+`
+
+func (q *Queries) LockDisputeFunds(ctx context.Context, reference string) (PaymentsDisputeFund, error) {
+	row := q.db.QueryRow(ctx, lockDisputeFunds, reference)
+	var i PaymentsDisputeFund
+	err := row.Scan(
+		&i.Reference,
+		&i.IntentID,
+		&i.AttemptID,
+		&i.MerchantID,
+		&i.Livemode,
+		&i.Currency,
+		&i.Amount,
+		&i.SplitBack,
+		&i.Status,
+		&i.LedgerHold,
+		&i.LedgerTxn,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const lockIntent = `-- name: LockIntent :one
 SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at, split, boleto_options FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3 FOR UPDATE
 `
@@ -1647,14 +1841,20 @@ WITH received AS (
            coalesce(sum(amount) FILTER (WHERE status = 'paid'), 0) AS paid,
            coalesce(sum(amount) FILTER (WHERE status IN ('held', 'sending', 'unknown')), 0) AS in_flight
     FROM payments.payouts WHERE recipient_id = '' GROUP BY merchant_id, livemode, currency
+), disputed AS (
+    SELECT merchant_id, livemode, currency,
+           coalesce(sum(amount - split_back) FILTER (WHERE status = 'withdrawn'), 0) AS withdrawn,
+           coalesce(sum(amount) FILTER (WHERE status = 'held'), 0) AS held
+    FROM payments.dispute_funds GROUP BY merchant_id, livemode, currency
 )
 SELECT r.merchant_id, r.livemode, r.currency,
-       (r.posted - coalesce(p.paid, 0))::bigint AS posted,
+       (r.posted - coalesce(p.paid, 0) - coalesce(d.withdrawn, 0))::bigint AS posted,
        coalesce(h.held, 0)::bigint AS held,
-       coalesce(p.in_flight, 0)::bigint AS paying_out
+       (coalesce(p.in_flight, 0) + coalesce(d.held, 0))::bigint AS paying_out
 FROM received r
 LEFT JOIN held h ON h.merchant_id = r.merchant_id AND h.livemode = r.livemode AND h.currency = r.currency
 LEFT JOIN paid_out p ON p.merchant_id = r.merchant_id AND p.livemode = r.livemode AND p.currency = r.currency
+LEFT JOIN disputed d ON d.merchant_id = r.merchant_id AND d.livemode = r.livemode AND d.currency = r.currency
 `
 
 type MerchantTotalsRow struct {
@@ -1667,8 +1867,10 @@ type MerchantTotalsRow struct {
 }
 
 // What each merchant's balance should hold: posted, what payments received less what
-// was refunded, Jupiter's fees net of what refunds gave back, and what was paid out; held for the merchant, what open card authorizations hold;
-// held against the merchant, what payouts in flight hold.
+// was refunded, Jupiter's fees net of what refunds gave back, what was paid out, and what
+// disputes took net of what recipients gave back for them; held for the merchant, what
+// open card authorizations hold; held against the merchant, what payouts in flight and
+// MED claims under analysis hold.
 func (q *Queries) MerchantTotals(ctx context.Context) ([]MerchantTotalsRow, error) {
 	rows, err := q.db.Query(ctx, merchantTotals)
 	if err != nil {
@@ -1717,6 +1919,61 @@ func (q *Queries) OutstandingRefunds(ctx context.Context, intentID string) (int6
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const paidOutSince = `-- name: PaidOutSince :many
+SELECT id, amount, e2e_id, method, created_at FROM payments.payouts
+WHERE merchant_id = $1 AND livemode = $2 AND currency = $3 AND recipient_id = ''
+  AND status = 'paid' AND created_at >= $4
+ORDER BY created_at, id
+LIMIT 100
+`
+
+type PaidOutSinceParams struct {
+	MerchantID string
+	Livemode   bool
+	Currency   string
+	Since      pgtype.Timestamptz
+}
+
+type PaidOutSinceRow struct {
+	ID        string
+	Amount    int64
+	E2eID     string
+	Method    string
+	CreatedAt pgtype.Timestamptz
+}
+
+// The merchant's own payouts paid since a moment, oldest first: where its balance went.
+func (q *Queries) PaidOutSince(ctx context.Context, arg PaidOutSinceParams) ([]PaidOutSinceRow, error) {
+	rows, err := q.db.Query(ctx, paidOutSince,
+		arg.MerchantID,
+		arg.Livemode,
+		arg.Currency,
+		arg.Since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PaidOutSinceRow{}
+	for rows.Next() {
+		var i PaidOutSinceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Amount,
+			&i.E2eID,
+			&i.Method,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const payoutsToResolve = `-- name: PayoutsToResolve :many
@@ -1859,6 +2116,36 @@ func (q *Queries) PixLedgerAccounts(ctx context.Context) ([]PixLedgerAccountsRow
 		return nil, err
 	}
 	return items, nil
+}
+
+const pixReceivedOf = `-- name: PixReceivedOf :one
+SELECT livemode, e2e_id, txid, amount, currency, received_at, attempt_id, status, ledger_txn, return_txn, reason, created_at, updated_at FROM payments.pix_received WHERE livemode = $1 AND e2e_id = $2
+`
+
+type PixReceivedOfParams struct {
+	Livemode bool
+	E2eID    string
+}
+
+func (q *Queries) PixReceivedOf(ctx context.Context, arg PixReceivedOfParams) (PaymentsPixReceived, error) {
+	row := q.db.QueryRow(ctx, pixReceivedOf, arg.Livemode, arg.E2eID)
+	var i PaymentsPixReceived
+	err := row.Scan(
+		&i.Livemode,
+		&i.E2eID,
+		&i.Txid,
+		&i.Amount,
+		&i.Currency,
+		&i.ReceivedAt,
+		&i.AttemptID,
+		&i.Status,
+		&i.LedgerTxn,
+		&i.ReturnTxn,
+		&i.Reason,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const pixReceivedToReturn = `-- name: PixReceivedToReturn :many
@@ -2068,6 +2355,31 @@ func (q *Queries) SaveAttempt(ctx context.Context, arg SaveAttemptParams) error 
 		arg.LiabilityShift,
 		arg.UpdatedAt,
 		arg.ID,
+	)
+	return err
+}
+
+const saveDisputeFunds = `-- name: SaveDisputeFunds :exec
+UPDATE payments.dispute_funds
+SET status = $1, split_back = $2, ledger_txn = $3, updated_at = $4
+WHERE reference = $5
+`
+
+type SaveDisputeFundsParams struct {
+	Status    string
+	SplitBack int64
+	LedgerTxn pgtype.Text
+	Now       pgtype.Timestamptz
+	Reference string
+}
+
+func (q *Queries) SaveDisputeFunds(ctx context.Context, arg SaveDisputeFundsParams) error {
+	_, err := q.db.Exec(ctx, saveDisputeFunds,
+		arg.Status,
+		arg.SplitBack,
+		arg.LedgerTxn,
+		arg.Now,
+		arg.Reference,
 	)
 	return err
 }

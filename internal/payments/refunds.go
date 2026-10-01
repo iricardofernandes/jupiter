@@ -46,7 +46,13 @@ func (s *Service) StartRefund(ctx context.Context, tx pgx.Tx, owner Owner, p Ref
 	if err != nil {
 		return Refund{}, err
 	}
-	remaining := row.AmountReceived - row.AmountRefunded - outstanding
+	// What disputes hold or took is the network's or the payer's to give back, not the
+	// merchant's.
+	disputed, err := q.DisputedAmount(ctx, row.ID)
+	if err != nil {
+		return Refund{}, err
+	}
+	remaining := row.AmountReceived - row.AmountRefunded - outstanding - disputed
 	amount := remaining
 	if p.Amount != nil {
 		if p.Amount.Currency() != mustCurrency(row.Currency) || !p.Amount.IsPositive() {

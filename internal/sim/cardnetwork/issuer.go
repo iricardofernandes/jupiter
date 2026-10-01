@@ -38,6 +38,11 @@ type authorization struct {
 	Status       holdStatus
 	StandIn      bool
 	ViaToken     bool
+	// Authenticated says 3-D Secure vouched for the cardholder: fraud disputes then fall
+	// on the issuer.
+	Authenticated bool
+	At            time.Time
+	Disputed      int64
 }
 
 type refund struct {
@@ -116,7 +121,9 @@ func (s *issuer) authorize(req cardnet.Message) cardnet.Message {
 	a := &authorization{
 		NTI: fmt.Sprintf("8%014d", s.sequence), PAN: req.PAN, RRN: req.RRN, AuthCode: fmt.Sprintf("A%05d", s.sequence%100000),
 		AcquirerID: cardnet.PadAcquirer(req.AcquirerID), MerchantID: req.MerchantID, Amount: amount, Status: held, StandIn: standIn,
-		ViaToken: req.Private != nil && req.Private.TokenCryptogram != "",
+		ViaToken:      req.Private != nil && req.Private.TokenCryptogram != "",
+		Authenticated: req.Private != nil && req.Private.AuthenticationValue != "",
+		At:            s.now().UTC(),
 	}
 	if n, err := strconv.Atoi(req.Installments); err == nil {
 		a.Installments = n

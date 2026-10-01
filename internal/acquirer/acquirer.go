@@ -44,8 +44,12 @@ type Config struct {
 	Addr string
 	// NetworkURL is the network's HTTP base: its clearing files and its token service.
 	NetworkURL string
-	// EventsSecret checks the signature on the network's token events.
-	EventsSecret string
+	// EventsSecret checks the signature on the network's token events; DisputeEventsSecret,
+	// on its dispute events.
+	EventsSecret        string
+	DisputeEventsSecret string
+	// NetworkToken is what the acquirer's dispute requests carry as a bearer token.
+	NetworkToken string
 	// Tokens, if set, lets the connector provision network tokens for live cards and
 	// keep them in the vault.
 	Tokens     TokenVault
@@ -323,6 +327,7 @@ func FromEnv(ctx context.Context, getenv func(string) string, pool *pgxpool.Pool
 	}
 	cfg := Config{
 		Pool: pool, Addr: addr, NetworkURL: getenv("JUPITER_CARDNET_URL"), EventsSecret: getenv("JUPITER_CARDNET_EVENTS_SECRET"),
+		DisputeEventsSecret: getenv("JUPITER_CARDNET_DISPUTE_EVENTS_SECRET"), NetworkToken: getenv("JUPITER_CARDNET_TOKEN"),
 		AcquirerID: getenv("JUPITER_ACQUIRER_ID"), Cards: cards, Logger: logger,
 	}
 	if tokens, ok := cards.(TokenVault); ok {

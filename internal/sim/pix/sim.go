@@ -69,7 +69,7 @@ type Config struct {
 
 // Event is something the simulator is about to do that a test may want to disturb.
 type Event struct {
-	Kind   string // "charge", "webhook", "transfer" or "return"
+	Kind   string // "charge", "webhook", "transfer", "return" or "infraction"
 	Client string
 	TxID   string
 	E2EID  string
@@ -120,13 +120,17 @@ type Sim struct {
 	nextRecLoc int64
 	solicRecs  map[string]*solicRec
 	cobrs      map[string]*recurringCharge // by client + "/" + txid
-	delivered  []Delivery
-	background sync.WaitGroup
+	// infractions are MED claims against Pix the clients received, by id.
+	infractions map[string]*infraction
+	delivered   []Delivery
+	background  sync.WaitGroup
 }
 
 type account struct {
 	Client
-	balance  int64
+	balance int64
+	// blocked is what MED claims hold of balance: neither transfers nor returns spend it.
+	blocked  int64
 	webhooks map[string]string // key -> URL
 	// recWebhook and cobrWebhook receive the notifications of Pix Automático.
 	recWebhook  string
@@ -163,6 +167,7 @@ func New(cfg Config) (*Sim, error) {
 		transfers: map[string]*transfer{}, closedPayers: map[string]bool{},
 		payerFunds: map[string]int64{}, recs: map[string]*recurrence{}, recLocs: map[int64]*recLocation{},
 		recTokens: map[string]*recLocation{}, solicRecs: map[string]*solicRec{}, cobrs: map[string]*recurringCharge{},
+		infractions: map[string]*infraction{},
 	}
 	for _, c := range cfg.Clients {
 		if c.Branch == "" {
@@ -228,6 +233,7 @@ func (s *Sim) Handler() http.Handler {
 	s.recurrenceRoutes(mux)
 	s.recurringChargeRoutes(mux)
 	s.locationRoutes(mux)
+	s.infractionRoutes(mux)
 	return mux
 }
 

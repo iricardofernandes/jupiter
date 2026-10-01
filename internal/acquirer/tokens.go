@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/pkg/cardnet"
@@ -129,10 +130,13 @@ func (c *Connector) networkCall(ctx context.Context, path string, body, out any)
 // EventsPath is where the network sends token events, on Jupiter's public address.
 const EventsPath = "/network/v1/token-events"
 
-// Handler takes the network's token events: a card behind a token was replaced, or the
-// token was suspended.
-func (c *Connector) Handler(p *payments.Service) http.Handler {
+// Handler takes the network's token events (a card behind a token was replaced, or the
+// token was suspended) and, when d is set, its dispute events.
+func (c *Connector) Handler(p *payments.Service, d *disputes.Service) http.Handler {
 	mux := http.NewServeMux()
+	if d != nil {
+		mux.HandleFunc("POST "+DisputeEventsPath, c.disputeEvents(d))
+	}
 	mux.HandleFunc("POST "+EventsPath, func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(io.LimitReader(r.Body, 16<<10))
 		if err != nil {

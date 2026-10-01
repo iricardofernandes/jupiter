@@ -68,7 +68,7 @@ var scopes = strings.Join([]string{
 	pixapi.ScopePixWrite, pixapi.ScopePixRead, pixapi.ScopeWebhookWrite, pixapi.ScopeWebhookRead,
 	pixapi.ScopeRecWrite, pixapi.ScopeRecRead, pixapi.ScopeSolicRecWrite, pixapi.ScopeSolicRecRead,
 	pixapi.ScopeCobRWrite, pixapi.ScopeCobRRead, pixapi.ScopeWebhookRecWrite, pixapi.ScopeWebhookCobRWrite,
-	pixapi.ScopePayloadLocationRecWrite,
+	pixapi.ScopePayloadLocationRecWrite, pixapi.ScopeInfractionRead, pixapi.ScopeInfractionWrite,
 }, " ")
 
 var _ payments.PixRail = (*Connector)(nil)

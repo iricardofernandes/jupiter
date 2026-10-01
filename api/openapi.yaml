@@ -25,6 +25,7 @@ tags:
   - name: Receivables
   - name: Recipients
   - name: Anticipations
+  - name: Disputes
   - name: Risk
   - name: Test helpers
   - name: API keys
@@ -583,6 +584,156 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Recipient" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/disputes:
+    get:
+      operationId: listDisputes
+      tags: [Disputes]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+        - name: payment_intent
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of disputes, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DisputeList" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/disputes/{id}:
+    get:
+      operationId: getDispute
+      tags: [Disputes]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The dispute, with its history.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispute" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: updateDispute
+      tags: [Disputes]
+      description: |
+        Saves evidence on a dispute that needs a response, and submits it when submit is
+        true: Jupiter represents a chargeback to the network, escalates a pre-arbitration
+        to arbitration, or puts a MED claim to an operator. A MED claim lost to a return
+        can be contested the same way, within the window the Banco Central sets. Evidence
+        saved and not submitted is submitted for a card dispute when its due_by passes.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateDisputeRequest" }
+      responses:
+        "200":
+          description: The dispute.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispute" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/disputes/{id}/close:
+    post:
+      operationId: closeDispute
+      tags: [Disputes]
+      description: |
+        Accepts a dispute that needs a response. A card dispute is lost at once; for a MED
+        claim, the bank returns the amount held to the payer, and the dispute is lost when
+        it has.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The dispute.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispute" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/fraud_reports:
+    get:
+      operationId: listFraudReports
+      tags: [Disputes]
+      description: Issuers' reports that card payments were fraud. They dispute nothing and move no money, but count in the dispute ratio.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+      responses:
+        "200":
+          description: A page of fraud reports, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FraudReportList" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/dispute_monitoring:
+    get:
+      operationId: getDisputeMonitoring
+      tags: [Disputes]
+      description: |
+        The month's dispute ratio, in the style of Visa's acquirer monitoring program: card
+        disputes opened and fraud reports received over card payments, in basis points,
+        and whether it is excessive.
+      parameters:
+        - name: month
+          in: query
+          description: YYYY-MM; this month when omitted.
+          schema: { type: string, pattern: "^[0-9]{4}-[0-9]{2}$" }
+      responses:
+        "200":
+          description: The month's ratio.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DisputeMonitoring" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/test_helpers/disputes:
+    post:
+      operationId: createTestDispute
+      tags: [Test helpers]
+      description: |
+        Test mode only. Has the test network open a chargeback on a card payment, as an
+        issuer would. Evidence containing winning_evidence wins; losing_evidence goes to
+        pre-arbitration; anything else is won when the issuer's time runs out.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTestDisputeRequest" }
+      responses:
+        "200":
+          description: The dispute.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispute" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/test_helpers/fraud_reports:
+    post:
+      operationId: createTestFraudReport
+      tags: [Test helpers]
+      description: Test mode only. Reports a card payment as fraud, as an issuer would.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTestFraudReportRequest" }
+      responses:
+        "200":
+          description: The fraud report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FraudReport" }
         default: { $ref: "#/components/responses/Failure" }
   /v1/risk/decisions:
     get:
@@ -1843,6 +1994,137 @@ components:
           minItems: 1
           items: { type: string }
 
+    Dispute:
+      type: object
+      required: [id, object, livemode, payment_intent, kind, network, reason, reason_code, amount, currency, stage, status, liability, evidence, funds, history, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [dispute] }
+        livemode: { type: boolean }
+        payment_intent: { type: string }
+        kind: { type: string, enum: [chargeback, med], description: "A card network's chargeback, or a MED claim on a Pix." }
+        network: { type: string, description: "The card scheme, or pix." }
+        reason: { type: string }
+        reason_code: { type: string }
+        amount: { type: integer, format: int64 }
+        currency: { type: string }
+        stage: { type: string, enum: [chargeback, pre_arbitration, arbitration, med_analysis, med_contestation] }
+        status: { type: string, enum: [needs_response, under_review, won, lost] }
+        liability:
+          type: string
+          enum: [merchant, scheme]
+          description: scheme when the dispute came after the participants' liability ended, 180 days from authorization.
+        evidence: { $ref: "#/components/schemas/DisputeEvidence" }
+        evidence_submitted: { type: integer, format: int64 }
+        due_by: { type: integer, format: int64, description: "When the merchant's response is due." }
+        funds:
+          type: string
+          enum: [none, held, withdrawn, reinstated, released]
+          description: What the dispute did to the money.
+        held: { type: integer, format: int64, description: "What a MED claim held of the merchant's balance." }
+        trace:
+          type: array
+          description: Where the part of a MED claim that could not be held went.
+          items: { $ref: "#/components/schemas/DisputeTraceHop" }
+        outcome: { type: string }
+        history:
+          type: array
+          items: { $ref: "#/components/schemas/DisputeChange" }
+        created: { type: integer, format: int64 }
+        closed: { type: integer, format: int64 }
+    DisputeEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        product_description: { type: string, maxLength: 5000 }
+        customer_name: { type: string, maxLength: 5000 }
+        customer_email: { type: string, maxLength: 5000 }
+        customer_communication: { type: string, maxLength: 5000 }
+        shipping_tracking_number: { type: string, maxLength: 5000 }
+        refund_policy: { type: string, maxLength: 5000 }
+        uncategorized_text: { type: string, maxLength: 5000 }
+    DisputeTraceHop:
+      type: object
+      required: [payout, end_to_end_id, amount]
+      properties:
+        payout: { type: string }
+        end_to_end_id: { type: string }
+        amount: { type: integer, format: int64 }
+    DisputeChange:
+      type: object
+      required: [at, kind, detail]
+      properties:
+        at: { type: integer, format: int64 }
+        kind: { type: string }
+        detail: { type: string }
+    DisputeList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Dispute" }
+    UpdateDisputeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        evidence: { $ref: "#/components/schemas/DisputeEvidence" }
+        submit: { type: boolean }
+    CreateTestDisputeRequest:
+      type: object
+      required: [payment_intent, reason_code]
+      additionalProperties: false
+      properties:
+        payment_intent: { type: string }
+        reason_code: { type: string, maxLength: 8, description: "A Visa (10.4, 13.1, ...) or Mastercard (4837, 4855, ...) reason code." }
+        amount: { type: integer, format: int64, minimum: 1, description: "All that is left of the payment when omitted." }
+    FraudReport:
+      type: object
+      required: [id, object, livemode, payment_intent, network, fraud_type, amount, currency, reported]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [fraud_report] }
+        livemode: { type: boolean }
+        payment_intent: { type: string }
+        network: { type: string }
+        fraud_type: { type: string }
+        amount: { type: integer, format: int64 }
+        currency: { type: string }
+        reported: { type: integer, format: int64 }
+    FraudReportList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/FraudReport" }
+    CreateTestFraudReportRequest:
+      type: object
+      required: [payment_intent, fraud_type]
+      additionalProperties: false
+      properties:
+        payment_intent: { type: string }
+        fraud_type:
+          type: string
+          enum: [card_never_received, fraudulent_application, counterfeit, account_takeover, card_not_present, lost, stolen, other]
+    DisputeMonitoring:
+      type: object
+      required: [object, livemode, month, transactions, disputes, fraud_reports, ratio_bps, threshold_bps, minimum_count, excessive]
+      properties:
+        object: { type: string, enum: [dispute_monitoring] }
+        livemode: { type: boolean }
+        month: { type: string }
+        transactions: { type: integer, format: int64, description: "Card payments captured, by when they were authorized." }
+        disputes: { type: integer, format: int64 }
+        fraud_reports: { type: integer, format: int64 }
+        ratio_bps: { type: integer, format: int64 }
+        threshold_bps: { type: integer, format: int64 }
+        minimum_count: { type: integer, format: int64 }
+        excessive: { type: boolean }
     WebhookEndpoint:
       type: object
       required: [id, object, livemode, url, description, enabled_events, status, api_version, created]

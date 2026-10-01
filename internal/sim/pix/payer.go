@@ -339,6 +339,19 @@ func (s *Sim) AdminHandler() http.Handler {
 	mux.HandleFunc("GET /admin/deliveries", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, s.Deliveries())
 	})
+	mux.HandleFunc("POST /admin/infraction-reports", func(w http.ResponseWriter, r *http.Request) {
+		var p InfractionParams
+		if err := json.NewDecoder(io.LimitReader(r.Body, maxBody)).Decode(&p); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		report, err := s.ReportInfraction(r.Context(), p)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		writeJSON(w, http.StatusCreated, report)
+	})
 	mux.HandleFunc("GET /admin/balances/{client}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"balance": pixapi.FormatValor(s.Balance(r.PathValue("client")))})
 	})

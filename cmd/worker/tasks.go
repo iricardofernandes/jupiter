@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/bank"
+	"github.com/iricardofernandes/jupiter/internal/disputes"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/pix"
@@ -177,10 +179,16 @@ func provisionTokens(c *acquirer.Connector, p *payments.Service, logger *slog.Lo
 }
 
 // advanceReceivables registers units, passes on opt-ins, runs the reconciliations due,
-// and reports what the receivables check finds.
+// recovers what recipients owe from their future units, and reports what the
+// receivables check finds.
 func advanceReceivables(r *receivables.Service, pool *pgxpool.Pool, logger *slog.Logger) func(context.Context) error {
 	return func(ctx context.Context) error {
 		err := r.Advance(ctx, pool)
+		recovered, recoverErr := r.Recover(ctx, pool)
+		if recovered > 0 {
+			logger.InfoContext(ctx, "recovered what recipients owed from their future units", "amount", recovered)
+		}
+		err = errors.Join(err, recoverErr)
 		violations, checkErr := r.Check(ctx, pool)
 		for _, v := range violations {
 			logger.ErrorContext(ctx, "receivables invariant violated", "subject", v.Subject, "detail", v.Detail)
@@ -206,5 +214,53 @@ func collect(p *payments.Service, pool *pgxpool.Pool, logger *slog.Logger, banks
 			}
 		}
 		return errors.Join(errs...)
+	}
+}
+
+// advanceDisputes moves disputes on: deadlines that passed, answers to send, and cases to
+// ask the network or the bank about.
+func advanceDisputes(d *disputes.Service, pool *pgxpool.Pool, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		r, err := d.Advance(ctx, pool)
+		if r.Expired+r.Sent+r.Refreshed > 0 {
+			logger.InfoContext(ctx, "moved disputes on", "expired", r.Expired, "sent", r.Sent, "refreshed", r.Refreshed)
+		}
+		return err
+	}
+}
+
+// monitorDisputes reports merchants whose dispute ratio this month is excessive, and what
+// the disputes check finds.
+func monitorDisputes(d *disputes.Service, pool *pgxpool.Pool, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		found, owners, err := d.Excessive(ctx, pool, time.Now())
+		for i, m := range found {
+			logger.WarnContext(ctx, "a merchant's dispute ratio is excessive", "merchant", owners[i].Merchant, "livemode", owners[i].Livemode,
+				"month", m.Month, "ratio_bps", m.RatioBps, "threshold_bps", m.Threshold.Bps, "events", m.Disputes+m.FraudReports)
+		}
+		violations, checkErr := d.Check(ctx, pool)
+		for _, v := range violations {
+			logger.ErrorContext(ctx, "disputes invariant violated", "subject", v.Subject, "detail", v.Detail)
+		}
+		return errors.Join(err, checkErr)
+	}
+}
+
+// domainTasks are the loops of subscriptions, receivables, boletos and disputes.
+func domainTasks(s services, r rails, pool *pgxpool.Pool, logger *slog.Logger) []func(context.Context) error {
+	return []func(context.Context) error{
+		service.Every(logger, "subscriptions.advance", subscriptionsEvery, counted(logger, "looked at subscriptions", func(ctx context.Context) (int, error) {
+			return s.subscriptions.Advance(ctx, pool)
+		})),
+		service.Every(logger, "receivables.advance", receivablesEvery, advanceReceivables(s.receivables, pool, logger)),
+		service.Every(logger, "bank.collection", collectionEvery, collect(s.payments, pool, logger, r.liveBank, r.testBank)),
+		service.Every(logger, "disputes.advance", disputesEvery, advanceDisputes(s.disputes, pool, logger)),
+		service.Every(logger, "disputes.reconcile_med", medEvery, counted(logger, "read MED claims from the banks", func(ctx context.Context) (int, error) {
+			return s.disputes.ReconcileMED(ctx, pool)
+		})),
+		service.Every(logger, "disputes.reconcile_cases", medEvery, counted(logger, "read the card network's dispute cases", func(ctx context.Context) (int, error) {
+			return s.disputes.ReconcileCases(ctx, pool)
+		})),
+		service.Every(logger, "disputes.monitor", monitorEvery, monitorDisputes(s.disputes, pool, logger)),
 	}
 }
