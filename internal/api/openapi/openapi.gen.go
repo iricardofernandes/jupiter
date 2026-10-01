@@ -21,6 +21,36 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AnticipationObject.
+const (
+	AnticipationObjectAnticipation AnticipationObject = "anticipation"
+)
+
+// Valid indicates whether the value is a known member of the AnticipationObject enum.
+func (e AnticipationObject) Valid() bool {
+	switch e {
+	case AnticipationObjectAnticipation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AnticipationQuoteObject.
+const (
+	AnticipationQuoteObjectAnticipationQuote AnticipationQuoteObject = "anticipation_quote"
+)
+
+// Valid indicates whether the value is a known member of the AnticipationQuoteObject enum.
+func (e AnticipationQuoteObject) Valid() bool {
+	switch e {
+	case AnticipationQuoteObjectAnticipationQuote:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ApiKeyKind.
 const (
 	Publishable ApiKeyKind = "publishable"
@@ -807,6 +837,90 @@ func (e ReceivablesOptInListObject) Valid() bool {
 	}
 }
 
+// Defines values for RecipientObject.
+const (
+	RecipientObjectRecipient RecipientObject = "recipient"
+)
+
+// Valid indicates whether the value is a known member of the RecipientObject enum.
+func (e RecipientObject) Valid() bool {
+	switch e {
+	case RecipientObjectRecipient:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecipientStatus.
+const (
+	RecipientStatusPending  RecipientStatus = "pending"
+	RecipientStatusRejected RecipientStatus = "rejected"
+	RecipientStatusVerified RecipientStatus = "verified"
+)
+
+// Valid indicates whether the value is a known member of the RecipientStatus enum.
+func (e RecipientStatus) Valid() bool {
+	switch e {
+	case RecipientStatusPending:
+		return true
+	case RecipientStatusRejected:
+		return true
+	case RecipientStatusVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecipientBalanceObject.
+const (
+	RecipientBalanceObjectRecipientBalance RecipientBalanceObject = "recipient_balance"
+)
+
+// Valid indicates whether the value is a known member of the RecipientBalanceObject enum.
+func (e RecipientBalanceObject) Valid() bool {
+	switch e {
+	case RecipientBalanceObjectRecipientBalance:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecipientDestinationType.
+const (
+	RecipientDestinationTypeBankAccount RecipientDestinationType = "bank_account"
+	RecipientDestinationTypePix         RecipientDestinationType = "pix"
+)
+
+// Valid indicates whether the value is a known member of the RecipientDestinationType enum.
+func (e RecipientDestinationType) Valid() bool {
+	switch e {
+	case RecipientDestinationTypeBankAccount:
+		return true
+	case RecipientDestinationTypePix:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecipientListObject.
+const (
+	RecipientListObjectList RecipientListObject = "list"
+)
+
+// Valid indicates whether the value is a known member of the RecipientListObject enum.
+func (e RecipientListObject) Valid() bool {
+	switch e {
+	case RecipientListObjectList:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RefundObject.
 const (
 	RefundObjectRefund RefundObject = "refund"
@@ -1224,6 +1338,30 @@ func (e SubscriptionListObject) Valid() bool {
 	}
 }
 
+// Defines values for TransferSettingsInterval.
+const (
+	TransferSettingsIntervalDaily   TransferSettingsInterval = "daily"
+	TransferSettingsIntervalManual  TransferSettingsInterval = "manual"
+	TransferSettingsIntervalMonthly TransferSettingsInterval = "monthly"
+	TransferSettingsIntervalWeekly  TransferSettingsInterval = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the TransferSettingsInterval enum.
+func (e TransferSettingsInterval) Valid() bool {
+	switch e {
+	case TransferSettingsIntervalDaily:
+		return true
+	case TransferSettingsIntervalManual:
+		return true
+	case TransferSettingsIntervalMonthly:
+		return true
+	case TransferSettingsIntervalWeekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdatePaymentIntentRequestRequestThreeDSecure.
 const (
 	UpdatePaymentIntentRequestRequestThreeDSecureAny       UpdatePaymentIntentRequestRequestThreeDSecure = "any"
@@ -1269,6 +1407,24 @@ func (e UpdateWebhookEndpointRequestStatus) Valid() bool {
 	case UpdateWebhookEndpointRequestStatusDisabled:
 		return true
 	case UpdateWebhookEndpointRequestStatusEnabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifyRecipientRequestStatus.
+const (
+	VerifyRecipientRequestStatusRejected VerifyRecipientRequestStatus = "rejected"
+	VerifyRecipientRequestStatusVerified VerifyRecipientRequestStatus = "verified"
+)
+
+// Valid indicates whether the value is a known member of the VerifyRecipientRequestStatus enum.
+func (e VerifyRecipientRequestStatus) Valid() bool {
+	switch e {
+	case VerifyRecipientRequestStatusRejected:
+		return true
+	case VerifyRecipientRequestStatusVerified:
 		return true
 	default:
 		return false
@@ -1347,6 +1503,54 @@ func (e ListRiskDecisionsParamsAction) Valid() bool {
 	}
 }
 
+// Anticipation defines model for Anticipation.
+type Anticipation struct {
+	Amount      int64              `json:"amount"`
+	Automatic   bool               `json:"automatic"`
+	Created     int64              `json:"created"`
+	Currency    string             `json:"currency"`
+	Fee         int64              `json:"fee"`
+	Id          string             `json:"id"`
+	Livemode    bool               `json:"livemode"`
+	MonthlyRate string             `json:"monthly_rate"`
+	Object      AnticipationObject `json:"object"`
+	Price       int64              `json:"price"`
+	Recipient   string             `json:"recipient"`
+	Units       []AnticipationUnit `json:"units"`
+}
+
+// AnticipationObject defines model for Anticipation.Object.
+type AnticipationObject string
+
+// AnticipationQuote defines model for AnticipationQuote.
+type AnticipationQuote struct {
+	// Amount What of the units Jupiter buys.
+	Amount      int64                   `json:"amount"`
+	Currency    string                  `json:"currency"`
+	ExpiresAt   int64                   `json:"expires_at"`
+	Fee         int64                   `json:"fee"`
+	Id          string                  `json:"id"`
+	MonthlyRate string                  `json:"monthly_rate"`
+	Object      AnticipationQuoteObject `json:"object"`
+
+	// Price What the recipient receives now.
+	Price     int64              `json:"price"`
+	Recipient string             `json:"recipient"`
+	Units     []AnticipationUnit `json:"units"`
+}
+
+// AnticipationQuoteObject defines model for AnticipationQuote.Object.
+type AnticipationQuoteObject string
+
+// AnticipationUnit defines model for AnticipationUnit.
+type AnticipationUnit struct {
+	Amount         int64              `json:"amount"`
+	Days           int                `json:"days"`
+	Price          int64              `json:"price"`
+	SettlementDate openapi_types.Date `json:"settlement_date"`
+	Unit           string             `json:"unit"`
+}
+
 // ApiKey defines model for ApiKey.
 type ApiKey struct {
 	Created  int64        `json:"created"`
@@ -1379,6 +1583,13 @@ type ApiKeyList struct {
 
 // ApiKeyListObject defines model for ApiKeyList.Object.
 type ApiKeyListObject string
+
+// AutomaticAnticipation defines model for AutomaticAnticipation.
+type AutomaticAnticipation struct {
+	// DelayDays How old a unit is before it is anticipated.
+	DelayDays *int `json:"delay_days,omitempty"`
+	Enabled   bool `json:"enabled"`
+}
 
 // CancelPaymentIntentRequest defines model for CancelPaymentIntentRequest.
 type CancelPaymentIntentRequest struct {
@@ -1420,6 +1631,11 @@ type ConfirmPaymentIntentRequest struct {
 
 	// ReturnUrl Where to send the customer after a 3-D Secure challenge: an absolute https URL.
 	ReturnUrl *string `json:"return_url,omitempty"`
+}
+
+// CreateAnticipationRequest defines model for CreateAnticipationRequest.
+type CreateAnticipationRequest struct {
+	Quote string `json:"quote"`
 }
 
 // CreateApiKeyRequest defines model for CreateApiKeyRequest.
@@ -1465,6 +1681,9 @@ type CreatePaymentIntentRequest struct {
 
 	// SetupFutureUsage Store the card, with this customer-initiated payment, for later off_session ones.
 	SetupFutureUsage *CreatePaymentIntentRequestSetupFutureUsage `json:"setup_future_usage,omitempty"`
+
+	// Split Divides a card payment among recipients. Without it, the payment is all the merchant's.
+	Split *[]SplitRule `json:"split,omitempty"`
 }
 
 // CreatePaymentIntentRequestCaptureMethod defines model for CreatePaymentIntentRequest.CaptureMethod.
@@ -1491,10 +1710,13 @@ type CreatePayoutRequest struct {
 	Amount      int64                       `json:"amount"`
 	Currency    CreatePayoutRequestCurrency `json:"currency"`
 	Description *string                     `json:"description,omitempty"`
-	Destination struct {
+	Destination *struct {
 		PixKey string                             `json:"pix_key"`
 		Type   CreatePayoutRequestDestinationType `json:"type"`
-	} `json:"destination"`
+	} `json:"destination,omitempty"`
+
+	// Recipient Pays out this recipient's available balance instead of the merchant's; its Pix key is the destination if none is given.
+	Recipient *string `json:"recipient,omitempty"`
 }
 
 // CreatePayoutRequestCurrency defines model for CreatePayoutRequest.Currency.
@@ -1507,6 +1729,15 @@ type CreatePayoutRequestDestinationType string
 type CreateReceivablesOptInRequest struct {
 	// Financier The financier's CNPJ.
 	Financier string `json:"financier"`
+}
+
+// CreateRecipientRequest defines model for CreateRecipientRequest.
+type CreateRecipientRequest struct {
+	AutomaticAnticipation *AutomaticAnticipation `json:"automatic_anticipation,omitempty"`
+	Name                  string                 `json:"name"`
+	PayoutDestination     *RecipientDestination  `json:"payout_destination,omitempty"`
+	TaxId                 string                 `json:"tax_id"`
+	TransferSettings      *TransferSettings      `json:"transfer_settings,omitempty"`
 }
 
 // CreateRefundRequest defines model for CreateRefundRequest.
@@ -1717,6 +1948,7 @@ type PaymentIntent struct {
 	RequestThreeDSecure PaymentIntentRequestThreeDSecure `json:"request_three_d_secure"`
 	RiskDecision        *RiskDecisionRef                 `json:"risk_decision"`
 	SetupFutureUsage    *PaymentIntentSetupFutureUsage   `json:"setup_future_usage"`
+	Split               *[]SplitRule                     `json:"split,omitempty"`
 	Status              PaymentIntentStatus              `json:"status"`
 
 	// Subscription The subscription a pix_automatico payment charges.
@@ -1799,7 +2031,10 @@ type Payout struct {
 	Id             string       `json:"id"`
 	Livemode       bool         `json:"livemode"`
 	Object         PayoutObject `json:"object"`
-	Status         PayoutStatus `json:"status"`
+
+	// Recipient The recipient whose balance paid it; null for the merchant's.
+	Recipient *string      `json:"recipient,omitempty"`
+	Status    PayoutStatus `json:"status"`
 }
 
 // PayoutObject defines model for Payout.Object.
@@ -1941,6 +2176,78 @@ type ReceivablesOptInList struct {
 
 // ReceivablesOptInListObject defines model for ReceivablesOptInList.Object.
 type ReceivablesOptInListObject string
+
+// Recipient defines model for Recipient.
+type Recipient struct {
+	AutomaticAnticipation AutomaticAnticipation `json:"automatic_anticipation"`
+	Created               int64                 `json:"created"`
+
+	// Default Whether this is the merchant's own recipient.
+	Default           bool                  `json:"default"`
+	Id                string                `json:"id"`
+	Livemode          bool                  `json:"livemode"`
+	Name              string                `json:"name"`
+	Object            RecipientObject       `json:"object"`
+	PayoutDestination *RecipientDestination `json:"payout_destination"`
+
+	// Status Its verification (KYC or KYB). Only a verified recipient is paid out or anticipates.
+	Status RecipientStatus `json:"status"`
+
+	// TaxId The recipient's CPF or CNPJ, which its receivables are registered under.
+	TaxId            string           `json:"tax_id"`
+	TransferSettings TransferSettings `json:"transfer_settings"`
+}
+
+// RecipientObject defines model for Recipient.Object.
+type RecipientObject string
+
+// RecipientStatus Its verification (KYC or KYB). Only a verified recipient is paid out or anticipates.
+type RecipientStatus string
+
+// RecipientBalance defines model for RecipientBalance.
+type RecipientBalance struct {
+	// Available What can be paid out now, less payouts in flight.
+	Available int64                  `json:"available"`
+	Currency  string                 `json:"currency"`
+	Object    RecipientBalanceObject `json:"object"`
+
+	// Pending What its unsettled receivables hold, net of fees and of what Jupiter bought.
+	Pending int64 `json:"pending"`
+
+	// PendingOn The pending balance by the day it becomes available.
+	PendingOn []struct {
+		Amount      int64              `json:"amount"`
+		AvailableOn openapi_types.Date `json:"available_on"`
+	} `json:"pending_on"`
+	Recipient string `json:"recipient"`
+	Reserved  int64  `json:"reserved"`
+}
+
+// RecipientBalanceObject defines model for RecipientBalance.Object.
+type RecipientBalanceObject string
+
+// RecipientDestination defines model for RecipientDestination.
+type RecipientDestination struct {
+	Account *string                  `json:"account,omitempty"`
+	Branch  *string                  `json:"branch,omitempty"`
+	Ispb    *string                  `json:"ispb,omitempty"`
+	PixKey  *string                  `json:"pix_key,omitempty"`
+	Type    RecipientDestinationType `json:"type"`
+}
+
+// RecipientDestinationType defines model for RecipientDestination.Type.
+type RecipientDestinationType string
+
+// RecipientList defines model for RecipientList.
+type RecipientList struct {
+	Data    []Recipient         `json:"data"`
+	HasMore bool                `json:"has_more"`
+	Object  RecipientListObject `json:"object"`
+	Url     string              `json:"url"`
+}
+
+// RecipientListObject defines model for RecipientList.Object.
+type RecipientListObject string
 
 // Refund defines model for Refund.
 type Refund struct {
@@ -2093,6 +2400,29 @@ type RollSecretRequest struct {
 	ExpireCurrentIn *int `json:"expire_current_in,omitempty"`
 }
 
+// SimulateAnticipationRequest defines model for SimulateAnticipationRequest.
+type SimulateAnticipationRequest struct {
+	// Recipient The merchant's own when omitted.
+	Recipient *string `json:"recipient,omitempty"`
+
+	// Units The units to anticipate; all that can be when omitted.
+	Units *[]string `json:"units,omitempty"`
+}
+
+// SplitRule A recipient's share of a card payment: a fixed amount, or a percentage with two
+// decimals; every rule of a split is the same kind, and they add up to the whole.
+// Exactly one rule is liable for chargebacks and exactly one takes the centavos
+// rounding leaves over. The rules with charge_fee pay Jupiter's fee, in proportion
+// to their shares, and hold at least 10% of the payment between them.
+type SplitRule struct {
+	Amount     *int64  `json:"amount,omitempty"`
+	ChargeFee  *bool   `json:"charge_fee,omitempty"`
+	Liable     *bool   `json:"liable,omitempty"`
+	Percentage *string `json:"percentage,omitempty"`
+	Recipient  string  `json:"recipient"`
+	Remainder  *bool   `json:"remainder,omitempty"`
+}
+
 // Subscription defines model for Subscription.
 type Subscription struct {
 	Amount        int64                     `json:"amount"`
@@ -2182,6 +2512,16 @@ type SubscriptionList struct {
 // SubscriptionListObject defines model for SubscriptionList.Object.
 type SubscriptionListObject string
 
+// TransferSettings defines model for TransferSettings.
+type TransferSettings struct {
+	// Day 1 (Monday) to 5 for weekly transfers, 1 to 28 for monthly ones.
+	Day      *int                     `json:"day,omitempty"`
+	Interval TransferSettingsInterval `json:"interval"`
+}
+
+// TransferSettingsInterval defines model for TransferSettings.Interval.
+type TransferSettingsInterval string
+
 // UpdatePaymentIntentRequest defines model for UpdatePaymentIntentRequest.
 type UpdatePaymentIntentRequest struct {
 	Amount      *int64  `json:"amount,omitempty"`
@@ -2203,6 +2543,7 @@ type UpdatePaymentIntentRequest struct {
 	Pix                 *PixOptions                                    `json:"pix,omitempty"`
 	RequestThreeDSecure *UpdatePaymentIntentRequestRequestThreeDSecure `json:"request_three_d_secure,omitempty"`
 	SetupFutureUsage    *UpdatePaymentIntentRequestSetupFutureUsage    `json:"setup_future_usage,omitempty"`
+	Split               *[]SplitRule                                   `json:"split,omitempty"`
 }
 
 // UpdatePaymentIntentRequestRequestThreeDSecure defines model for UpdatePaymentIntentRequest.RequestThreeDSecure.
@@ -2210,6 +2551,14 @@ type UpdatePaymentIntentRequestRequestThreeDSecure string
 
 // UpdatePaymentIntentRequestSetupFutureUsage defines model for UpdatePaymentIntentRequest.SetupFutureUsage.
 type UpdatePaymentIntentRequestSetupFutureUsage string
+
+// UpdateRecipientRequest defines model for UpdateRecipientRequest.
+type UpdateRecipientRequest struct {
+	AutomaticAnticipation *AutomaticAnticipation `json:"automatic_anticipation,omitempty"`
+	Name                  *string                `json:"name,omitempty"`
+	PayoutDestination     *RecipientDestination  `json:"payout_destination,omitempty"`
+	TransferSettings      *TransferSettings      `json:"transfer_settings,omitempty"`
+}
 
 // UpdateWebhookEndpointRequest defines model for UpdateWebhookEndpointRequest.
 type UpdateWebhookEndpointRequest struct {
@@ -2221,6 +2570,14 @@ type UpdateWebhookEndpointRequest struct {
 
 // UpdateWebhookEndpointRequestStatus defines model for UpdateWebhookEndpointRequest.Status.
 type UpdateWebhookEndpointRequestStatus string
+
+// VerifyRecipientRequest defines model for VerifyRecipientRequest.
+type VerifyRecipientRequest struct {
+	Status VerifyRecipientRequestStatus `json:"status"`
+}
+
+// VerifyRecipientRequestStatus defines model for VerifyRecipientRequest.Status.
+type VerifyRecipientRequestStatus string
 
 // WebhookEndpoint defines model for WebhookEndpoint.
 type WebhookEndpoint struct {
@@ -2275,6 +2632,11 @@ type StartingAfter = string
 
 // Failure defines model for Failure.
 type Failure = ErrorResponse
+
+// CreateAnticipationParams defines parameters for CreateAnticipation.
+type CreateAnticipationParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
 
 // ListApiKeysParams defines parameters for ListApiKeys.
 type ListApiKeysParams struct {
@@ -2382,8 +2744,10 @@ type CreatePayoutParams struct {
 
 // GetReceivablesAgendaParams defines parameters for GetReceivablesAgenda.
 type GetReceivablesAgendaParams struct {
-	From openapi_types.Date `form:"from" json:"from"`
-	To   openapi_types.Date `form:"to" json:"to"`
+	// Recipient Whose agenda; the merchant's own when omitted.
+	Recipient *string            `form:"recipient,omitempty" json:"recipient,omitempty"`
+	From      openapi_types.Date `form:"from" json:"from"`
+	To        openapi_types.Date `form:"to" json:"to"`
 
 	// AsOf A Unix timestamp; the agenda as it stood then. Now if omitted.
 	AsOf *int64 `form:"as_of,omitempty" json:"as_of,omitempty"`
@@ -2396,6 +2760,27 @@ type CreateReceivablesOptInParams struct {
 
 // RevokeReceivablesOptInParams defines parameters for RevokeReceivablesOptIn.
 type RevokeReceivablesOptInParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// ListRecipientsParams defines parameters for ListRecipients.
+type ListRecipientsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// StartingAfter An object id; the page starts with the next older object.
+	StartingAfter *StartingAfter `form:"starting_after,omitempty" json:"starting_after,omitempty"`
+
+	// EndingBefore An object id; the page ends with the next newer object.
+	EndingBefore *EndingBefore `form:"ending_before,omitempty" json:"ending_before,omitempty"`
+}
+
+// CreateRecipientParams defines parameters for CreateRecipient.
+type CreateRecipientParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
+// UpdateRecipientParams defines parameters for UpdateRecipient.
+type UpdateRecipientParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
@@ -2468,6 +2853,11 @@ type CompletePaymentIntentActionParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
 
+// VerifyRecipientParams defines parameters for VerifyRecipient.
+type VerifyRecipientParams struct {
+	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // ListWebhookEndpointsParams defines parameters for ListWebhookEndpoints.
 type ListWebhookEndpointsParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
@@ -2493,6 +2883,12 @@ type UpdateWebhookEndpointParams struct {
 type RollWebhookEndpointSecretParams struct {
 	IdempotencyKey *IdempotencyKey `json:"Idempotency-Key,omitempty"`
 }
+
+// CreateAnticipationJSONRequestBody defines body for CreateAnticipation for application/json ContentType.
+type CreateAnticipationJSONRequestBody = CreateAnticipationRequest
+
+// SimulateAnticipationJSONRequestBody defines body for SimulateAnticipation for application/json ContentType.
+type SimulateAnticipationJSONRequestBody = SimulateAnticipationRequest
 
 // CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
 type CreateApiKeyJSONRequestBody = CreateApiKeyRequest
@@ -2524,6 +2920,12 @@ type CreatePayoutJSONRequestBody = CreatePayoutRequest
 // CreateReceivablesOptInJSONRequestBody defines body for CreateReceivablesOptIn for application/json ContentType.
 type CreateReceivablesOptInJSONRequestBody = CreateReceivablesOptInRequest
 
+// CreateRecipientJSONRequestBody defines body for CreateRecipient for application/json ContentType.
+type CreateRecipientJSONRequestBody = CreateRecipientRequest
+
+// UpdateRecipientJSONRequestBody defines body for UpdateRecipient for application/json ContentType.
+type UpdateRecipientJSONRequestBody = UpdateRecipientRequest
+
 // CreateRefundJSONRequestBody defines body for CreateRefund for application/json ContentType.
 type CreateRefundJSONRequestBody = CreateRefundRequest
 
@@ -2539,6 +2941,9 @@ type CreateSubscriptionJSONRequestBody = CreateSubscriptionRequest
 // CompletePaymentIntentActionJSONRequestBody defines body for CompletePaymentIntentAction for application/json ContentType.
 type CompletePaymentIntentActionJSONRequestBody = CompleteActionRequest
 
+// VerifyRecipientJSONRequestBody defines body for VerifyRecipient for application/json ContentType.
+type VerifyRecipientJSONRequestBody = VerifyRecipientRequest
+
 // CreateWebhookEndpointJSONRequestBody defines body for CreateWebhookEndpoint for application/json ContentType.
 type CreateWebhookEndpointJSONRequestBody = CreateWebhookEndpointRequest
 
@@ -2550,6 +2955,15 @@ type RollWebhookEndpointSecretJSONRequestBody = RollSecretRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+
+	// (POST /v1/anticipations)
+	CreateAnticipation(w http.ResponseWriter, r *http.Request, params CreateAnticipationParams)
+
+	// (POST /v1/anticipations/simulate)
+	SimulateAnticipation(w http.ResponseWriter, r *http.Request)
+
+	// (GET /v1/anticipations/{id})
+	GetAnticipation(w http.ResponseWriter, r *http.Request, id ID)
 
 	// (GET /v1/api_keys)
 	ListApiKeys(w http.ResponseWriter, r *http.Request, params ListApiKeysParams)
@@ -2620,6 +3034,21 @@ type ServerInterface interface {
 	// (POST /v1/receivables/opt_ins/{financier}/revoke)
 	RevokeReceivablesOptIn(w http.ResponseWriter, r *http.Request, financier string, params RevokeReceivablesOptInParams)
 
+	// (GET /v1/recipients)
+	ListRecipients(w http.ResponseWriter, r *http.Request, params ListRecipientsParams)
+
+	// (POST /v1/recipients)
+	CreateRecipient(w http.ResponseWriter, r *http.Request, params CreateRecipientParams)
+
+	// (GET /v1/recipients/{id})
+	GetRecipient(w http.ResponseWriter, r *http.Request, id ID)
+
+	// (POST /v1/recipients/{id})
+	UpdateRecipient(w http.ResponseWriter, r *http.Request, id ID, params UpdateRecipientParams)
+
+	// (GET /v1/recipients/{id}/balance)
+	GetRecipientBalance(w http.ResponseWriter, r *http.Request, id ID)
+
 	// (GET /v1/refunds)
 	ListRefunds(w http.ResponseWriter, r *http.Request, params ListRefundsParams)
 
@@ -2668,6 +3097,9 @@ type ServerInterface interface {
 	// (POST /v1/test_helpers/payment_intents/{id}/complete_action)
 	CompletePaymentIntentAction(w http.ResponseWriter, r *http.Request, id ID, params CompletePaymentIntentActionParams)
 
+	// (POST /v1/test_helpers/recipients/{id}/verify)
+	VerifyRecipient(w http.ResponseWriter, r *http.Request, id ID, params VerifyRecipientParams)
+
 	// (GET /v1/webhook_endpoints)
 	ListWebhookEndpoints(w http.ResponseWriter, r *http.Request, params ListWebhookEndpointsParams)
 
@@ -2695,6 +3127,87 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// CreateAnticipation operation middleware
+func (siw *ServerInterfaceWrapper) CreateAnticipation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateAnticipationParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAnticipation(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SimulateAnticipation operation middleware
+func (siw *ServerInterfaceWrapper) SimulateAnticipation(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SimulateAnticipation(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAnticipation operation middleware
+func (siw *ServerInterfaceWrapper) GetAnticipation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAnticipation(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListApiKeys operation middleware
 func (siw *ServerInterfaceWrapper) ListApiKeys(w http.ResponseWriter, r *http.Request) {
@@ -3577,6 +4090,19 @@ func (siw *ServerInterfaceWrapper) GetReceivablesAgenda(w http.ResponseWriter, r
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetReceivablesAgendaParams
 
+	// ------------- Optional query parameter "recipient" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "recipient", r.URL.Query(), &params.Recipient, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "recipient"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "recipient", Err: err})
+		}
+		return
+	}
+
 	// ------------- Required query parameter "from" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
@@ -3723,6 +4249,208 @@ func (siw *ServerInterfaceWrapper) RevokeReceivablesOptIn(w http.ResponseWriter,
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RevokeReceivablesOptIn(w, r, financier, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRecipients operation middleware
+func (siw *ServerInterfaceWrapper) ListRecipients(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRecipientsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "starting_after" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "starting_after", r.URL.Query(), &params.StartingAfter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "starting_after"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "starting_after", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "ending_before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "ending_before", r.URL.Query(), &params.EndingBefore, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ending_before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ending_before", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRecipients(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateRecipient operation middleware
+func (siw *ServerInterfaceWrapper) CreateRecipient(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateRecipientParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateRecipient(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRecipient operation middleware
+func (siw *ServerInterfaceWrapper) GetRecipient(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRecipient(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateRecipient operation middleware
+func (siw *ServerInterfaceWrapper) UpdateRecipient(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateRecipientParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateRecipient(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRecipientBalance operation middleware
+func (siw *ServerInterfaceWrapper) GetRecipientBalance(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRecipientBalance(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4370,6 +5098,56 @@ func (siw *ServerInterfaceWrapper) CompletePaymentIntentAction(w http.ResponseWr
 	handler.ServeHTTP(w, r)
 }
 
+// VerifyRecipient operation middleware
+func (siw *ServerInterfaceWrapper) VerifyRecipient(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params VerifyRecipientParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VerifyRecipient(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListWebhookEndpoints operation middleware
 func (siw *ServerInterfaceWrapper) ListWebhookEndpoints(w http.ResponseWriter, r *http.Request) {
 
@@ -4765,6 +5543,15 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/receivables/opt_ins", wrapper.ListReceivablesOptIns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/receivables/opt_ins", wrapper.CreateReceivablesOptIn)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/receivables/opt_ins/{financier}/revoke", wrapper.RevokeReceivablesOptIn)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/recipients", wrapper.ListRecipients)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/recipients", wrapper.CreateRecipient)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/recipients/{id}", wrapper.GetRecipient)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/recipients/{id}", wrapper.UpdateRecipient)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/recipients/{id}/balance", wrapper.GetRecipientBalance)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/anticipations/simulate", wrapper.SimulateAnticipation)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/anticipations", wrapper.CreateAnticipation)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/anticipations/{id}", wrapper.GetAnticipation)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/test_helpers/recipients/{id}/verify", wrapper.VerifyRecipient)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/decisions", wrapper.ListRiskDecisions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/decisions/{id}", wrapper.GetRiskDecision)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/risk/rules", wrapper.ListRiskRules)
@@ -4796,144 +5583,173 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"dfBnBX839J5wAN9wIPitC+ngoat5ffPp5r8HAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

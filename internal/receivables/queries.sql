@@ -1,6 +1,6 @@
 -- name: LockUnit :one
 SELECT * FROM receivables.units
-WHERE merchant_id = @merchant_id AND livemode = @livemode AND arrangement = @arrangement AND settlement_date = @settlement_date
+WHERE recipient_id = @recipient_id AND livemode = @livemode AND arrangement = @arrangement AND settlement_date = @settlement_date
 FOR UPDATE;
 
 -- name: LockUnitByID :one
@@ -10,30 +10,31 @@ SELECT * FROM receivables.units WHERE id = @id FOR UPDATE;
 SELECT * FROM receivables.units WHERE id = @id;
 
 -- name: InsertUnit :exec
-INSERT INTO receivables.units (id, merchant_id, livemode, arrangement, settlement_date, value, currency, constituted_on, created_at, updated_at)
-VALUES (@id, @merchant_id, @livemode, @arrangement, @settlement_date, 0, @currency, @constituted_on, @now, @now)
-ON CONFLICT (merchant_id, livemode, arrangement, settlement_date) DO NOTHING;
+INSERT INTO receivables.units (id, merchant_id, recipient_id, livemode, arrangement, settlement_date, value, currency, constituted_on, created_at, updated_at)
+VALUES (@id, @merchant_id, @recipient_id, @livemode, @arrangement, @settlement_date, 0, @currency, @constituted_on, @now, @now)
+ON CONFLICT (recipient_id, livemode, arrangement, settlement_date) DO NOTHING;
 
 -- name: ChangeUnitValue :exec
 -- Any change is a new version the registry must take.
 UPDATE receivables.units
-SET value = value + @delta, constituted_on = greatest(constituted_on, @constituted_on), version = version + 1,
-    register_retry_at = NULL, updated_at = @now
+SET value = value + @delta, anticipated = anticipated + @anticipated_delta,
+    constituted_on = greatest(constituted_on, @constituted_on), version = version + 1, register_retry_at = NULL, updated_at = @now
 WHERE id = @id;
 
 -- name: InsertInstallment :exec
-INSERT INTO receivables.installments (attempt_id, number, payment_intent, unit_id, gross, fee, net)
-VALUES (@attempt_id, @number, @payment_intent, @unit_id, @gross, @fee, @net);
+INSERT INTO receivables.installments (attempt_id, recipient_id, number, payment_intent, unit_id, gross, fee, net)
+VALUES (@attempt_id, @recipient_id, @number, @payment_intent, @unit_id, @gross, @fee, @net);
 
 -- name: InstallmentsOfIntent :many
 SELECT i.*, (u.settled_on IS NOT NULL)::boolean AS unit_settled
 FROM receivables.installments i JOIN receivables.units u ON u.id = i.unit_id
 WHERE i.payment_intent = @payment_intent
-ORDER BY i.number
+ORDER BY i.recipient_id, i.number
 FOR UPDATE OF i, u;
 
 -- name: ReduceInstallment :exec
-UPDATE receivables.installments SET reduced = reduced + @amount WHERE attempt_id = @attempt_id AND number = @number;
+UPDATE receivables.installments SET reduced = reduced + @amount
+WHERE attempt_id = @attempt_id AND recipient_id = @recipient_id AND number = @number;
 
 -- name: InsertUnitEvent :exec
 INSERT INTO receivables.unit_events (unit_id, at, kind, amount, reference) VALUES (@unit_id, @at, @kind, @amount, @reference);
@@ -135,7 +136,7 @@ GROUP BY u.id, u.value;
 -- name: AgendaAsOf :many
 -- A merchant's units as they stood at a moment: their value from the events until then,
 -- their commitments from the last snapshot before it.
-SELECT u.id, u.arrangement, u.settlement_date, u.currency, u.blocked, u.registered_version, u.settled_on,
+SELECT u.id, u.arrangement, u.settlement_date, u.currency, u.blocked, u.anticipated, u.registered_version, u.settled_on,
        coalesce(ev.value, 0)::bigint AS value, coalesce(ev.settled, 0)::bigint AS settled,
        coalesce(ev.is_settled, false)::boolean AS is_settled,
        snap.commitments
@@ -151,7 +152,7 @@ LEFT JOIN LATERAL (
     WHERE es.unit_id = u.id AND es.observed_at <= @at
     ORDER BY es.observed_at DESC, es.id DESC LIMIT 1
 ) snap ON true
-WHERE u.merchant_id = @merchant_id AND u.livemode = @livemode
+WHERE u.merchant_id = @merchant_id AND u.recipient_id = @recipient_id AND u.livemode = @livemode
   AND u.settlement_date BETWEEN @from_date AND @to_date AND u.created_at <= @at
 ORDER BY u.settlement_date, u.arrangement;
 
@@ -167,3 +168,99 @@ ORDER BY es.unit_id, es.observed_at DESC, es.id DESC;
 SELECT * FROM receivables.units
 WHERE livemode = @livemode AND (settled_on IS NULL OR settlement_date >= @since)
 ORDER BY settlement_date, id;
+
+-- name: InsertSplitLine :exec
+INSERT INTO receivables.split_lines (attempt_id, payment_intent, recipient_id, type, amount, liable, ledger_txn)
+VALUES (@attempt_id, @payment_intent, @recipient_id, @type, @amount, @liable, @ledger_txn);
+
+-- name: SplitLinesOfIntent :many
+SELECT * FROM receivables.split_lines WHERE payment_intent = @payment_intent ORDER BY recipient_id, type;
+
+-- name: LedgerAccounts :many
+SELECT role, account_id FROM receivables.ledger_accounts
+WHERE recipient_id = @recipient_id AND livemode = @livemode AND currency = @currency;
+
+-- name: LockAccountCreation :exec
+SELECT pg_advisory_xact_lock(hashtext('receivables/accounts/' || @scope::text));
+
+-- name: InsertLedgerAccount :exec
+INSERT INTO receivables.ledger_accounts (recipient_id, livemode, currency, role, account_id)
+VALUES (@recipient_id, @livemode, @currency, @role, @account_id);
+
+-- name: AllLedgerAccounts :many
+SELECT * FROM receivables.ledger_accounts WHERE recipient_id <> '' ORDER BY recipient_id, livemode, currency, role;
+
+-- name: InsertMovement :exec
+INSERT INTO receivables.movements (recipient_id, livemode, currency, bucket, kind, amount, reference, at)
+VALUES (@recipient_id, @livemode, @currency, @bucket, @kind, @amount, @reference, @at);
+
+-- name: MovementTotals :many
+SELECT recipient_id, livemode, currency, bucket, sum(amount)::bigint AS total
+FROM receivables.movements GROUP BY recipient_id, livemode, currency, bucket;
+
+-- name: PendingFromUnits :many
+-- What each recipient's unsettled units hold that Jupiter did not buy.
+SELECT recipient_id, livemode, currency, sum(value - anticipated)::bigint AS pending
+FROM receivables.units WHERE settled_on IS NULL AND recipient_id <> ''
+GROUP BY recipient_id, livemode, currency;
+
+-- name: PendingByDate :many
+SELECT settlement_date, sum(value - anticipated)::bigint AS amount
+FROM receivables.units
+WHERE recipient_id = @recipient_id AND livemode = @livemode AND currency = @currency AND settled_on IS NULL AND value > anticipated
+GROUP BY settlement_date ORDER BY settlement_date
+LIMIT 400;
+
+-- name: AnticipableUnits :many
+-- A recipient's units Jupiter can buy: registered as they are, not settled, settling
+-- after today, with something not yet bought.
+SELECT * FROM receivables.units
+WHERE recipient_id = @recipient_id AND livemode = @livemode AND settled_on IS NULL AND settlement_date > @today
+  AND value > anticipated AND registered_version = version
+  AND (cardinality(@ids::text[]) = 0 OR id = ANY(@ids::text[]))
+  AND created_at <= @constituted_before
+ORDER BY settlement_date, id
+LIMIT 400
+FOR UPDATE;
+
+-- name: PeekAnticipableUnits :many
+-- The same, unlocked: for a quote, which changes nothing.
+-- A recipient's units Jupiter can buy: registered as they are, not settled, settling
+-- after today, with something not yet bought.
+SELECT * FROM receivables.units
+WHERE recipient_id = @recipient_id AND livemode = @livemode AND settled_on IS NULL AND settlement_date > @today
+  AND value > anticipated AND registered_version = version
+  AND (cardinality(@ids::text[]) = 0 OR id = ANY(@ids::text[]))
+  AND created_at <= @constituted_before
+ORDER BY settlement_date, id
+LIMIT 400;
+
+-- name: InsertQuote :exec
+INSERT INTO receivables.anticipation_quotes (id, merchant_id, livemode, recipient_id, monthly_rate, units, amount, price, expires_at, created_at)
+VALUES (@id, @merchant_id, @livemode, @recipient_id, @monthly_rate, @units, @amount, @price, @expires_at, @created_at);
+
+-- name: LockQuote :one
+SELECT * FROM receivables.anticipation_quotes WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode FOR UPDATE;
+
+-- name: UseQuote :exec
+UPDATE receivables.anticipation_quotes SET anticipation = @anticipation WHERE id = @id;
+
+-- name: InsertAnticipation :exec
+INSERT INTO receivables.anticipations (id, merchant_id, livemode, recipient_id, currency, amount, price, monthly_rate, automatic, ledger_txn, created_at)
+VALUES (@id, @merchant_id, @livemode, @recipient_id, @currency, @amount, @price, @monthly_rate, @automatic, @ledger_txn, @created_at);
+
+-- name: InsertAnticipationUnit :exec
+INSERT INTO receivables.anticipation_units (anticipation_id, unit_id, amount, price, days, contract)
+VALUES (@anticipation_id, @unit_id, @amount, @price, @days, @contract);
+
+-- name: GetAnticipation :one
+SELECT * FROM receivables.anticipations WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode;
+
+-- name: AnticipationUnits :many
+SELECT * FROM receivables.anticipation_units WHERE anticipation_id = @anticipation_id ORDER BY unit_id;
+
+-- name: AnticipationTotals :many
+-- For the check: what Jupiter bought of each unit.
+SELECT u.id, u.anticipated, coalesce(sum(au.amount), 0)::bigint AS bought
+FROM receivables.units u LEFT JOIN receivables.anticipation_units au ON au.unit_id = u.id
+GROUP BY u.id, u.anticipated;

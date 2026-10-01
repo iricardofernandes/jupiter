@@ -1,10 +1,10 @@
 -- name: InsertIntent :exec
 INSERT INTO payments.intents (id, merchant_id, livemode, amount, currency, capture_method, status, payment_method,
                               description, installments, installments_financed_by, setup_future_usage,
-                              request_three_d_secure, pix_options, created_at, updated_at)
+                              request_three_d_secure, pix_options, split, created_at, updated_at)
 VALUES (@id, @merchant_id, @livemode, @amount, @currency, @capture_method, @status, @payment_method, @description,
         sqlc.narg('installments'), sqlc.narg('installments_financed_by'), @setup_future_usage, @request_three_d_secure,
-        @pix_options, @created_at, @created_at);
+        @pix_options, @split, @created_at, @created_at);
 
 -- name: GetIntent :one
 SELECT * FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3;
@@ -38,7 +38,7 @@ SET amount = @amount, status = @status, payment_method = @payment_method, descri
     cancellation_reason = @cancellation_reason, installments = sqlc.narg('installments'),
     installments_financed_by = sqlc.narg('installments_financed_by'), setup_future_usage = @setup_future_usage,
     request_three_d_secure = @request_three_d_secure, next_action_url = @next_action_url,
-    risk_decision = @risk_decision, risk_decision_id = @risk_decision_id, pix_options = @pix_options,
+    risk_decision = @risk_decision, risk_decision_id = @risk_decision_id, pix_options = @pix_options, split = @split,
     next_action_data = @next_action_data, next_action_expires_at = @next_action_expires_at, updated_at = @updated_at
 WHERE id = @id;
 
@@ -143,8 +143,8 @@ WHERE role = 'merchant_balance' ORDER BY merchant_id, livemode, currency;
 WITH received AS (
     SELECT i.merchant_id, i.livemode, i.currency,
            sum(i.amount_received - i.amount_refunded
-               - coalesce((SELECT sum(a.fee) FROM payments.attempts a WHERE a.intent_id = i.id), 0)
-               + coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r WHERE r.intent_id = i.id AND r.status = 'succeeded'), 0)) AS posted
+               - coalesce((SELECT sum(a.fee + a.split_out) FROM payments.attempts a WHERE a.intent_id = i.id), 0)
+               + coalesce((SELECT sum(r.fee_returned + r.split_back) FROM payments.refunds r WHERE r.intent_id = i.id AND r.status = 'succeeded'), 0)) AS posted
     FROM payments.intents i GROUP BY i.merchant_id, i.livemode, i.currency
 ), held AS (
     SELECT i.merchant_id, i.livemode, i.currency, sum(a.amount) AS held
@@ -155,7 +155,7 @@ WITH received AS (
     SELECT merchant_id, livemode, currency,
            coalesce(sum(amount) FILTER (WHERE status = 'paid'), 0) AS paid,
            coalesce(sum(amount) FILTER (WHERE status IN ('sending', 'unknown')), 0) AS in_flight
-    FROM payments.payouts GROUP BY merchant_id, livemode, currency
+    FROM payments.payouts WHERE recipient_id = '' GROUP BY merchant_id, livemode, currency
 )
 SELECT r.merchant_id, r.livemode, r.currency,
        (r.posted - coalesce(p.paid, 0))::bigint AS posted,
@@ -298,8 +298,9 @@ SELECT livemode, currency, account_id FROM payments.ledger_accounts WHERE role =
 
 -- name: InsertPayout :exec
 INSERT INTO payments.payouts (id, merchant_id, livemode, amount, currency, pix_key, description, status, ledger_hold,
-                              created_at, updated_at)
-VALUES (@id, @merchant_id, @livemode, @amount, @currency, @pix_key, @description, 'sending', @ledger_hold, @now, @now);
+                              recipient_id, created_at, updated_at)
+VALUES (@id, @merchant_id, @livemode, @amount, @currency, @pix_key, @description, 'sending', @ledger_hold,
+        @recipient_id, @now, @now);
 
 -- name: GetPayout :one
 SELECT * FROM payments.payouts WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode;
@@ -345,6 +346,12 @@ UPDATE payments.attempts SET fee = @fee WHERE id = @id;
 
 -- name: SetRefundFee :exec
 UPDATE payments.refunds SET fee_returned = @fee_returned WHERE id = @id;
+
+-- name: SetSplitOut :exec
+UPDATE payments.attempts SET split_out = @split_out WHERE id = @id;
+
+-- name: SetSplitBack :exec
+UPDATE payments.refunds SET split_back = @split_back WHERE id = @id;
 
 -- name: FeesReturned :one
 SELECT coalesce(sum(fee_returned), 0)::bigint FROM payments.refunds WHERE intent_id = @intent_id AND status = 'succeeded';

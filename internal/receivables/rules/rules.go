@@ -53,10 +53,57 @@ var (
 	termsCSV string
 	//go:embed registry_deadlines.csv
 	deadlinesCSV string
+	//go:embed anticipation_rates.csv
+	ratesCSV string
 
 	terms     = must(parseTerms(termsCSV))
 	deadlines = must(parseDeadlines(deadlinesCSV))
+	rates     = must(parseRates(ratesCSV))
 )
+
+// Rate is Jupiter's monthly rate for anticipations from a date.
+type Rate struct {
+	EffectiveFrom time.Time
+	Monthly       string
+	Source        string
+}
+
+// RateFor is the anticipation rate in effect at at.
+func RateFor(at time.Time) Rate {
+	var best Rate
+	for _, r := range rates {
+		if !r.EffectiveFrom.After(at) && (best.Monthly == "" || r.EffectiveFrom.After(best.EffectiveFrom)) {
+			best = r
+		}
+	}
+	if best.Monthly == "" {
+		panic("rules: no anticipation rate in effect")
+	}
+	return best
+}
+
+func parseRates(data string) ([]Rate, error) {
+	r, err := table(data, []string{"effective_from", "monthly_rate", "source"})
+	if err != nil {
+		return nil, fmt.Errorf("rules: anticipation rates %w", err)
+	}
+	var out []Rate
+	err = rows(r, func(rec []string) error {
+		from, err := time.Parse(time.DateOnly, rec[0])
+		if err != nil {
+			return err
+		}
+		if rate, err := strconv.ParseFloat(rec[1], 64); err != nil || rate <= 0 || rate >= 1 || strings.HasPrefix(rec[1], "-") {
+			return fmt.Errorf("monthly_rate %q", rec[1])
+		}
+		out = append(out, Rate{EffectiveFrom: from, Monthly: rec[1], Source: rec[2]})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rules: anticipation rates: %w", err)
+	}
+	return out, nil
+}
 
 func must[T any](v T, err error) T {
 	if err != nil {

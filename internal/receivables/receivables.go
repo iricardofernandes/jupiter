@@ -13,10 +13,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/id"
+	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/receivables/migrations"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
 )
 
@@ -34,17 +37,28 @@ var (
 // accreditor.
 type Registry interface {
 	SetUnits(ctx context.Context, units []registryapi.Unit) ([]registryapi.UnitResult, error)
-	// Units lists Jupiter's units at the registry: all of them, or those settled or not.
-	Units(ctx context.Context, settled *bool, from, to string) ([]registryapi.Position, error)
+	// Units lists Jupiter's units at the registry: all of them, or those settled or not,
+	// or a holder's.
+	Units(ctx context.Context, settled *bool, holder, from, to string) ([]registryapi.Position, error)
 	Instructions(ctx context.Context, holder, arrangement, settlementDate string) ([]registryapi.Payment, error)
 	Settle(ctx context.Context, n registryapi.Settlement) ([]registryapi.Payment, error)
 	SetOptIn(ctx context.Context, o registryapi.OptIn, on bool) error
 	HoldersWithContracts(ctx context.Context) ([]string, error)
+	// AcceptContract places a contract with Jupiter as the financier, as anticipations do.
+	// The same contract again is accepted again.
+	AcceptContract(ctx context.Context, c registryapi.Contract) error
+	// EndContract ends one of Jupiter's contracts; one ended or unknown is ended already.
+	EndContract(ctx context.Context, id string) error
 }
 
 type Config struct {
-	Pool      *pgxpool.Pool
-	Merchants *merchant.Service
+	Pool       *pgxpool.Pool
+	Ledger     *ledger.Ledger
+	Merchants  *merchant.Service
+	Recipients *recipients.Service
+	Events     *events.Service
+	// TaxID is Jupiter's CNPJ: the beneficiary of the units it buys.
+	TaxID string
 	// Registries serve each mode; units of a mode without one are kept, not registered.
 	LiveRegistry Registry
 	TestRegistry Registry

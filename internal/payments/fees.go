@@ -18,10 +18,12 @@ import (
 const roleCardFees = "card_fees"
 
 // Receivables learns of every card capture and refund in the transaction that posts it,
-// so what the merchant is owed and when is never out of step with the ledger.
+// so what the merchant is owed and when is never out of step with the ledger. A capture's
+// net amount may be moved from the merchant's balance to its recipients', and a refund's
+// back: each says how much it moved.
 type Receivables interface {
-	Captured(ctx context.Context, tx pgx.Tx, c CardCapture) error
-	Refunded(ctx context.Context, tx pgx.Tx, r CardRefund) error
+	Captured(ctx context.Context, tx pgx.Tx, c CardCapture) (int64, error)
+	Refunded(ctx context.Context, tx pgx.Tx, r CardRefund) (int64, error)
 }
 
 // CardCapture is a card payment Jupiter captured: Amount is what was captured and Fee
@@ -35,6 +37,9 @@ type CardCapture struct {
 	Amount       money.Amount
 	Fee          money.Amount
 	At           time.Time
+	Split        []SplitRule
+	// Balance is the merchant's balance, where the capture was posted.
+	Balance id.ID
 }
 
 // CardRefund is a refund of a card payment: Amount went back to the customer, and
@@ -47,6 +52,8 @@ type CardRefund struct {
 	Amount      money.Amount
 	FeeReturned money.Amount
 	At          time.Time
+	// Balance is the merchant's balance, which the refund was posted from.
+	Balance id.ID
 }
 
 func (s *Service) feeAccount(ctx context.Context, tx pgx.Tx, livemode bool, currency money.Currency) (id.ID, error) {
@@ -97,10 +104,22 @@ func (s *Service) chargeFee(ctx context.Context, tx pgx.Tx, row *db.PaymentsInte
 	if err != nil {
 		return err
 	}
-	return s.cfg.Receivables.Captured(ctx, tx, CardCapture{
+	rules, err := splitOf(*row)
+	if err != nil {
+		return err
+	}
+	accts, err := s.ledgerAccounts(ctx, tx, owner, captured.Currency())
+	if err != nil {
+		return err
+	}
+	moved, err := s.cfg.Receivables.Captured(ctx, tx, CardCapture{
 		Owner: owner, Intent: intentID, Attempt: attempt.ID, Scheme: scheme, Installments: installments,
-		Amount: captured, Fee: fee, At: now,
+		Amount: captured, Fee: fee, At: now, Split: rules, Balance: accts.merchantBalance,
 	})
+	if err != nil || moved == 0 {
+		return err
+	}
+	return db.New(tx).SetSplitOut(ctx, db.SetSplitOutParams{ID: attempt.ID, SplitOut: moved})
 }
 
 // postFee moves a fee from the merchant to Jupiter's fee account, or back.
@@ -162,9 +181,18 @@ func (s *Service) returnFee(ctx context.Context, tx pgx.Tx, intent db.PaymentsIn
 	if err != nil {
 		return err
 	}
-	return s.cfg.Receivables.Refunded(ctx, tx, CardRefund{
-		Owner: owner, Intent: intentID, Attempt: attempt.ID, Refund: refund.ID, Amount: amount, FeeReturned: feeReturned, At: s.cfg.Now().UTC(),
+	accts, err := s.ledgerAccounts(ctx, tx, owner, currency)
+	if err != nil {
+		return err
+	}
+	back, err := s.cfg.Receivables.Refunded(ctx, tx, CardRefund{
+		Owner: owner, Intent: intentID, Attempt: attempt.ID, Refund: refund.ID, Amount: amount, FeeReturned: feeReturned,
+		At: s.cfg.Now().UTC(), Balance: accts.merchantBalance,
 	})
+	if err != nil || back == 0 {
+		return err
+	}
+	return db.New(tx).SetSplitBack(ctx, db.SetSplitBackParams{ID: refund.ID, SplitBack: back})
 }
 
 // feeToReturn is the share of the fee refund gives back: what refunds up to and

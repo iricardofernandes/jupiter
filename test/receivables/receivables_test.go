@@ -5,6 +5,7 @@ package receivables_test
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestSixInstallmentsBecomeSixUnits(t *testing.T) {
 	}
 	h.register()
 	positions, err := h.registry.Positions(registrysim.Participant{TaxID: jupiterCNPJ, Role: registrysim.Accreditor}, merchantCNPJ, "", "", nil)
-	if err != nil || len(positions) != 6 || positions[0].Value != 9651 || positions[0].Domicile.Account != h.owner.Merchant.String() {
+	if err != nil || len(positions) != 6 || positions[0].Value != 9651 || !strings.HasPrefix(positions[0].Domicile.Account, "rp_") {
 		t.Fatalf("the registry has %+v, %v", positions, err)
 	}
 	if r := h.reconcile(receivables.Daily); len(r.Divergences) != 0 {

@@ -66,6 +66,8 @@ const (
 	ScopeSubscriptionsWrite   Scope = "subscriptions:write"
 	ScopeReceivablesRead      Scope = "receivables:read"
 	ScopeReceivablesWrite     Scope = "receivables:write"
+	ScopeRecipientsRead       Scope = "recipients:read"
+	ScopeRecipientsWrite      Scope = "recipients:write"
 )
 
 // AllScopes is what a secret key holds. A restricted key holds a subset; a publishable
@@ -79,7 +81,7 @@ var AllScopes = []Scope{
 	ScopeRefundsRead, ScopeRefundsWrite,
 	ScopeRiskRead, ScopeRiskWrite,
 	ScopePayoutsRead, ScopePayoutsWrite,
-	ScopeSubscriptionsRead, ScopeSubscriptionsWrite, ScopeReceivablesRead, ScopeReceivablesWrite,
+	ScopeSubscriptionsRead, ScopeSubscriptionsWrite, ScopeReceivablesRead, ScopeReceivablesWrite, ScopeRecipientsRead, ScopeRecipientsWrite,
 }
 
 type Merchant struct {

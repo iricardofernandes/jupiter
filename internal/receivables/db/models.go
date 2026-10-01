@@ -8,6 +8,43 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ReceivablesAnticipation struct {
+	ID          string
+	MerchantID  string
+	Livemode    bool
+	RecipientID string
+	Currency    string
+	Amount      int64
+	Price       int64
+	MonthlyRate string
+	Automatic   bool
+	LedgerTxn   string
+	CreatedAt   pgtype.Timestamptz
+}
+
+type ReceivablesAnticipationQuote struct {
+	ID           string
+	MerchantID   string
+	Livemode     bool
+	RecipientID  string
+	MonthlyRate  string
+	Units        []byte
+	Amount       int64
+	Price        int64
+	ExpiresAt    pgtype.Timestamptz
+	Anticipation pgtype.Text
+	CreatedAt    pgtype.Timestamptz
+}
+
+type ReceivablesAnticipationUnit struct {
+	AnticipationID string
+	UnitID         string
+	Amount         int64
+	Price          int64
+	Days           int32
+	Contract       string
+}
+
 type ReceivablesDivergence struct {
 	ID         int64
 	Livemode   bool
@@ -34,6 +71,27 @@ type ReceivablesInstallment struct {
 	Fee           int64
 	Net           int64
 	Reduced       int64
+	RecipientID   string
+}
+
+type ReceivablesLedgerAccount struct {
+	RecipientID string
+	Livemode    bool
+	Currency    string
+	Role        string
+	AccountID   string
+}
+
+type ReceivablesMovement struct {
+	ID          int64
+	RecipientID string
+	Livemode    bool
+	Currency    string
+	Bucket      string
+	Kind        string
+	Amount      int64
+	Reference   string
+	At          pgtype.Timestamptz
 }
 
 type ReceivablesOptIn struct {
@@ -53,6 +111,16 @@ type ReceivablesReconciliation struct {
 	RanOn       pgtype.Date
 	RanAt       pgtype.Timestamptz
 	Divergences int32
+}
+
+type ReceivablesSplitLine struct {
+	AttemptID     string
+	PaymentIntent string
+	RecipientID   string
+	Type          string
+	Amount        int64
+	Liable        bool
+	LedgerTxn     string
 }
 
 type ReceivablesUnit struct {
@@ -75,6 +143,8 @@ type ReceivablesUnit struct {
 	Payments          []byte
 	CreatedAt         pgtype.Timestamptz
 	UpdatedAt         pgtype.Timestamptz
+	RecipientID       string
+	Anticipated       int64
 }
 
 type ReceivablesUnitEvent struct {

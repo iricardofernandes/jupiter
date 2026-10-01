@@ -46,6 +46,8 @@ type CreateParams struct {
 	RequestThreeDSecure string
 	// Pix says how a Pix charge is made, for the payment method pix.
 	Pix *PixOptions
+	// Split divides a card payment among recipients; empty, it is all the merchant's.
+	Split []SplitRule
 }
 
 type UpdateParams struct {
@@ -56,6 +58,7 @@ type UpdateParams struct {
 	SetupFutureUsage    *string
 	RequestThreeDSecure *string
 	Pix                 *PixOptions
+	Split               *[]SplitRule
 }
 
 // ConfirmParams says how to authorize: OffSession for a merchant-initiated payment,
@@ -85,6 +88,9 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	if err := s.checkPix(p.PaymentMethod, p.Pix, p.Amount, p.CaptureMethod, p.Installments, p.SetupFutureUsage); err != nil {
 		return Intent{}, err
 	}
+	if err := s.checkSplit(ctx, tx, owner, p.Split, p.Amount, p.PaymentMethod); err != nil {
+		return Intent{}, err
+	}
 	status := RequiresPaymentMethod
 	if p.PaymentMethod != "" {
 		status = RequiresConfirmation
@@ -94,7 +100,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		ID: IntentPrefix.New().String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 		Amount: p.Amount.Minor(), Currency: p.Amount.Currency().Code(), CaptureMethod: string(p.CaptureMethod),
 		Status: string(status), PaymentMethod: p.PaymentMethod, Description: p.Description, SetupFutureUsage: p.SetupFutureUsage,
-		RequestThreeDSecure: p.RequestThreeDSecure, PixOptions: pixOptionsColumn(p.Pix),
+		RequestThreeDSecure: p.RequestThreeDSecure, PixOptions: pixOptionsColumn(p.Pix), Split: splitColumn(p.Split),
 	}
 	row.Installments, row.InstallmentsFinancedBy = installmentColumns(p.Installments)
 	q := db.New(tx)
@@ -103,7 +109,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		CaptureMethod: row.CaptureMethod, Status: row.Status, PaymentMethod: row.PaymentMethod,
 		Description: row.Description, Installments: row.Installments, InstallmentsFinancedBy: row.InstallmentsFinancedBy,
 		SetupFutureUsage: row.SetupFutureUsage, RequestThreeDSecure: row.RequestThreeDSecure, PixOptions: row.PixOptions,
-		CreatedAt: ts(now),
+		Split: row.Split, CreatedAt: ts(now),
 	}); err != nil {
 		return Intent{}, fmt.Errorf("creating payment intent: %w", err)
 	}
@@ -170,6 +176,12 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 	if err := s.checkPixRow(row); err != nil {
 		return Intent{}, err
 	}
+	if p.Split != nil || p.Amount != nil || p.PaymentMethod != nil {
+		row.Amount = amount.Minor()
+		if err := s.recheckSplit(ctx, tx, owner, row); err != nil {
+			return Intent{}, err
+		}
+	}
 	if p.PaymentMethod != nil {
 		if err := s.checkPaymentMethod(ctx, tx, owner, row.PaymentMethod); err != nil {
 			return Intent{}, err
@@ -209,6 +221,9 @@ func applyUpdate(row *db.PaymentsIntent, p UpdateParams) {
 	}
 	if p.Pix != nil {
 		row.PixOptions = pixOptionsColumn(p.Pix)
+	}
+	if p.Split != nil {
+		row.Split = splitColumn(*p.Split)
 	}
 }
 
@@ -257,22 +272,7 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 		}
 		row.PaymentMethod = p.PaymentMethod
 	}
-	if err := s.checkPixRow(row); err != nil {
-		return Intent{}, StepDone, err
-	}
-	status := Status(row.Status)
-	switch {
-	case status != RequiresPaymentMethod && status != RequiresConfirmation:
-		return Intent{}, StepDone, fmt.Errorf("%w: a %s payment intent cannot be confirmed", ErrInvalidState, status)
-	case row.PaymentMethod == "":
-		return Intent{}, StepDone, fmt.Errorf("%w: a payment_method is needed to confirm", ErrInvalid)
-	case p.IP != "" && !validIP(p.IP):
-		return Intent{}, StepDone, fmt.Errorf("%w: customer_ip is not an IP address", ErrInvalid)
-	}
-	if err := s.checkRail(owner, row.PaymentMethod, p.OffSession); err != nil {
-		return Intent{}, StepDone, err
-	}
-	if err := s.checkStoredCredential(ctx, tx, owner, row, p.OffSession); err != nil {
+	if err := s.confirmable(ctx, tx, owner, row, p); err != nil {
 		return Intent{}, StepDone, err
 	}
 	attemptID, err := s.newAttempt(ctx, q, row, p)
@@ -301,6 +301,30 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 	}
 	it, err := s.save(ctx, q, row)
 	return it, step, err
+}
+
+// confirmable checks an intent can be confirmed as it is now, with p.
+func (s *Service) confirmable(ctx context.Context, tx pgx.Tx, owner Owner, row db.PaymentsIntent, p ConfirmParams) error {
+	if err := s.checkPixRow(row); err != nil {
+		return err
+	}
+	// A recipient may have been rejected since the split was set.
+	if err := s.recheckSplit(ctx, tx, owner, row); err != nil {
+		return err
+	}
+	status := Status(row.Status)
+	switch {
+	case status != RequiresPaymentMethod && status != RequiresConfirmation:
+		return fmt.Errorf("%w: a %s payment intent cannot be confirmed", ErrInvalidState, status)
+	case row.PaymentMethod == "":
+		return fmt.Errorf("%w: a payment_method is needed to confirm", ErrInvalid)
+	case p.IP != "" && !validIP(p.IP):
+		return fmt.Errorf("%w: customer_ip is not an IP address", ErrInvalid)
+	}
+	if err := s.checkRail(owner, row.PaymentMethod, p.OffSession); err != nil {
+		return err
+	}
+	return s.checkStoredCredential(ctx, tx, owner, row, p.OffSession)
 }
 
 // startAttempt makes attemptID the intent's latest and forgets what the previous one

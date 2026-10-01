@@ -46,6 +46,7 @@ type PaymentsAttempt struct {
 	AuthenticationValue    string
 	LiabilityShift         bool
 	Fee                    int64
+	SplitOut               int64
 }
 
 type PaymentsIntent struct {
@@ -79,6 +80,7 @@ type PaymentsIntent struct {
 	PixOptions             []byte
 	NextActionData         string
 	NextActionExpiresAt    pgtype.Timestamptz
+	Split                  []byte
 }
 
 type PaymentsLedgerAccount struct {
@@ -128,6 +130,7 @@ type PaymentsPayout struct {
 	ArrivedAt      pgtype.Timestamptz
 	CreatedAt      pgtype.Timestamptz
 	UpdatedAt      pgtype.Timestamptz
+	RecipientID    string
 }
 
 type PaymentsPixCharge struct {
@@ -175,6 +178,7 @@ type PaymentsRefund struct {
 	UpdatedAt     pgtype.Timestamptz
 	ClearedOn     pgtype.Date
 	FeeReturned   int64
+	SplitBack     int64
 }
 
 type PaymentsTestRail struct {

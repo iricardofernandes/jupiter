@@ -6,8 +6,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +38,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/registry"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
@@ -51,18 +55,22 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate, receivables.Migrate},
-		vaulttest.Template:           {vaulttest.Migrate},
+		postgrestest.DefaultTemplate: {
+			ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate,
+			authentication.Migrate, recipients.Migrate, receivables.Migrate,
+		},
+		vaulttest.Template: {vaulttest.Migrate},
 	}))
 }
 
-// The golden path, as far as phase 9 reaches: a customer's card goes from their browser
-// to the vault; the customer pays R$ 600.00 in six installments, passes the risk engine,
+// The golden path, as far as phase 10 reaches: a marketplace onboards a seller; a
+// customer's card goes from their browser to the vault; the customer pays R$ 600.00 in
+// six installments, split between the seller and the marketplace, passes the risk engine,
 // is authenticated with 3-D Secure without a challenge, and is authorized by the issuer
-// over ISO 8583; the merchant captures it; the ledger, net of Jupiter's fee, and a signed
-// webhook say so; the network's clearing file for the day confirms it; six receivable
-// units are registered with the registry and reconcile with it; and the merchant is paid
-// out by Pix. Later phases add split, anticipation and settlement before the payout.
+// over ISO 8583; the marketplace captures it; the ledger's typed split lines and a signed
+// webhook say so; the network's clearing file for the day confirms it; each one's
+// receivable units are registered with the registry and reconcile with it; the seller
+// anticipates two units; and she is paid out by Pix. Later phases add settlement.
 func TestGoldenPath(t *testing.T) {
 	ctx := t.Context()
 	pool := server.Pool(t)
@@ -121,16 +129,18 @@ func TestGoldenPath(t *testing.T) {
 	}
 	bank, pixConnector := startPixBank(t, pool)
 	merchants := merchant.New(nil)
-	registrySim, receivablesService := startRegistry(t, pool, merchants)
 	l := ledger.New()
+	recipientService := recipients.New(recipients.Config{Merchants: merchants, Events: eventService})
+	registrySim, receivablesService := startRegistry(t, pool, l, merchants, recipientService, eventService)
 	riskEngine := risk.New(risk.Config{})
 	paymentService := payments.New(payments.Config{
 		Ledger: l, Events: eventService, LiveRail: connector, Authenticator: authenticator, Risk: riskEngine,
 		TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client), LivePix: pixConnector,
-		Receivables: receivablesService,
+		Receivables: receivablesService, Balances: receivablesService, Recipients: recipientService,
 	})
 	jupiterAPI := api.New(api.Deps{
 		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Risk: riskEngine, Box: box,
+		Receivables: receivablesService, Recipients: recipientService,
 	})
 	authenticator.Attach(paymentService, jupiterAPI.ResumePayment)
 	mux := http.NewServeMux()
@@ -149,7 +159,7 @@ func TestGoldenPath(t *testing.T) {
 	go func() { workerDone <- jobs.Run(worker)(workerCtx) }()
 	defer func() { stopWorker(); <-workerDone }()
 
-	t.Log("1. a merchant signs up with its CNPJ and receives its live keys")
+	t.Log("1. a marketplace signs up with its CNPJ and receives its live keys")
 	var secretKey, publishableKey string
 	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
 		m, keys, err := merchants.Create(ctx, tx, "Loja do Caminho Dourado", api.CurrentVersion)
@@ -178,6 +188,26 @@ func TestGoldenPath(t *testing.T) {
 	client.post("/v1/webhook_endpoints", map[string]any{"url": receiver.URL, "enabled_events": []string{"payment_intent.succeeded"}}, &endpoint)
 	receiverSecret <- endpoint.Secret
 
+	t.Log("   and onboards a seller, with her CNPJ and Pix key; Jupiter verifies her")
+	var seller struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	client.post("/v1/recipients", map[string]any{
+		"name": "Vendedora do Caminho", "tax_id": sellerCNPJ, "payout_destination": map[string]any{"type": "pix", "pix_key": sellerKey},
+	}, &seller)
+	sellerID, err := recipients.Prefix.Parse(seller.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marketplace := recipients.Owner{Merchant: merchantOf(t, merchants, pool, secretKey), Livemode: true}
+	if err := postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		_, err := recipientService.Verify(ctx, tx, marketplace, sellerID, recipients.Verified)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+
 	t.Log("3. the customer types their card into the checkout page, which sends it to the vault")
 	browser := &apiClient{t: t, base: cardVault.PublicURL, key: publishableKey, noIdempotencyKey: true}
 	var token struct {
@@ -200,7 +230,7 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatalf("payment method = %+v", method)
 	}
 
-	t.Log("5. the customer pays R$ 600.00 in six installments: the issuer authenticates them with 3-D Secure, frictionless, and authorizes it over ISO 8583")
+	t.Log("5. the customer pays R$ 600.00 in six installments, split 90% to the seller and 10% to the marketplace: the issuer authenticates them with 3-D Secure, frictionless, and authorizes it over ISO 8583")
 	var intent struct {
 		ID               string `json:"id"`
 		Status           string `json:"status"`
@@ -212,6 +242,10 @@ func TestGoldenPath(t *testing.T) {
 		"payment_method": method.ID, "confirm": true,
 		"installments": map[string]any{"count": 6, "financed_by": "merchant"}, "request_three_d_secure": "any",
 		"customer_ip": "189.40.12.7",
+		"split": []map[string]any{
+			{"recipient": seller.ID, "percentage": "90.00", "liable": true},
+			{"recipient": "me", "percentage": "10.00", "remainder": true, "charge_fee": true},
+		},
 	}, &intent)
 	if intent.Status != "requires_capture" || intent.AmountCapturable != 60000 {
 		t.Fatalf("after authorization: %+v", intent)
@@ -241,10 +275,15 @@ func TestGoldenPath(t *testing.T) {
 	if intent.Status != "succeeded" || intent.AmountReceived != 60000 {
 		t.Fatalf("after capture: %+v", intent)
 	}
-	if posted, held := balance(t, paymentService, pool, owner); posted != 60000-fee || held != 0 {
-		t.Fatalf("ledger after capture: posted %d, held %d; want %d and 0", posted, held, 60000-fee)
+	if posted, held := balance(t, paymentService, pool, owner); posted != 0 || held != 0 {
+		t.Fatalf("the marketplace's balance after capture: posted %d, held %d; want 0 and 0", posted, held)
 	}
-	t.Log("   the ledger posts R$ 600.00 to the merchant's balance, less Jupiter's fee of R$ 20.94 (3.49% for 6 installments)")
+	sellerBalance := recipientBalance(t, receivablesService, pool, owner, seller.ID)
+	ownBalance := recipientBalance(t, receivablesService, pool, owner, "")
+	if sellerBalance.Pending != 54000 || ownBalance.Pending != 6000-fee {
+		t.Fatalf("pending balances: the seller %+v, the marketplace %+v", sellerBalance, ownBalance)
+	}
+	t.Log("   the split's typed lines: R$ 540.00 to the seller, R$ 60.00 commission to the marketplace, which pays Jupiter's fee of R$ 20.94 (3.49% for 6 installments); both pending until their installments settle")
 
 	t.Log("7. a signed webhook reports the payment")
 	select {
@@ -274,32 +313,57 @@ func TestGoldenPath(t *testing.T) {
 	}
 	t.Log("   R$ 600.00 cleared")
 
-	t.Log("9. six receivable units, one per installment, are registered with the registry, and reconcile with it")
+	t.Log("9. each one's six receivable units, one per installment, are registered with the registry, and reconcile with it")
 	if _, err := receivablesService.Register(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	agenda, err := receivablesService.Agenda(ctx, pool, owner, receivables.AgendaQuery{From: today, To: today.AddDate(0, 0, 250)})
+	agenda, err := receivablesService.Agenda(ctx, pool, owner, receivables.AgendaQuery{Recipient: seller.ID, From: today, To: today.AddDate(0, 0, 250)})
 	if err != nil || len(agenda) != 6 {
-		t.Fatalf("the agenda: %+v, %v", agenda, err)
+		t.Fatalf("the seller's agenda: %+v, %v", agenda, err)
 	}
 	for _, e := range agenda {
-		if e.Value != 9651 || !e.Registered || e.Arrangement != registryapi.ArrangementVisaCredit {
+		if e.Value != 9000 || !e.Registered || e.Arrangement != registryapi.ArrangementVisaCredit {
 			t.Fatalf("a unit: %+v", e)
 		}
 	}
-	positions, err := registrySim.Positions(registrysim.Participant{TaxID: jupiterCNPJ, Role: registrysim.Accreditor}, merchantCNPJ, "", "", nil)
-	if err != nil || len(positions) != 6 {
-		t.Fatalf("the registry has %d units, %v", len(positions), err)
-	}
-	for _, kind := range []string{receivables.Daily, receivables.Weekly, receivables.Fortnightly} {
-		if r, err := receivablesService.ReconcileNow(ctx, pool, true, kind); err != nil || len(r.Divergences) != 0 {
-			t.Fatalf("the %s reconciliation: %+v, %v", kind, r.Divergences, err)
+	accreditor := registrysim.Participant{TaxID: jupiterCNPJ, Role: registrysim.Accreditor}
+	for holder, value := range map[string]int64{sellerCNPJ: 9000, merchantCNPJ: 651} {
+		positions, err := registrySim.Positions(accreditor, holder, "", "", nil)
+		if err != nil || len(positions) != 6 || positions[0].Value != value {
+			t.Fatalf("the registry has %+v for %s, %v", positions, holder, err)
 		}
 	}
-	t.Logf("   R$ 96.51 settles on each of %s … %s; daily, weekly and fortnightly reconciliations find no divergence",
+	reconcile(t, receivablesService, pool)
+	t.Logf("   R$ 90.00 for the seller and R$ 6.51 for the marketplace settle on each of %s … %s; daily, weekly and fortnightly reconciliations find no divergence",
 		agenda[0].SettlementDate, agenda[5].SettlementDate)
 
-	t.Log("10. the merchant pays its balance out, by Pix, to its owner's key")
+	t.Log("10. the seller anticipates her first two units: Jupiter prices them, buys them, and the registry records the transfer")
+	var quote, anticipation struct {
+		ID     string `json:"id"`
+		Amount int64  `json:"amount"`
+		Price  int64  `json:"price"`
+	}
+	client.post("/v1/anticipations/simulate", map[string]any{"recipient": seller.ID, "units": []string{agenda[0].Unit, agenda[1].Unit}}, &quote)
+	client.post("/v1/anticipations", map[string]any{"quote": quote.ID}, &anticipation)
+	if anticipation.Amount != 18000 || anticipation.Price != quote.Price || quote.Price <= 17000 {
+		t.Fatalf("the quote %+v, the anticipation %+v", quote, anticipation)
+	}
+	sellerBalance = recipientBalance(t, receivablesService, pool, owner, seller.ID)
+	if sellerBalance.Pending != 54000-18000 || sellerBalance.Available != anticipation.Price {
+		t.Fatalf("the seller's balance: %+v", sellerBalance)
+	}
+	positions, err := registrySim.Positions(accreditor, sellerCNPJ, "", "", nil)
+	if err != nil || len(positions[0].Committed) != 1 || positions[0].Committed[0].Beneficiary != jupiterCNPJ || positions[1].Committed[0].Amount != 9000 {
+		t.Fatalf("the registry: %+v, %v", positions, err)
+	}
+	if _, err := receivablesService.Register(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	reconcile(t, receivablesService, pool)
+	t.Logf("   R$ 180.00 settling on %s and %s bought for R$ %d.%02d at 1.99%% a month; both units now settle to Jupiter; the ledger, the balances and the registry agree",
+		agenda[0].SettlementDate, agenda[1].SettlementDate, anticipation.Price/100, anticipation.Price%100)
+
+	t.Log("11. the seller is paid out her available balance, by Pix, to her key")
 	var payout struct {
 		Status      string `json:"status"`
 		EndToEndID  string `json:"end_to_end_id"`
@@ -307,22 +371,21 @@ func TestGoldenPath(t *testing.T) {
 			RecipientName string `json:"recipient_name"`
 		} `json:"destination"`
 	}
-	client.post("/v1/payouts", map[string]any{
-		"amount": 60000 - fee, "currency": "brl", "destination": map[string]any{"type": "pix", "pix_key": sellerKey},
-	}, &payout)
+	client.post("/v1/payouts", map[string]any{"amount": anticipation.Price, "currency": "brl", "recipient": seller.ID}, &payout)
 	if payout.Status != "paid" || payout.Destination.RecipientName != "Vendedora do Caminho" {
 		t.Fatalf("the payout: %+v", payout)
 	}
 	transfers := bank.Transfers()
-	if len(transfers) != 1 || transfers[0].Valor != "579.06" || transfers[0].Chave != sellerKey || transfers[0].EndToEndID != payout.EndToEndID {
+	want := fmt.Sprintf("%d.%02d", anticipation.Price/100, anticipation.Price%100)
+	if len(transfers) != 1 || transfers[0].Valor != want || transfers[0].Chave != sellerKey || transfers[0].EndToEndID != payout.EndToEndID {
 		t.Fatalf("the bank sent %+v", transfers)
 	}
-	if posted, held := balance(t, paymentService, pool, owner); posted != 0 || held != 0 {
-		t.Fatalf("ledger after the payout: posted %d, held %d; want 0 and 0", posted, held)
+	if b := recipientBalance(t, receivablesService, pool, owner, seller.ID); b.Available != 0 || b.Pending != 36000 {
+		t.Fatalf("the seller's balance after the payout: %+v", b)
 	}
-	t.Logf("   R$ 579.06 sent through the SPI to %s (%s); the merchant's balance is zero", payout.Destination.RecipientName, payout.EndToEndID)
+	t.Logf("   R$ %s sent through the SPI to %s (%s); her available balance is zero, R$ 360.00 still pending", want, payout.Destination.RecipientName, payout.EndToEndID)
 
-	t.Log("11. every invariant holds")
+	t.Log("12. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}
@@ -341,25 +404,55 @@ func TestGoldenPath(t *testing.T) {
 }
 
 const (
-	jupiterCNPJ   = "11222333000181"
-	merchantCNPJ  = "11444777000161"
-	registryToken = "golden path registry token" //nolint:gosec // a test credential for the simulator
+	jupiterCNPJ    = "11222333000181"
+	merchantCNPJ   = "11444777000161"
+	sellerCNPJ     = "11222333000262"
+	registryToken  = "golden path registry token"  //nolint:gosec // a test credential for the simulator
+	financierToken = "golden path financier token" //nolint:gosec // a test credential for the simulator
 	// fee is Jupiter's on R$ 600.00 in 6 installments financed by the merchant: 3.49%.
 	fee = 2094
 )
 
-// startRegistry runs the registry simulator and the receivables Jupiter registers there.
-func startRegistry(t *testing.T, pool *pgxpool.Pool, merchants *merchant.Service) (*registrysim.Sim, *receivables.Service) {
+func recipientBalance(t *testing.T, s *receivables.Service, pool *pgxpool.Pool, owner payments.Owner, recipientID string) receivables.Balance {
 	t.Helper()
-	sim := registrysim.New(registrysim.Config{Participants: []registrysim.Participant{{Token: registryToken, TaxID: jupiterCNPJ, Role: registrysim.Accreditor}}})
+	var b receivables.Balance
+	err := postgres.InTx(t.Context(), pool, func(tx pgx.Tx) error {
+		var err error
+		b, err = s.Balance(t.Context(), tx, owner, recipientID, money.BRL)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func reconcile(t *testing.T, s *receivables.Service, pool *pgxpool.Pool) {
+	t.Helper()
+	for _, kind := range []string{receivables.Daily, receivables.Weekly, receivables.Fortnightly} {
+		if r, err := s.ReconcileNow(t.Context(), pool, true, kind); err != nil || len(r.Divergences) != 0 {
+			t.Fatalf("the %s reconciliation: %+v, %v", kind, r.Divergences, err)
+		}
+	}
+}
+
+// startRegistry runs the registry simulator and the receivables Jupiter registers there,
+// as accreditor and as the financier of what it anticipates.
+func startRegistry(t *testing.T, pool *pgxpool.Pool, l *ledger.Ledger, merchants *merchant.Service, recs *recipients.Service, e *events.Service) (*registrysim.Sim, *receivables.Service) {
+	t.Helper()
+	sim := registrysim.New(registrysim.Config{Participants: []registrysim.Participant{
+		{Token: registryToken, TaxID: jupiterCNPJ, Role: registrysim.Accreditor},
+		{Token: financierToken, TaxID: jupiterCNPJ, Role: registrysim.Financier},
+	}})
 	srv := httptest.NewServer(sim.Handler())
 	t.Cleanup(srv.Close)
-	connector, err := registry.New(registry.Config{BaseURL: srv.URL, Token: registryToken})
+	connector, err := registry.New(registry.Config{BaseURL: srv.URL, Token: registryToken, FinancierToken: financierToken})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return sim, receivables.New(receivables.Config{
-		Pool: pool, Merchants: merchants, LiveRegistry: connector, Domicile: registryapi.Domicile{ISPB: "30000001", Branch: "0001"},
+		Pool: pool, Ledger: l, Merchants: merchants, Recipients: recs, Events: e, TaxID: jupiterCNPJ, LiveRegistry: connector,
+		Domicile: registryapi.Domicile{ISPB: "30000001", Branch: "0001"},
 	})
 }
 
@@ -423,7 +516,8 @@ func (c *apiClient) post(path string, body, out any) {
 	}
 	req.Header.Set("Authorization", "Bearer "+c.key)
 	if !c.noIdempotencyKey {
-		req.Header.Set("Idempotency-Key", path+string(raw))
+		sum := sha256.Sum256(append([]byte(path), raw...))
+		req.Header.Set("Idempotency-Key", hex.EncodeToString(sum[:]))
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

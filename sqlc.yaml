@@ -99,3 +99,12 @@ sql:
         out: internal/receivables/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/recipients/migrations
+    queries: internal/recipients/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/recipients/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

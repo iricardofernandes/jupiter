@@ -20,6 +20,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
+	"github.com/iricardofernandes/jupiter/pkg/taxid"
 )
 
 const (
@@ -29,13 +30,16 @@ const (
 
 type Config struct {
 	BaseURL string
-	Token   string
-	HTTP    *http.Client
+	// Token is Jupiter's as an accreditor; FinancierToken, as the financier of the units it
+	// anticipates.
+	Token          string
+	FinancierToken string
+	HTTP           *http.Client
 }
 
 // Registries connects to the registry in each mode that has one: live mode with
-// JUPITER_REGISTRY_URL and JUPITER_REGISTRY_TOKEN, test mode with JUPITER_REGISTRY_TEST_URL
-// and JUPITER_REGISTRY_TEST_TOKEN. A mode without a URL has no registry.
+// JUPITER_REGISTRY_URL, JUPITER_REGISTRY_TOKEN and JUPITER_REGISTRY_FINANCIER_TOKEN, test
+// mode with the same under JUPITER_REGISTRY_TEST_. A mode without a URL has no registry.
 func Registries(getenv func(string) string) (live, test *Connector, err error) {
 	for _, m := range []struct {
 		prefix string
@@ -49,7 +53,13 @@ func Registries(getenv func(string) string) (live, test *Connector, err error) {
 		if base == "" {
 			continue
 		}
-		if *m.into, err = New(Config{BaseURL: base, Token: getenv(m.prefix + "TOKEN")}); err != nil {
+		if getenv(m.prefix+"FINANCIER_TOKEN") == "" || getenv(m.prefix+"FINANCIER_TOKEN") == getenv(m.prefix+"TOKEN") {
+			return nil, nil, fmt.Errorf("%s needs a FINANCIER_TOKEN of its own, for anticipations", m.prefix+"URL")
+		}
+		if !taxid.Valid(getenv("JUPITER_TAX_ID")) {
+			return nil, nil, errors.New("JUPITER_TAX_ID must be Jupiter's CNPJ when a registry is configured")
+		}
+		if *m.into, err = New(Config{BaseURL: base, Token: getenv(m.prefix + "TOKEN"), FinancierToken: getenv(m.prefix + "FINANCIER_TOKEN")}); err != nil {
 			return nil, nil, fmt.Errorf("%s: %w", m.prefix+"URL", err)
 		}
 	}
@@ -110,8 +120,11 @@ func (c *Connector) SetUnits(ctx context.Context, units []registryapi.Unit) ([]r
 	return out.Results, err
 }
 
-func (c *Connector) Units(ctx context.Context, settled *bool, from, to string) ([]registryapi.Position, error) {
+func (c *Connector) Units(ctx context.Context, settled *bool, holder, from, to string) ([]registryapi.Position, error) {
 	q := url.Values{}
+	if holder != "" {
+		q.Set("holder", holder)
+	}
 	if settled != nil {
 		q.Set("settled", strconv.FormatBool(*settled))
 	}
@@ -156,7 +169,31 @@ func (c *Connector) HoldersWithContracts(ctx context.Context) ([]string, error) 
 // call sends one request. A 404 is ErrRegistryNotFound and another 4xx
 // ErrRegistryRefused; anything else that is not a success is an error whose outcome is
 // unknown, which every operation here can repeat safely.
+// AcceptContract places a contract as Jupiter the financier. A contract the registry
+// already has, the same, is placed already.
+func (c *Connector) AcceptContract(ctx context.Context, contract registryapi.Contract) error {
+	if c.cfg.FinancierToken == "" {
+		return errors.New("registry: Jupiter has no financier token at this registry")
+	}
+	return c.callAs(ctx, c.cfg.FinancierToken, http.MethodPost, "/v1/contracts", contract, nil)
+}
+
+func (c *Connector) EndContract(ctx context.Context, contractID string) error {
+	if c.cfg.FinancierToken == "" {
+		return errors.New("registry: Jupiter has no financier token at this registry")
+	}
+	err := c.callAs(ctx, c.cfg.FinancierToken, http.MethodPost, "/v1/contracts/"+url.PathEscape(contractID)+"/end", nil, nil)
+	if errors.Is(err, receivables.ErrRegistryNotFound) {
+		return nil
+	}
+	return err
+}
+
 func (c *Connector) call(ctx context.Context, method, path string, body, out any) error {
+	return c.callAs(ctx, c.cfg.Token, method, path, body, out)
+}
+
+func (c *Connector) callAs(ctx context.Context, token, method, path string, body, out any) error {
 	var reader io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -169,7 +206,7 @@ func (c *Connector) call(ctx context.Context, method, path string, body, out any
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

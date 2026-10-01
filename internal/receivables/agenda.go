@@ -24,18 +24,22 @@ type Entry struct {
 	SettlementDate string
 	Currency       string
 	Value          int64
-	Blocked        int64
-	Committed      []registryapi.Commitment
-	Free           int64
-	Settled        int64
-	SettledOn      string
-	Registered     bool
+	// Anticipated is what Jupiter bought of the unit, as it is now.
+	Anticipated int64
+	Blocked     int64
+	Committed   []registryapi.Commitment
+	Free        int64
+	Settled     int64
+	SettledOn   string
+	Registered  bool
 }
 
 // AgendaQuery bounds an agenda by settlement date, inclusive, and reads it as of AsOf.
+// Recipient names whose agenda: the merchant's own when empty.
 type AgendaQuery struct {
-	From, To time.Time
-	AsOf     time.Time
+	Recipient string
+	From, To  time.Time
+	AsOf      time.Time
 }
 
 var earliestAsOf = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -71,8 +75,12 @@ func (s *Service) Agenda(ctx context.Context, q db.DBTX, owner payments.Owner, a
 	if a.AsOf.Before(earliestAsOf) || a.AsOf.After(now.Add(time.Hour)) {
 		return nil, fmt.Errorf("%w: as_of must be from 2000 to now", ErrInvalid)
 	}
+	recipientID, err := s.recipientOf(ctx, q, owner, a.Recipient)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := db.New(q).AgendaAsOf(ctx, db.AgendaAsOfParams{
-		MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, FromDate: dateOf(a.From), ToDate: dateOf(a.To), At: ts(a.AsOf),
+		MerchantID: owner.Merchant.String(), RecipientID: recipientID, Livemode: owner.Livemode, FromDate: dateOf(a.From), ToDate: dateOf(a.To), At: ts(a.AsOf),
 	})
 	if err != nil {
 		return nil, err
@@ -81,7 +89,7 @@ func (s *Service) Agenda(ctx context.Context, q db.DBTX, owner payments.Owner, a
 	for _, u := range rows {
 		e := Entry{
 			Unit: u.ID, Arrangement: u.Arrangement, SettlementDate: u.SettlementDate.Time.Format(time.DateOnly), Currency: u.Currency,
-			Value: u.Value, Blocked: u.Blocked, Settled: u.Settled, Registered: u.RegisteredVersion > 0,
+			Value: u.Value, Anticipated: u.Anticipated, Blocked: u.Blocked, Settled: u.Settled, Registered: u.RegisteredVersion > 0,
 			Committed: []registryapi.Commitment{},
 		}
 		if u.Commitments != nil {
@@ -182,7 +190,7 @@ func (s *Service) SyncOptIns(ctx context.Context, pool *pgxpool.Pool) (int, erro
 }
 
 func (s *Service) syncOptIn(ctx context.Context, pool *pgxpool.Pool, reg Registry, holders map[string]string, o db.ReceivablesOptIn) error {
-	holder, err := s.holderOf(ctx, pool, holders, o.MerchantID)
+	holder, err := s.merchantTaxID(ctx, pool, holders, o.MerchantID)
 	if err != nil {
 		return err
 	}
@@ -195,11 +203,12 @@ func (s *Service) syncOptIn(ctx context.Context, pool *pgxpool.Pool, reg Registr
 	return db.New(pool).MarkOptInSynced(ctx, db.MarkOptInSyncedParams{MerchantID: o.MerchantID, Livemode: o.Livemode, Financier: o.Financier, UpdatedAt: o.UpdatedAt})
 }
 
-// Advance is the worker's pass: units to the registry, opt-ins, and the reconciliations
-// that are due.
+// Advance is the worker's pass: units to the registry, opt-ins, the reconciliations that
+// are due, and automatic anticipations.
 func (s *Service) Advance(ctx context.Context, pool *pgxpool.Pool) error {
 	_, err1 := s.Register(ctx, pool)
 	_, err2 := s.SyncOptIns(ctx, pool)
 	_, err3 := s.Reconcile(ctx, pool)
-	return errors.Join(err1, err2, err3)
+	_, err4 := s.AnticipateAutomatically(ctx, pool)
+	return errors.Join(err1, err2, err3, err4)
 }

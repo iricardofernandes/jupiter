@@ -70,7 +70,11 @@ func (a *API) GetReceivablesAgenda(w http.ResponseWriter, r *http.Request, param
 	if !ok {
 		return
 	}
-	q := receivables.AgendaQuery{From: params.From.Time, To: params.To.Time, AsOf: a.deps.Now()}
+	recipientID := valueOf(params.Recipient)
+	if recipientID == me {
+		recipientID = "" // the merchant's own
+	}
+	q := receivables.AgendaQuery{Recipient: recipientID, From: params.From.Time, To: params.To.Time, AsOf: a.deps.Now()}
 	if params.AsOf != nil {
 		q.AsOf = time.Unix(*params.AsOf, 0)
 	}

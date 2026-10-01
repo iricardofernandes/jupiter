@@ -76,8 +76,16 @@ func (a *API) createPayout(ctx context.Context, tx pgx.Tx, r *request) (outcome,
 	if err != nil {
 		return outcome{}, err
 	}
+	key := ""
+	if body.Destination != nil {
+		key = body.Destination.PixKey
+	}
+	recipientID, err := a.resolveRecipient(ctx, tx, r.principal, valueOf(body.Recipient))
+	if err != nil {
+		return outcome{}, err
+	}
 	payout, err := a.deps.Payments.CreatePayout(ctx, tx, paymentsOwner(r.principal), payments.PayoutParams{
-		Amount: amount, PixKey: body.Destination.PixKey, Description: deref(body.Description),
+		Amount: amount, PixKey: key, Description: deref(body.Description), Recipient: recipientID,
 	})
 	if err != nil {
 		return outcome{}, paymentsError(err, "")

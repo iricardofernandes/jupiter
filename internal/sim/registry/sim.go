@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -162,10 +163,13 @@ func (s *Sim) Settle(accreditor string, n registryapi.Settlement) ([]registryapi
 func payments(in []Payment) []registryapi.Payment {
 	out := make([]registryapi.Payment, 0, len(in))
 	for _, p := range in {
-		out = append(out, registryapi.Payment{To: p.To, Contract: p.Contract, Amount: p.Amount, Domicile: registryapi.Domicile(p.Domicile)})
+		out = append(out, registryapi.Payment{To: p.To, Contract: ownID(p.To, p.Contract), Amount: p.Amount, Domicile: registryapi.Domicile(p.Domicile)})
 	}
 	return out
 }
+
+// ownID is a contract's id as its financier named it.
+func ownID(financier, id string) string { return strings.TrimPrefix(id, financier+":") }
 
 // Instructions say how an accreditor's unit settles now.
 func (s *Sim) Instructions(k UnitKey) ([]registryapi.Payment, error) {
@@ -184,6 +188,15 @@ func (s *Sim) Accept(financier string, c registryapi.Contract) error {
 	defer s.mu.Unlock()
 	if c.ID == "" {
 		return fmt.Errorf("%w: a contract needs an id", ErrInvalid)
+	}
+	if old := s.engine.contracts[contractID(financier, c.ID)]; old != nil {
+		// The same contract again, after an answer was lost, is accepted again.
+		if old.Holder == c.Holder && string(old.Effect) == c.Effect && string(old.Rule) == c.Rule && old.Amount == c.Amount &&
+			old.BasisPoints == c.BasisPoints && slices.Equal(old.Arrangements, c.Arrangements) &&
+			slices.Equal(old.Accreditors, c.Accreditors) && old.From == c.From && old.To == c.To {
+			return nil
+		}
+		return fmt.Errorf("%w: contract %s exists with other terms", ErrInvalid, c.ID)
 	}
 	return s.engine.Accept(Contract{
 		ID: contractID(financier, c.ID), Beneficiary: financier, Holder: c.Holder, Effect: Effect(c.Effect), Rule: Rule(c.Rule), Amount: c.Amount,
@@ -258,7 +271,7 @@ func wirePosition(p Position) registryapi.Position {
 		Domicile: registryapi.Domicile(p.Domicile), Committed: []registryapi.Commitment{},
 	}
 	for _, c := range p.Committed {
-		out.Committed = append(out.Committed, registryapi.Commitment{Contract: c.Contract, Beneficiary: c.Beneficiary, Effect: string(c.Effect), Amount: c.Amount})
+		out.Committed = append(out.Committed, registryapi.Commitment{Contract: ownID(c.Beneficiary, c.Contract), Beneficiary: c.Beneficiary, Effect: string(c.Effect), Amount: c.Amount})
 	}
 	return out
 }

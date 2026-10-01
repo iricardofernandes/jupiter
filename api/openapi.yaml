@@ -23,6 +23,8 @@ tags:
   - name: Payouts
   - name: Subscriptions
   - name: Receivables
+  - name: Recipients
+  - name: Anticipations
   - name: Risk
   - name: Test helpers
   - name: API keys
@@ -373,6 +375,7 @@ paths:
         committed to financiers' contracts at the registry and what is free. With as_of,
         the agenda as it stood then.
       parameters:
+        - { name: recipient, in: query, description: "Whose agenda; the merchant's own when omitted.", schema: { type: string } }
         - { name: from, in: query, required: true, schema: { type: string, format: date } }
         - { name: to, in: query, required: true, schema: { type: string, format: date } }
         - name: as_of
@@ -428,6 +431,158 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReceivablesOptIn" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/recipients:
+    get:
+      operationId: listRecipients
+      tags: [Recipients]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+      responses:
+        "200":
+          description: A page of recipients, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecipientList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createRecipient
+      tags: [Recipients]
+      description: A seller a marketplace splits its payments to, pending verification.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRecipientRequest" }
+      responses:
+        "200":
+          description: The recipient.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Recipient" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/recipients/{id}:
+    get:
+      operationId: getRecipient
+      tags: [Recipients]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The recipient.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Recipient" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: updateRecipient
+      tags: [Recipients]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateRecipientRequest" }
+      responses:
+        "200":
+          description: The recipient.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Recipient" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/recipients/{id}/balance:
+    get:
+      operationId: getRecipientBalance
+      tags: [Recipients]
+      description: "The recipient's balance: pending, by when it becomes available, available and reserved."
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The balance.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecipientBalance" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/anticipations/simulate:
+    post:
+      operationId: simulateAnticipation
+      tags: [Anticipations]
+      description: |
+        Prices anticipating a verified recipient's units: their present value at Jupiter's
+        monthly rate, for what of each the registry holds free. The quote holds for ten
+        minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulateAnticipationRequest" }
+      responses:
+        "200":
+          description: The quote.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnticipationQuote" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/anticipations:
+    post:
+      operationId: createAnticipation
+      tags: [Anticipations]
+      description: |
+        Carries out a quote: Jupiter buys the units, registered at the registry as an
+        ownership transfer in its favour, and the price is available to the recipient.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAnticipationRequest" }
+      responses:
+        "200":
+          description: The anticipation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Anticipation" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/anticipations/{id}:
+    get:
+      operationId: getAnticipation
+      tags: [Anticipations]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The anticipation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Anticipation" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/test_helpers/recipients/{id}/verify:
+    post:
+      operationId: verifyRecipient
+      tags: [Test helpers]
+      description: Test mode only. Ends a recipient's verification, verified or rejected.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyRecipientRequest" }
+      responses:
+        "200":
+          description: The recipient.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Recipient" }
         default: { $ref: "#/components/responses/Failure" }
   /v1/risk/decisions:
     get:
@@ -946,7 +1101,179 @@ components:
           nullable: true
           allOf: [{ $ref: "#/components/schemas/PixOptions" }]
         subscription: { type: string, nullable: true, description: "The subscription a pix_automatico payment charges." }
+        split:
+          type: array
+          items: { $ref: "#/components/schemas/SplitRule" }
         created: { type: integer, format: int64 }
+    SplitRule:
+      type: object
+      additionalProperties: false
+      required: [recipient]
+      description: |
+        A recipient's share of a card payment: a fixed amount, or a percentage with two
+        decimals; every rule of a split is the same kind, and they add up to the whole.
+        Exactly one rule is liable for chargebacks and exactly one takes the centavos
+        rounding leaves over. The rules with charge_fee pay Jupiter's fee, in proportion
+        to their shares, and hold at least 10% of the payment between them.
+      properties:
+        recipient: { type: string }
+        amount: { type: integer, format: int64, minimum: 1 }
+        percentage: { type: string, pattern: '^\d{1,3}\.\d{2}$' }
+        liable: { type: boolean }
+        remainder: { type: boolean }
+        charge_fee: { type: boolean }
+    Recipient:
+      type: object
+      required: [id, object, livemode, name, tax_id, default, status, payout_destination, transfer_settings, automatic_anticipation, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [recipient] }
+        livemode: { type: boolean }
+        name: { type: string }
+        tax_id: { type: string, description: "The recipient's CPF or CNPJ, which its receivables are registered under." }
+        default: { type: boolean, description: "Whether this is the merchant's own recipient." }
+        status: { type: string, enum: [pending, verified, rejected], description: "Its verification (KYC or KYB). Only a verified recipient is paid out or anticipates." }
+        payout_destination:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/RecipientDestination" }]
+        transfer_settings: { $ref: "#/components/schemas/TransferSettings" }
+        automatic_anticipation: { $ref: "#/components/schemas/AutomaticAnticipation" }
+        created: { type: integer, format: int64 }
+    RecipientDestination:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: { type: string, enum: [pix, bank_account] }
+        pix_key: { type: string, maxLength: 77 }
+        ispb: { type: string }
+        branch: { type: string }
+        account: { type: string }
+    TransferSettings:
+      type: object
+      additionalProperties: false
+      required: [interval]
+      properties:
+        interval: { type: string, enum: [manual, daily, weekly, monthly] }
+        day: { type: integer, description: "1 (Monday) to 5 for weekly transfers, 1 to 28 for monthly ones." }
+    AutomaticAnticipation:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+        delay_days: { type: integer, minimum: 1, maximum: 30, description: "How old a unit is before it is anticipated." }
+    RecipientList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/Recipient" }
+    CreateRecipientRequest:
+      type: object
+      additionalProperties: false
+      required: [name, tax_id]
+      properties:
+        name: { type: string, maxLength: 200 }
+        tax_id: { type: string }
+        payout_destination: { $ref: "#/components/schemas/RecipientDestination" }
+        transfer_settings: { $ref: "#/components/schemas/TransferSettings" }
+        automatic_anticipation: { $ref: "#/components/schemas/AutomaticAnticipation" }
+    UpdateRecipientRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, maxLength: 200 }
+        payout_destination: { $ref: "#/components/schemas/RecipientDestination" }
+        transfer_settings: { $ref: "#/components/schemas/TransferSettings" }
+        automatic_anticipation: { $ref: "#/components/schemas/AutomaticAnticipation" }
+    VerifyRecipientRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [verified, rejected] }
+    RecipientBalance:
+      type: object
+      required: [object, recipient, currency, pending, available, reserved, pending_on]
+      properties:
+        object: { type: string, enum: [recipient_balance] }
+        recipient: { type: string }
+        currency: { type: string }
+        pending: { type: integer, format: int64, description: "What its unsettled receivables hold, net of fees and of what Jupiter bought." }
+        available: { type: integer, format: int64, description: "What can be paid out now, less payouts in flight." }
+        reserved: { type: integer, format: int64 }
+        pending_on:
+          type: array
+          description: The pending balance by the day it becomes available.
+          items:
+            type: object
+            required: [available_on, amount]
+            properties:
+              available_on: { type: string, format: date }
+              amount: { type: integer, format: int64 }
+    AnticipationUnit:
+      type: object
+      required: [unit, settlement_date, amount, price, days]
+      properties:
+        unit: { type: string }
+        settlement_date: { type: string, format: date }
+        amount: { type: integer, format: int64 }
+        price: { type: integer, format: int64 }
+        days: { type: integer }
+    AnticipationQuote:
+      type: object
+      required: [id, object, recipient, currency, monthly_rate, units, amount, price, fee, expires_at]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [anticipation_quote] }
+        recipient: { type: string }
+        currency: { type: string }
+        monthly_rate: { type: string }
+        units:
+          type: array
+          items: { $ref: "#/components/schemas/AnticipationUnit" }
+        amount: { type: integer, format: int64, description: What of the units Jupiter buys. }
+        price: { type: integer, format: int64, description: What the recipient receives now. }
+        fee: { type: integer, format: int64 }
+        expires_at: { type: integer, format: int64 }
+    Anticipation:
+      type: object
+      required: [id, object, livemode, recipient, currency, monthly_rate, units, amount, price, fee, automatic, created]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [anticipation] }
+        livemode: { type: boolean }
+        recipient: { type: string }
+        currency: { type: string }
+        monthly_rate: { type: string }
+        units:
+          type: array
+          items: { $ref: "#/components/schemas/AnticipationUnit" }
+        amount: { type: integer, format: int64 }
+        price: { type: integer, format: int64 }
+        fee: { type: integer, format: int64 }
+        automatic: { type: boolean }
+        created: { type: integer, format: int64 }
+    SimulateAnticipationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        recipient: { type: string, description: "The merchant's own when omitted." }
+        units:
+          type: array
+          maxItems: 400
+          description: The units to anticipate; all that can be when omitted.
+          items: { type: string }
+    CreateAnticipationRequest:
+      type: object
+      additionalProperties: false
+      required: [quote]
+      properties:
+        quote: { type: string }
     PixOptions:
       type: object
       additionalProperties: false
@@ -1158,6 +1485,11 @@ components:
         customer_ip: { type: string, maxLength: 45, description: "The customer's IP address, for the risk engine." }
         return_url: { type: string, maxLength: 2048, description: "Where to send the customer after a 3-D Secure challenge: an absolute https URL." }
         pix: { $ref: "#/components/schemas/PixOptions" }
+        split:
+          type: array
+          maxItems: 20
+          description: Divides a card payment among recipients. Without it, the payment is all the merchant's.
+          items: { $ref: "#/components/schemas/SplitRule" }
     UpdatePaymentIntentRequest:
       type: object
       additionalProperties: false
@@ -1169,6 +1501,10 @@ components:
         setup_future_usage: { type: string, enum: [off_session] }
         request_three_d_secure: { type: string, enum: [automatic, any] }
         pix: { $ref: "#/components/schemas/PixOptions" }
+        split:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/SplitRule" }
     ConfirmPaymentIntentRequest:
       type: object
       additionalProperties: false
@@ -1234,6 +1570,7 @@ components:
         failure_message: { type: string, nullable: true }
         end_to_end_id: { type: string, nullable: true, description: "The Pix's endToEndId, once paid." }
         arrival_date: { type: integer, format: int64, nullable: true, description: "When it was paid, Unix time." }
+        recipient: { type: string, nullable: true, description: "The recipient whose balance paid it; null for the merchant's." }
         created: { type: integer, format: int64 }
     PayoutDestination:
       type: object
@@ -1253,11 +1590,14 @@ components:
               items: { $ref: "#/components/schemas/Payout" }
     CreatePayoutRequest:
       type: object
-      required: [amount, currency, destination]
+      required: [amount, currency]
       additionalProperties: false
       properties:
         amount: { type: integer, format: int64, minimum: 1 }
         currency: { type: string, enum: [brl] }
+        recipient:
+          type: string
+          description: Pays out this recipient's available balance instead of the merchant's; its Pix key is the destination if none is given.
         destination:
           type: object
           required: [type, pix_key]

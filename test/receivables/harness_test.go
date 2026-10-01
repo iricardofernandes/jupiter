@@ -31,6 +31,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/registry"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
@@ -40,16 +41,17 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, receivables.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, recipients.Migrate, receivables.Migrate},
 	}))
 }
 
 const (
-	jupiterCNPJ  = "11222333000181"
-	merchantCNPJ = "11444777000161"
-	bankCNPJ     = "33000167000101"
-	jupiterToken = "jupiter registry token"
-	bankToken    = "bank registry token"
+	jupiterCNPJ    = "11222333000181"
+	merchantCNPJ   = "11444777000161"
+	bankCNPJ       = "33000167000101"
+	jupiterToken   = "jupiter registry token"
+	financierToken = "jupiter financier token"
+	bankToken      = "bank registry token"
 )
 
 // clock starts on Thursday 1 October 2026, noon in Brasília.
@@ -77,6 +79,7 @@ type harness struct {
 	ledger      *ledger.Ledger
 	payments    *payments.Service
 	receivables *receivables.Service
+	recipients  *recipients.Service
 	registry    *registrysim.Sim
 	api         *httptest.Server
 	merchants   *merchant.Service
@@ -124,25 +127,30 @@ func newHarness(t *testing.T) *harness {
 
 	h.registry = registrysim.New(registrysim.Config{Now: h.clock.Now, Participants: []registrysim.Participant{
 		{Token: jupiterToken, TaxID: jupiterCNPJ, Role: registrysim.Accreditor},
+		{Token: financierToken, TaxID: jupiterCNPJ, Role: registrysim.Financier},
 		{Token: bankToken, TaxID: bankCNPJ, Role: registrysim.Financier},
 	}})
 	registryServer := httptest.NewServer(h.registry.Handler())
 	t.Cleanup(registryServer.Close)
-	connector, err := registry.New(registry.Config{BaseURL: registryServer.URL, Token: jupiterToken})
+	connector, err := registry.New(registry.Config{BaseURL: registryServer.URL, Token: jupiterToken, FinancierToken: financierToken})
 	if err != nil {
 		t.Fatal(err)
 	}
 	merchants := merchant.New(h.clock.Now)
+	h.recipients = recipients.New(recipients.Config{Merchants: merchants, Events: eventService, Now: h.clock.Now})
 	h.receivables = receivables.New(receivables.Config{
-		Pool: h.pool, Merchants: merchants, TestRegistry: connector, Now: h.clock.Now,
-		Domicile: registryapi.Domicile{ISPB: "30000001", Branch: "0001"},
+		Pool: h.pool, Ledger: h.ledger, Merchants: merchants, Recipients: h.recipients, Events: eventService, TaxID: jupiterCNPJ,
+		TestRegistry: connector, Now: h.clock.Now, Domicile: registryapi.Domicile{ISPB: "30000001", Branch: "0001"},
 	})
 	h.payments = payments.New(payments.Config{
-		Ledger: h.ledger, Events: eventService, Now: h.clock.Now, Receivables: h.receivables,
-		TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil),
+		Ledger: h.ledger, Events: eventService, Now: h.clock.Now, Receivables: h.receivables, Balances: h.receivables,
+		Recipients: h.recipients, TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil),
 	})
 	h.merchants = merchants
-	a := api.New(api.Deps{Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Receivables: h.receivables, Box: box, Now: h.clock.Now})
+	a := api.New(api.Deps{
+		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Receivables: h.receivables,
+		Recipients: h.recipients, Box: box, Now: h.clock.Now,
+	})
 	h.api = httptest.NewServer(a.Handler())
 	t.Cleanup(h.api.Close)
 	err = postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {

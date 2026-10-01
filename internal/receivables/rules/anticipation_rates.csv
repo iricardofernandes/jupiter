@@ -1,0 +1,5 @@
+# Jupiter's price for anticipating a unit: a monthly rate, applied as simple discount
+# over the days until the unit settles, price = amount / (1 + rate × days / 30).
+# These are Jupiter's own prices; it is the only financier (plan, phase 10).
+effective_from,monthly_rate,source
+2000-01-01,0.0199,"Jupiter's price list: 1.99% a month"

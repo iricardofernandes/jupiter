@@ -30,7 +30,7 @@ func (s *Sim) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/holders", s.as(Accreditor, s.holders))
 	mux.HandleFunc("GET /v1/compliance", s.as(Accreditor, s.compliance))
 	mux.HandleFunc("POST /v1/contracts", s.as(Financier, s.accept))
-	mux.HandleFunc("POST /v1/contracts/{id}/end", s.as(Financier, s.end))
+	mux.HandleFunc("POST /v1/contracts/{id...}", s.as(Financier, s.endPath))
 	return mux
 }
 
@@ -140,8 +140,14 @@ func (s *Sim) accept(w http.ResponseWriter, r *http.Request, p Participant) {
 	writeJSON(w, http.StatusCreated, c)
 }
 
-func (s *Sim) end(w http.ResponseWriter, r *http.Request, p Participant) {
-	if err := s.End(p.TaxID, r.PathValue("id")); err != nil {
+// endPath ends a contract: POST /v1/contracts/{id}/end, where the id may hold slashes.
+func (s *Sim) endPath(w http.ResponseWriter, r *http.Request, p Participant) {
+	id, ok := strings.CutSuffix(r.PathValue("id"), "/end")
+	if !ok {
+		problem(w, http.StatusNotFound, "no such route")
+		return
+	}
+	if err := s.End(p.TaxID, id); err != nil {
 		fail(w, err)
 		return
 	}

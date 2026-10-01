@@ -15,12 +15,24 @@ func TestTheURLKeepsTheTokenSafe(t *testing.T) {
 			t.Errorf("%s: %v", url, err)
 		}
 	}
-	env := map[string]string{"JUPITER_REGISTRY_URL": "http://127.0.0.1:8588", "JUPITER_REGISTRY_TOKEN": "a", "JUPITER_REGISTRY_TEST_URL": "http://127.0.0.1:8588", "JUPITER_REGISTRY_TEST_TOKEN": "b"}
+	env := map[string]string{
+		"JUPITER_REGISTRY_URL": "http://127.0.0.1:8588", "JUPITER_REGISTRY_TOKEN": "a", "JUPITER_REGISTRY_FINANCIER_TOKEN": "fa",
+		"JUPITER_REGISTRY_TEST_URL": "http://127.0.0.1:8588", "JUPITER_REGISTRY_TEST_TOKEN": "b", "JUPITER_REGISTRY_TEST_FINANCIER_TOKEN": "fb",
+		"JUPITER_TAX_ID": "11222333000181",
+	}
 	if _, _, err := registry.Registries(func(k string) string { return env[k] }); err == nil {
 		t.Error("both modes on one registry")
 	}
 	env["JUPITER_REGISTRY_TEST_URL"] = "http://127.0.0.1:8589"
 	if live, test, err := registry.Registries(func(k string) string { return env[k] }); err != nil || live == nil || test == nil {
 		t.Errorf("two registries: %v", err)
+	}
+	env["JUPITER_TAX_ID"] = ""
+	if _, _, err := registry.Registries(func(k string) string { return env[k] }); err == nil {
+		t.Error("a registry without Jupiter's CNPJ")
+	}
+	env["JUPITER_TAX_ID"], env["JUPITER_REGISTRY_FINANCIER_TOKEN"] = "11222333000181", ""
+	if _, _, err := registry.Registries(func(k string) string { return env[k] }); err == nil {
+		t.Error("a registry without a financier token")
 	}
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 	"github.com/iricardofernandes/jupiter/internal/vault"
@@ -37,6 +38,8 @@ commands:
   merchant create <name>   create a merchant and print its API keys, which are shown only once
   merchant set-tax-id <id> <cpf or cnpj>
                            record who the merchant's receivables belong to
+  recipient verify <id> verified|rejected
+                           record the outcome of a recipient's verification (KYC/KYB)
   ledger check             verify ledger invariants; exits 1 if any is violated
   ledger repair <account>  reset a drifted account's cached balance from its entries
   dev-certs <dir>          write a development CA and the vault's, API's and worker's mTLS certificates
@@ -86,6 +89,8 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		return merchant.New(nil).SetTaxID(ctx, pool, merchantID, args[3])
+	case len(args) == 4 && args[0] == "recipient" && args[1] == "verify":
+		return verifyRecipient(ctx, pool, args[2], recipients.Status(args[3]))
 	case len(args) == 2 && args[0] == "ledger" && args[1] == "check":
 		return check(ctx, pool)
 	case len(args) == 3 && args[0] == "ledger" && args[1] == "repair":
@@ -122,7 +127,7 @@ func check(ctx context.Context, pool *pgxpool.Pool) error {
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, m := range []func(context.Context, *pgxpool.Pool) error{
 		ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate,
-		subscriptions.Migrate, receivables.Migrate,
+		subscriptions.Migrate, recipients.Migrate, receivables.Migrate,
 	} {
 		if err := m(ctx, pool); err != nil {
 			return err
@@ -191,3 +196,19 @@ func devCerts(dir string) error {
 
 // pixBankIdentity is the identity the Pix simulator signs its notifications with.
 const pixBankIdentity = "spiffe://sim-pix/webhook"
+
+func verifyRecipient(ctx context.Context, pool *pgxpool.Pool, recipientID string, status recipients.Status) error {
+	rid, err := recipients.Prefix.Parse(recipientID)
+	if err != nil {
+		return err
+	}
+	s := recipients.New(recipients.Config{Merchants: merchant.New(nil)})
+	rec, err := s.ByID(ctx, pool, rid.String())
+	if err != nil {
+		return err
+	}
+	return postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		_, err := s.Verify(ctx, tx, rec.Owner, rid, status)
+		return err
+	})
+}

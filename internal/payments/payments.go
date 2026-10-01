@@ -69,6 +69,7 @@ type Intent struct {
 	NextActionData      string
 	NextActionExpiresAt time.Time
 	Pix                 *PixOptions
+	Split               []SplitRule
 	CancellationReason  string
 	Installments        *Installments
 	SetupFutureUsage    string
@@ -134,7 +135,12 @@ type Config struct {
 	LivePix PixRail
 	// Receivables, if set, is told of every card capture and refund.
 	Receivables Receivables
-	Now         func() time.Time
+	// Recipients, if set, checks the recipients of a split; without it, payments cannot be
+	// split.
+	Recipients Recipients
+	// Balances, if set, are recipients' balances, which payouts can be paid from.
+	Balances RecipientBalances
+	Now      func() time.Time
 	// ResolveAfter is how long an operation stays in flight before the resolver asks
 	// the rail what happened; GiveUpAfter is when an authorization still unknown is
 	// reversed and failed, so no attempt stays unknown for longer.

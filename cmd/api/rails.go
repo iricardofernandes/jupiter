@@ -15,6 +15,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/registry"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
@@ -59,22 +60,27 @@ type services struct {
 	payments      *payments.Service
 	subscriptions *subscriptions.Service
 	receivables   *receivables.Service
+	recipients    *recipients.Service
 }
 
 func (r rails) services(pool *pgxpool.Pool, l *ledger.Ledger, e *events.Service, riskEngine *risk.Service, cards *vault.Client, logger *slog.Logger) services {
 	cfg := payments.Config{Ledger: l, Events: e, Risk: riskEngine, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards)}
 	r.configure(&cfg)
 	s := services{merchants: merchant.New(nil)}
-	s.receivables = r.receivables(pool, s.merchants, logger)
-	cfg.Receivables = s.receivables
+	s.recipients = recipients.New(recipients.Config{Merchants: s.merchants, Events: e})
+	s.receivables = r.receivables(pool, l, s.merchants, s.recipients, e, logger)
+	cfg.Receivables, cfg.Balances, cfg.Recipients = s.receivables, s.receivables, s.recipients
 	s.payments = payments.New(cfg)
 	s.subscriptions = r.subscriptions(pool, s.payments, e, logger)
 	return s
 }
 
 // receivables keeps card receivables, registered in the modes that have a registry.
-func (r rails) receivables(pool *pgxpool.Pool, merchants *merchant.Service, logger *slog.Logger) *receivables.Service {
-	cfg := receivables.Config{Pool: pool, Merchants: merchants, Domicile: registry.Domicile(os.Getenv), Logger: logger}
+func (r rails) receivables(pool *pgxpool.Pool, l *ledger.Ledger, merchants *merchant.Service, recs *recipients.Service, e *events.Service, logger *slog.Logger) *receivables.Service {
+	cfg := receivables.Config{
+		Pool: pool, Ledger: l, Merchants: merchants, Recipients: recs, Events: e, TaxID: os.Getenv("JUPITER_TAX_ID"),
+		Domicile: registry.Domicile(os.Getenv), Logger: logger,
+	}
 	registry.Configure(&cfg, r.liveRegistry, r.testRegistry)
 	return receivables.New(cfg)
 }

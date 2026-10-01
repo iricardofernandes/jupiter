@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
@@ -133,7 +134,7 @@ func (s *Service) units(ctx context.Context, pool *pgxpool.Pool, livemode bool) 
 	holders := map[string]string{}
 	out := map[key]db.ReceivablesUnit{}
 	for _, u := range rows {
-		holder, err := s.holderOf(ctx, pool, holders, u.MerchantID)
+		holder, err := s.holderOf(ctx, pool, holders, u)
 		if err != nil {
 			return nil, err
 		}
@@ -157,7 +158,7 @@ func sentAsIs(u db.ReceivablesUnit, read time.Time) bool {
 func (s *Service) reconcileUnits(ctx context.Context, pool *pgxpool.Pool, reg Registry, livemode bool) ([]Divergence, error) {
 	read := s.cfg.Now()
 	unsettled := false
-	positions, err := reg.Units(ctx, &unsettled, "", "")
+	positions, err := reg.Units(ctx, &unsettled, "", "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -173,22 +174,15 @@ func (s *Service) reconcileUnits(ctx context.Context, pool *pgxpool.Pool, reg Re
 		k := key{p.Holder, p.Arrangement, p.SettlementDate}
 		seen[k] = true
 		u, ok := mine[k]
-		switch {
-		case !ok:
+		if !ok {
 			out = append(out, Divergence{k.String(), "the registry has a unit Jupiter does not"})
 			continue
-		case u.SettledOn.Valid:
-			out = append(out, Divergence{u.ID, "settled at Jupiter, not at the registry"})
-			continue
-		case sentAsIs(u, read) && (p.Value != u.Value || p.Blocked != u.Blocked):
-			out = append(out, Divergence{u.ID, fmt.Sprintf("the registry has %d (%d blocked), Jupiter %d (%d blocked)", p.Value, p.Blocked, u.Value, u.Blocked)})
-			if err := q.Reregister(ctx, db.ReregisterParams{ID: u.ID, Today: today}); err != nil {
-				return nil, err
-			}
 		}
-		if err := s.snapshot(ctx, q, u.ID, p.Committed); err != nil {
+		found, err := s.compareUnit(ctx, q, reg, u, p, read, today)
+		if err != nil {
 			return nil, err
 		}
+		out = append(out, found...)
 	}
 	for k, u := range mine {
 		if !seen[k] && !u.SettledOn.Valid && sentAsIs(u, read) {
@@ -199,6 +193,61 @@ func (s *Service) reconcileUnits(ctx context.Context, pool *pgxpool.Pool, reg Re
 		}
 	}
 	return out, nil
+}
+
+// compareUnit compares a unit with the registry's position of it, sending it again when
+// the two disagree on its value, and records what the registry says is committed.
+func (s *Service) compareUnit(ctx context.Context, q *db.Queries, reg Registry, u db.ReceivablesUnit, p registryapi.Position, read time.Time, today pgtype.Date) ([]Divergence, error) {
+	if u.SettledOn.Valid {
+		return []Divergence{{u.ID, "settled at Jupiter, not at the registry"}}, nil
+	}
+	var out []Divergence
+	asSent := sentAsIs(u, read)
+	if asSent && (p.Value != u.Value || p.Blocked != u.Blocked) {
+		out = append(out, Divergence{u.ID, fmt.Sprintf("the registry has %d (%d blocked), Jupiter %d (%d blocked)", p.Value, p.Blocked, u.Value, u.Blocked)})
+		if err := q.Reregister(ctx, db.ReregisterParams{ID: u.ID, Today: today}); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.snapshot(ctx, q, u.ID, p.Committed); err != nil {
+		return nil, err
+	}
+	var jupiters int64
+	for _, c := range p.Committed {
+		if c.Beneficiary == s.cfg.TaxID {
+			jupiters += c.Amount
+		}
+	}
+	if asSent && jupiters != u.Anticipated {
+		out = append(out, Divergence{u.ID, fmt.Sprintf("the registry commits %d to Jupiter; Jupiter bought %d", jupiters, u.Anticipated)})
+		if err := s.replaceContracts(ctx, reg, u, p); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// replaceContracts makes the registry commit to Jupiter, on a unit, what Jupiter holds of
+// it: Jupiter's contracts there end, and one for what it holds takes their place. That
+// mends a contract the registry took for a purchase Jupiter then undid, and one a refund
+// left larger than what Jupiter still holds. The new contract comes after any accepted
+// since, which the registry pays first.
+func (s *Service) replaceContracts(ctx context.Context, reg Registry, u db.ReceivablesUnit, p registryapi.Position) error {
+	for _, c := range p.Committed {
+		if c.Beneficiary == s.cfg.TaxID {
+			if err := reg.EndContract(ctx, c.Contract); err != nil {
+				return err
+			}
+		}
+	}
+	if u.Anticipated == 0 {
+		return nil
+	}
+	return reg.AcceptContract(ctx, registryapi.Contract{
+		ID: fmt.Sprintf("unit/%s/v%d", u.ID, u.Version), Holder: p.Holder, Effect: "ownership_transfer", Rule: "fixed", Amount: u.Anticipated,
+		Arrangements: []string{u.Arrangement}, Accreditors: []string{s.cfg.TaxID}, From: p.SettlementDate, To: p.SettlementDate,
+		Domicile: s.cfg.Domicile,
+	})
 }
 
 // snapshot records what is committed on a unit when it differs from what was last seen.
@@ -239,7 +288,7 @@ func (s *Service) reconcileSettlements(ctx context.Context, pool *pgxpool.Pool, 
 	today := dayOf(s.cfg.Now())
 	from := today.AddDate(0, 0, -rules.DeadlineFor(rules.ReconcileWeekly, today).Days).Format(time.DateOnly)
 	settled := true
-	positions, err := reg.Units(ctx, &settled, from, today.Format(time.DateOnly))
+	positions, err := reg.Units(ctx, &settled, "", from, today.Format(time.DateOnly))
 	if err != nil {
 		return nil, err
 	}

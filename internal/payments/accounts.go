@@ -161,6 +161,9 @@ func intentFromRow(row db.PaymentsIntent) (Intent, error) {
 		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, CreatedAt: row.CreatedAt.Time,
 		NextActionData: row.NextActionData, NextActionExpiresAt: row.NextActionExpiresAt.Time,
 	}
+	if it.Split, err = splitOf(row); err != nil {
+		return Intent{}, err
+	}
 	if it.Pix, err = pixOptionsOf(row); err != nil {
 		return Intent{}, err
 	}
@@ -218,7 +221,7 @@ func saveIntent(ctx context.Context, q *db.Queries, row db.PaymentsIntent) error
 		CancellationReason: row.CancellationReason, Installments: row.Installments,
 		InstallmentsFinancedBy: row.InstallmentsFinancedBy, SetupFutureUsage: row.SetupFutureUsage,
 		RequestThreeDSecure: row.RequestThreeDSecure, NextActionUrl: row.NextActionUrl,
-		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, PixOptions: row.PixOptions,
+		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, PixOptions: row.PixOptions, Split: row.Split,
 		NextActionData: row.NextActionData, NextActionExpiresAt: row.NextActionExpiresAt, UpdatedAt: row.UpdatedAt,
 	})
 }

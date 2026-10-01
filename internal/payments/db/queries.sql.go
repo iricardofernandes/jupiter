@@ -12,7 +12,7 @@ import (
 )
 
 const attemptByServerTransaction = `-- name: AttemptByServerTransaction :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee FROM payments.attempts WHERE three_ds_server_trans_id = $1
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out FROM payments.attempts WHERE three_ds_server_trans_id = $1
 `
 
 func (q *Queries) AttemptByServerTransaction(ctx context.Context, threeDsServerTransID string) (PaymentsAttempt, error) {
@@ -56,6 +56,7 @@ func (q *Queries) AttemptByServerTransaction(ctx context.Context, threeDsServerT
 		&i.AuthenticationValue,
 		&i.LiabilityShift,
 		&i.Fee,
+		&i.SplitOut,
 	)
 	return i, err
 }
@@ -273,7 +274,7 @@ func (q *Queries) FeesReturned(ctx context.Context, intentID string) (int64, err
 }
 
 const getAttempt = `-- name: GetAttempt :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee FROM payments.attempts WHERE id = $1
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out FROM payments.attempts WHERE id = $1
 `
 
 func (q *Queries) GetAttempt(ctx context.Context, id string) (PaymentsAttempt, error) {
@@ -317,12 +318,13 @@ func (q *Queries) GetAttempt(ctx context.Context, id string) (PaymentsAttempt, e
 		&i.AuthenticationValue,
 		&i.LiabilityShift,
 		&i.Fee,
+		&i.SplitOut,
 	)
 	return i, err
 }
 
 const getIntent = `-- name: GetIntent :one
-SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3
+SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at, split FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
 
 type GetIntentParams struct {
@@ -365,12 +367,13 @@ func (q *Queries) GetIntent(ctx context.Context, arg GetIntentParams) (PaymentsI
 		&i.PixOptions,
 		&i.NextActionData,
 		&i.NextActionExpiresAt,
+		&i.Split,
 	)
 	return i, err
 }
 
 const getIntentByID = `-- name: GetIntentByID :one
-SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at FROM payments.intents WHERE id = $1
+SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at, split FROM payments.intents WHERE id = $1
 `
 
 func (q *Queries) GetIntentByID(ctx context.Context, id string) (PaymentsIntent, error) {
@@ -407,6 +410,7 @@ func (q *Queries) GetIntentByID(ctx context.Context, id string) (PaymentsIntent,
 		&i.PixOptions,
 		&i.NextActionData,
 		&i.NextActionExpiresAt,
+		&i.Split,
 	)
 	return i, err
 }
@@ -512,7 +516,7 @@ func (q *Queries) GetPaymentMethodByToken(ctx context.Context, vaultToken string
 }
 
 const getPayout = `-- name: GetPayout :one
-SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at FROM payments.payouts WHERE id = $1 AND merchant_id = $2 AND livemode = $3
+SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at, recipient_id FROM payments.payouts WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
 
 type GetPayoutParams struct {
@@ -543,12 +547,13 @@ func (q *Queries) GetPayout(ctx context.Context, arg GetPayoutParams) (PaymentsP
 		&i.ArrivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RecipientID,
 	)
 	return i, err
 }
 
 const getPayoutByID = `-- name: GetPayoutByID :one
-SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at FROM payments.payouts WHERE id = $1
+SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at, recipient_id FROM payments.payouts WHERE id = $1
 `
 
 func (q *Queries) GetPayoutByID(ctx context.Context, id string) (PaymentsPayout, error) {
@@ -573,6 +578,7 @@ func (q *Queries) GetPayoutByID(ctx context.Context, id string) (PaymentsPayout,
 		&i.ArrivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RecipientID,
 	)
 	return i, err
 }
@@ -600,7 +606,7 @@ func (q *Queries) GetRailOperation(ctx context.Context, key string) (PaymentsTes
 }
 
 const getRefund = `-- name: GetRefund :one
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds WHERE id = $1 AND merchant_id = $2 AND livemode = $3
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned, split_back FROM payments.refunds WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
 
 type GetRefundParams struct {
@@ -631,12 +637,13 @@ func (q *Queries) GetRefund(ctx context.Context, arg GetRefundParams) (PaymentsR
 		&i.UpdatedAt,
 		&i.ClearedOn,
 		&i.FeeReturned,
+		&i.SplitBack,
 	)
 	return i, err
 }
 
 const getRefundByID = `-- name: GetRefundByID :one
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds WHERE id = $1
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned, split_back FROM payments.refunds WHERE id = $1
 `
 
 func (q *Queries) GetRefundByID(ctx context.Context, id string) (PaymentsRefund, error) {
@@ -661,6 +668,7 @@ func (q *Queries) GetRefundByID(ctx context.Context, id string) (PaymentsRefund,
 		&i.UpdatedAt,
 		&i.ClearedOn,
 		&i.FeeReturned,
+		&i.SplitBack,
 	)
 	return i, err
 }
@@ -708,10 +716,10 @@ func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) er
 const insertIntent = `-- name: InsertIntent :exec
 INSERT INTO payments.intents (id, merchant_id, livemode, amount, currency, capture_method, status, payment_method,
                               description, installments, installments_financed_by, setup_future_usage,
-                              request_three_d_secure, pix_options, created_at, updated_at)
+                              request_three_d_secure, pix_options, split, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
         $10, $11, $12, $13,
-        $14, $15, $15)
+        $14, $15, $16, $16)
 `
 
 type InsertIntentParams struct {
@@ -729,6 +737,7 @@ type InsertIntentParams struct {
 	SetupFutureUsage       string
 	RequestThreeDSecure    string
 	PixOptions             []byte
+	Split                  []byte
 	CreatedAt              pgtype.Timestamptz
 }
 
@@ -748,6 +757,7 @@ func (q *Queries) InsertIntent(ctx context.Context, arg InsertIntentParams) erro
 		arg.SetupFutureUsage,
 		arg.RequestThreeDSecure,
 		arg.PixOptions,
+		arg.Split,
 		arg.CreatedAt,
 	)
 	return err
@@ -838,8 +848,9 @@ func (q *Queries) InsertPaymentMethod(ctx context.Context, arg InsertPaymentMeth
 
 const insertPayout = `-- name: InsertPayout :exec
 INSERT INTO payments.payouts (id, merchant_id, livemode, amount, currency, pix_key, description, status, ledger_hold,
-                              created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, 'sending', $8, $9, $9)
+                              recipient_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, 'sending', $8,
+        $9, $10, $10)
 `
 
 type InsertPayoutParams struct {
@@ -851,6 +862,7 @@ type InsertPayoutParams struct {
 	PixKey      string
 	Description string
 	LedgerHold  string
+	RecipientID string
 	Now         pgtype.Timestamptz
 }
 
@@ -864,6 +876,7 @@ func (q *Queries) InsertPayout(ctx context.Context, arg InsertPayoutParams) erro
 		arg.PixKey,
 		arg.Description,
 		arg.LedgerHold,
+		arg.RecipientID,
 		arg.Now,
 	)
 	return err
@@ -1052,7 +1065,7 @@ func (q *Queries) IntentInconsistencies(ctx context.Context) ([]IntentInconsiste
 }
 
 const listIntents = `-- name: ListIntents :many
-SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at FROM payments.intents
+SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at, split FROM payments.intents
 WHERE merchant_id = $1 AND livemode = $2
   AND ($3::text = '' OR id < $3)
   AND ($4::text = '' OR id > $4)
@@ -1114,6 +1127,7 @@ func (q *Queries) ListIntents(ctx context.Context, arg ListIntentsParams) ([]Pay
 			&i.PixOptions,
 			&i.NextActionData,
 			&i.NextActionExpiresAt,
+			&i.Split,
 		); err != nil {
 			return nil, err
 		}
@@ -1126,7 +1140,7 @@ func (q *Queries) ListIntents(ctx context.Context, arg ListIntentsParams) ([]Pay
 }
 
 const listPayouts = `-- name: ListPayouts :many
-SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at FROM payments.payouts
+SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at, recipient_id FROM payments.payouts
 WHERE merchant_id = $1 AND livemode = $2
   AND ($3::text = '' OR id < $3)
   AND ($4::text = '' OR id > $4)
@@ -1176,6 +1190,7 @@ func (q *Queries) ListPayouts(ctx context.Context, arg ListPayoutsParams) ([]Pay
 			&i.ArrivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RecipientID,
 		); err != nil {
 			return nil, err
 		}
@@ -1188,7 +1203,7 @@ func (q *Queries) ListPayouts(ctx context.Context, arg ListPayoutsParams) ([]Pay
 }
 
 const listRefunds = `-- name: ListRefunds :many
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned, split_back FROM payments.refunds
 WHERE merchant_id = $1 AND livemode = $2
   AND ($3::text = '' OR intent_id = $3)
   AND ($4::text = '' OR id < $4)
@@ -1241,6 +1256,7 @@ func (q *Queries) ListRefunds(ctx context.Context, arg ListRefundsParams) ([]Pay
 			&i.UpdatedAt,
 			&i.ClearedOn,
 			&i.FeeReturned,
+			&i.SplitBack,
 		); err != nil {
 			return nil, err
 		}
@@ -1253,7 +1269,7 @@ func (q *Queries) ListRefunds(ctx context.Context, arg ListRefundsParams) ([]Pay
 }
 
 const lockAttempt = `-- name: LockAttempt :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee FROM payments.attempts WHERE id = $1 FOR UPDATE
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out FROM payments.attempts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, error) {
@@ -1297,12 +1313,13 @@ func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, 
 		&i.AuthenticationValue,
 		&i.LiabilityShift,
 		&i.Fee,
+		&i.SplitOut,
 	)
 	return i, err
 }
 
 const lockIntent = `-- name: LockIntent :one
-SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3 FOR UPDATE
+SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at, split FROM payments.intents WHERE id = $1 AND merchant_id = $2 AND livemode = $3 FOR UPDATE
 `
 
 type LockIntentParams struct {
@@ -1345,12 +1362,13 @@ func (q *Queries) LockIntent(ctx context.Context, arg LockIntentParams) (Payment
 		&i.PixOptions,
 		&i.NextActionData,
 		&i.NextActionExpiresAt,
+		&i.Split,
 	)
 	return i, err
 }
 
 const lockIntentByID = `-- name: LockIntentByID :one
-SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at FROM payments.intents WHERE id = $1 FOR UPDATE
+SELECT id, merchant_id, livemode, amount, currency, capture_method, status, payment_method, description, amount_capturable, amount_received, amount_refunded, latest_attempt, last_error_code, last_decline_code, last_error_message, next_action, cancellation_reason, created_at, updated_at, installments, installments_financed_by, setup_future_usage, request_three_d_secure, next_action_url, risk_decision, risk_decision_id, pix_options, next_action_data, next_action_expires_at, split FROM payments.intents WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockIntentByID(ctx context.Context, id string) (PaymentsIntent, error) {
@@ -1387,6 +1405,7 @@ func (q *Queries) LockIntentByID(ctx context.Context, id string) (PaymentsIntent
 		&i.PixOptions,
 		&i.NextActionData,
 		&i.NextActionExpiresAt,
+		&i.Split,
 	)
 	return i, err
 }
@@ -1401,7 +1420,7 @@ func (q *Queries) LockLedgerAccountCreation(ctx context.Context, scope string) e
 }
 
 const lockPayoutByID = `-- name: LockPayoutByID :one
-SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at FROM payments.payouts WHERE id = $1 FOR UPDATE
+SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at, recipient_id FROM payments.payouts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockPayoutByID(ctx context.Context, id string) (PaymentsPayout, error) {
@@ -1426,6 +1445,7 @@ func (q *Queries) LockPayoutByID(ctx context.Context, id string) (PaymentsPayout
 		&i.ArrivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RecipientID,
 	)
 	return i, err
 }
@@ -1480,7 +1500,7 @@ func (q *Queries) LockRailKey(ctx context.Context, key string) error {
 }
 
 const lockRefundByID = `-- name: LockRefundByID :one
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds WHERE id = $1 FOR UPDATE
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned, split_back FROM payments.refunds WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockRefundByID(ctx context.Context, id string) (PaymentsRefund, error) {
@@ -1505,6 +1525,7 @@ func (q *Queries) LockRefundByID(ctx context.Context, id string) (PaymentsRefund
 		&i.UpdatedAt,
 		&i.ClearedOn,
 		&i.FeeReturned,
+		&i.SplitBack,
 	)
 	return i, err
 }
@@ -1550,8 +1571,8 @@ const merchantTotals = `-- name: MerchantTotals :many
 WITH received AS (
     SELECT i.merchant_id, i.livemode, i.currency,
            sum(i.amount_received - i.amount_refunded
-               - coalesce((SELECT sum(a.fee) FROM payments.attempts a WHERE a.intent_id = i.id), 0)
-               + coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r WHERE r.intent_id = i.id AND r.status = 'succeeded'), 0)) AS posted
+               - coalesce((SELECT sum(a.fee + a.split_out) FROM payments.attempts a WHERE a.intent_id = i.id), 0)
+               + coalesce((SELECT sum(r.fee_returned + r.split_back) FROM payments.refunds r WHERE r.intent_id = i.id AND r.status = 'succeeded'), 0)) AS posted
     FROM payments.intents i GROUP BY i.merchant_id, i.livemode, i.currency
 ), held AS (
     SELECT i.merchant_id, i.livemode, i.currency, sum(a.amount) AS held
@@ -1562,7 +1583,7 @@ WITH received AS (
     SELECT merchant_id, livemode, currency,
            coalesce(sum(amount) FILTER (WHERE status = 'paid'), 0) AS paid,
            coalesce(sum(amount) FILTER (WHERE status IN ('sending', 'unknown')), 0) AS in_flight
-    FROM payments.payouts GROUP BY merchant_id, livemode, currency
+    FROM payments.payouts WHERE recipient_id = '' GROUP BY merchant_id, livemode, currency
 )
 SELECT r.merchant_id, r.livemode, r.currency,
        (r.posted - coalesce(p.paid, 0))::bigint AS posted,
@@ -1962,9 +1983,9 @@ SET amount = $1, status = $2, payment_method = $3, description = $4,
     cancellation_reason = $13, installments = $14,
     installments_financed_by = $15, setup_future_usage = $16,
     request_three_d_secure = $17, next_action_url = $18,
-    risk_decision = $19, risk_decision_id = $20, pix_options = $21,
-    next_action_data = $22, next_action_expires_at = $23, updated_at = $24
-WHERE id = $25
+    risk_decision = $19, risk_decision_id = $20, pix_options = $21, split = $22,
+    next_action_data = $23, next_action_expires_at = $24, updated_at = $25
+WHERE id = $26
 `
 
 type SaveIntentParams struct {
@@ -1989,6 +2010,7 @@ type SaveIntentParams struct {
 	RiskDecision           string
 	RiskDecisionID         string
 	PixOptions             []byte
+	Split                  []byte
 	NextActionData         string
 	NextActionExpiresAt    pgtype.Timestamptz
 	UpdatedAt              pgtype.Timestamptz
@@ -2018,6 +2040,7 @@ func (q *Queries) SaveIntent(ctx context.Context, arg SaveIntentParams) error {
 		arg.RiskDecision,
 		arg.RiskDecisionID,
 		arg.PixOptions,
+		arg.Split,
 		arg.NextActionData,
 		arg.NextActionExpiresAt,
 		arg.UpdatedAt,
@@ -2215,6 +2238,34 @@ type SetRefundFeeParams struct {
 
 func (q *Queries) SetRefundFee(ctx context.Context, arg SetRefundFeeParams) error {
 	_, err := q.db.Exec(ctx, setRefundFee, arg.FeeReturned, arg.ID)
+	return err
+}
+
+const setSplitBack = `-- name: SetSplitBack :exec
+UPDATE payments.refunds SET split_back = $1 WHERE id = $2
+`
+
+type SetSplitBackParams struct {
+	SplitBack int64
+	ID        string
+}
+
+func (q *Queries) SetSplitBack(ctx context.Context, arg SetSplitBackParams) error {
+	_, err := q.db.Exec(ctx, setSplitBack, arg.SplitBack, arg.ID)
+	return err
+}
+
+const setSplitOut = `-- name: SetSplitOut :exec
+UPDATE payments.attempts SET split_out = $1 WHERE id = $2
+`
+
+type SetSplitOutParams struct {
+	SplitOut int64
+	ID       string
+}
+
+func (q *Queries) SetSplitOut(ctx context.Context, arg SetSplitOutParams) error {
+	_, err := q.db.Exec(ctx, setSplitOut, arg.SplitOut, arg.ID)
 	return err
 }
 

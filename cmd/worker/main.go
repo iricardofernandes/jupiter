@@ -102,7 +102,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	s := r.services(pool, l, eventService, riskEngine, cards, logger)
 	a := api.New(api.Deps{
 		Pool: pool, Merchants: s.merchants, Events: eventService, Payments: s.payments, Vault: cards, Risk: riskEngine,
-		Subscriptions: s.subscriptions, Receivables: s.receivables, Box: box, Logger: logger,
+		Subscriptions: s.subscriptions, Receivables: s.receivables, Recipients: s.recipients, Box: box, Logger: logger,
 	})
 
 	return service.App{

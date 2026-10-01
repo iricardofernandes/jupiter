@@ -66,7 +66,7 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	}
 	params := payments.CreateParams{
 		Amount: amount, PaymentMethod: deref(body.PaymentMethod), Description: deref(body.Description),
-		Installments: installmentsParam(body.Installments),
+		Installments: installmentsParam(body.Installments), Split: splitParam(body.Split),
 	}
 	if params.Pix, err = pixOptionsParam(body.Pix); err != nil {
 		return outcome{}, err
@@ -87,6 +87,9 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	}
 	returnURL, err := checkReturnURL(body.ReturnUrl)
 	if err != nil {
+		return outcome{}, err
+	}
+	if err := a.resolveSplit(ctx, tx, r.principal, params.Split); err != nil {
 		return outcome{}, err
 	}
 	owner := paymentsOwner(r.principal)
@@ -129,6 +132,13 @@ func (a *API) updatePaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	}
 	params := payments.UpdateParams{
 		PaymentMethod: body.PaymentMethod, Description: body.Description, Installments: installmentsParam(body.Installments),
+	}
+	if body.Split != nil {
+		rules := splitParam(body.Split)
+		if err := a.resolveSplit(ctx, tx, r.principal, rules); err != nil {
+			return outcome{}, err
+		}
+		params.Split = &rules
 	}
 	if params.Pix, err = pixOptionsParam(body.Pix); err != nil {
 		return outcome{}, err

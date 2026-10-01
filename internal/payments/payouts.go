@@ -53,22 +53,52 @@ type Payout struct {
 	RecipientName string
 	ArrivedAt     time.Time
 	CreatedAt     time.Time
+	// Recipient is the recipient whose balance paid it; empty for the merchant's.
+	Recipient string
 }
 
 type PayoutParams struct {
 	Amount      money.Amount
 	PixKey      string
 	Description string
+	// Recipient pays out a recipient's available balance instead of the merchant's, to
+	// the recipient's own Pix key.
+	Recipient string
+}
+
+// RecipientBalances are recipients' balances, which payouts can be paid from.
+type RecipientBalances interface {
+	// PayoutSource is the recipient's available balance, and its Pix key; an error if it
+	// may not be paid out.
+	PayoutSource(ctx context.Context, tx pgx.Tx, owner Owner, recipientID string, currency money.Currency) (id.ID, string, error)
+	// PaidOut records that a payout left the recipient's balance.
+	PaidOut(ctx context.Context, tx pgx.Tx, owner Owner, recipientID, payoutID string, amount money.Amount) error
 }
 
 const maxPayoutDescription = 140
 
-// CreatePayout holds the amount on the merchant's balance and records the payout, before
-// the bank is asked.
+// CreatePayout holds the amount on the merchant's balance, or the recipient's, and
+// records the payout, before the bank is asked.
 func (s *Service) CreatePayout(ctx context.Context, tx pgx.Tx, owner Owner, p PayoutParams) (Payout, error) {
-	switch {
-	case p.Amount.Currency() != money.BRL || !p.Amount.IsPositive():
+	if !p.Amount.IsPositive() || p.Amount.Currency() != money.BRL {
 		return Payout{}, fmt.Errorf("%w: a payout is a positive amount in BRL", ErrInvalid)
+	}
+	var recipientAccount id.ID
+	if p.Recipient != "" {
+		if s.cfg.Balances == nil {
+			return Payout{}, fmt.Errorf("%w: recipients are not available", ErrInvalid)
+		}
+		account, key, err := s.cfg.Balances.PayoutSource(ctx, tx, owner, p.Recipient, p.Amount.Currency())
+		if err != nil {
+			return Payout{}, err
+		}
+		// A recipient's money goes only where the recipient was verified to be paid.
+		if key == "" || (p.PixKey != "" && p.PixKey != key) {
+			return Payout{}, fmt.Errorf("%w: a recipient is paid out to its own Pix key, set as its payout_destination", ErrInvalid)
+		}
+		recipientAccount, p.PixKey = account, key
+	}
+	switch {
 	case !ValidPixKey(p.PixKey):
 		return Payout{}, fmt.Errorf("%w: destination[pix_key] is not a Pix key: a CPF, a CNPJ, an e-mail, a phone number (+55...) or a random key", ErrInvalid)
 	case len([]rune(p.Description)) > maxPayoutDescription:
@@ -78,30 +108,15 @@ func (s *Service) CreatePayout(ctx context.Context, tx pgx.Tx, owner Owner, p Pa
 		return Payout{}, err
 	}
 	q := db.New(tx)
-	if err := q.LockPayouts(ctx, owner.Merchant.String()+"/"+strconv.FormatBool(owner.Livemode)+"/"+p.Amount.Currency().Code()); err != nil {
+	if err := q.LockPayouts(ctx, owner.Merchant.String()+"/"+strconv.FormatBool(owner.Livemode)+"/"+p.Amount.Currency().Code()+"/"+p.Recipient); err != nil {
 		return Payout{}, err
 	}
-	accts, err := s.ledgerAccounts(ctx, tx, owner, p.Amount.Currency())
+	source, available, err := s.payoutFunds(ctx, tx, owner, p, recipientAccount)
 	if err != nil {
 		return Payout{}, err
 	}
-	balance, err := s.cfg.Ledger.Balance(ctx, tx, accts.merchantBalance)
-	if err != nil {
-		return Payout{}, err
-	}
-	available, err := balance.Available()
-	if err != nil {
-		return Payout{}, err
-	}
-	// Refunds post only once confirmed; until then they must not be paid out.
-	refunding, err := q.RefundsInFlight(ctx, db.RefundsInFlightParams{
-		MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Currency: p.Amount.Currency().Code(),
-	})
-	if err != nil {
-		return Payout{}, err
-	}
-	if available.Minor()-refunding < p.Amount.Minor() {
-		return Payout{}, fmt.Errorf("%w: %d available, %d asked for", ErrInsufficientFunds, available.Minor()-refunding, p.Amount.Minor())
+	if available < p.Amount.Minor() {
+		return Payout{}, fmt.Errorf("%w: %d available, %d asked for", ErrInsufficientFunds, available, p.Amount.Minor())
 	}
 	pix, err := s.pixAccounts(ctx, tx, owner.Livemode, p.Amount.Currency())
 	if err != nil {
@@ -109,7 +124,7 @@ func (s *Service) CreatePayout(ctx context.Context, tx pgx.Tx, owner Owner, p Pa
 	}
 	payoutID := PayoutPrefix.New().String()
 	hold, err := s.cfg.Ledger.Hold(ctx, tx, ledger.Hold{
-		Description: "payout " + payoutID, Debit: accts.merchantBalance, Credit: pix.settlement, Amount: p.Amount,
+		Description: "payout " + payoutID, Debit: source, Credit: pix.settlement, Amount: p.Amount,
 	})
 	if err != nil {
 		return Payout{}, fmt.Errorf("holding the payout: %w", err)
@@ -117,7 +132,7 @@ func (s *Service) CreatePayout(ctx context.Context, tx pgx.Tx, owner Owner, p Pa
 	if err := q.InsertPayout(ctx, db.InsertPayoutParams{
 		ID: payoutID, MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Amount: p.Amount.Minor(),
 		Currency: p.Amount.Currency().Code(), PixKey: p.PixKey, Description: p.Description, LedgerHold: hold.ID.String(),
-		Now: ts(s.cfg.Now().UTC()),
+		RecipientID: p.Recipient, Now: ts(s.cfg.Now().UTC()),
 	}); err != nil {
 		return Payout{}, fmt.Errorf("recording payout: %w", err)
 	}
@@ -125,6 +140,34 @@ func (s *Service) CreatePayout(ctx context.Context, tx pgx.Tx, owner Owner, p Pa
 		return Payout{}, err
 	}
 	return s.Payout(ctx, tx, owner, mustPayoutID(payoutID))
+}
+
+// payoutFunds is the account a payout is paid from, the recipient's or else the
+// merchant's, and what it has available: for the merchant's, less refunds in flight,
+// which post only once confirmed and must not be paid out before.
+func (s *Service) payoutFunds(ctx context.Context, tx pgx.Tx, owner Owner, p PayoutParams, recipientAccount id.ID) (id.ID, int64, error) {
+	source, refunding := recipientAccount, int64(0)
+	if p.Recipient == "" {
+		accts, err := s.ledgerAccounts(ctx, tx, owner, p.Amount.Currency())
+		if err != nil {
+			return id.ID{}, 0, err
+		}
+		source = accts.merchantBalance
+		if refunding, err = db.New(tx).RefundsInFlight(ctx, db.RefundsInFlightParams{
+			MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Currency: p.Amount.Currency().Code(),
+		}); err != nil {
+			return id.ID{}, 0, err
+		}
+	}
+	balance, err := s.cfg.Ledger.Balance(ctx, tx, source)
+	if err != nil {
+		return id.ID{}, 0, err
+	}
+	available, err := balance.Available()
+	if err != nil {
+		return id.ID{}, 0, err
+	}
+	return source, available.Minor() - refunding, nil
 }
 
 // SendPayout asks the bank for the transfer. It runs outside any transaction and may be
@@ -213,6 +256,14 @@ func (s *Service) payoutPaid(ctx context.Context, tx pgx.Tx, owner Owner, row *d
 	}
 	if _, err := s.cfg.Ledger.PostPending(ctx, tx, hold, amount); err != nil {
 		return fmt.Errorf("posting payout: %w", err)
+	}
+	if row.RecipientID != "" {
+		if s.cfg.Balances == nil {
+			return fmt.Errorf("payments: payout %s is a recipient's, and recipients are not available", row.ID)
+		}
+		if err := s.cfg.Balances.PaidOut(ctx, tx, owner, row.RecipientID, row.ID, amount); err != nil {
+			return err
+		}
 	}
 	row.Status, row.E2eID, row.RecipientName, row.UnknownSince = "paid", t.E2EID, t.Recipient, pgtype.Timestamptz{}
 	row.ArrivedAt = ts(t.SettledAt)
@@ -341,6 +392,7 @@ func payoutFromRow(row db.PaymentsPayout) (Payout, error) {
 		ID: payoutID, Owner: Owner{Merchant: merchant, Livemode: row.Livemode}, Amount: amount, PixKey: row.PixKey,
 		Description: row.Description, Status: status, FailureCode: row.FailureCode, FailureMessage: row.FailureMessage,
 		EndToEndID: row.E2eID, RecipientName: row.RecipientName, ArrivedAt: row.ArrivedAt.Time, CreatedAt: row.CreatedAt.Time,
+		Recipient: row.RecipientID,
 	}, nil
 }
 

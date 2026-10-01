@@ -54,6 +54,7 @@ func paymentIntentJSON(it payments.Intent) openapi.PaymentIntent {
 		}
 	}
 	out.Pix = pixOptionsJSON(it.Pix)
+	out.Split = splitJSON(it.Split)
 	if it.Pix != nil && it.Pix.Recurring != nil {
 		out.Pix = nil
 		out.Subscription = optional(it.Pix.Recurring.Subscription)
@@ -96,7 +97,36 @@ func payoutJSON(p payments.Payout) openapi.Payout {
 		arrived := p.ArrivedAt.Unix()
 		out.ArrivalDate = &arrived
 	}
+	out.Recipient = optional(p.Recipient)
 	return out
+}
+
+func splitParam(rules *[]openapi.SplitRule) []payments.SplitRule {
+	if rules == nil {
+		return nil
+	}
+	out := make([]payments.SplitRule, 0, len(*rules))
+	for _, r := range *rules {
+		out = append(out, payments.SplitRule{
+			Recipient: r.Recipient, Amount: valueOf(r.Amount), Percentage: valueOf(r.Percentage),
+			Liable: valueOf(r.Liable), Remainder: valueOf(r.Remainder), ChargeFee: valueOf(r.ChargeFee),
+		})
+	}
+	return out
+}
+
+func splitJSON(rules []payments.SplitRule) *[]openapi.SplitRule {
+	out := make([]openapi.SplitRule, 0, len(rules))
+	for _, r := range rules {
+		rule := openapi.SplitRule{Recipient: r.Recipient, Liable: &r.Liable, Remainder: &r.Remainder, ChargeFee: &r.ChargeFee}
+		if r.Percentage != "" {
+			rule.Percentage = &r.Percentage
+		} else {
+			rule.Amount = &r.Amount
+		}
+		out = append(out, rule)
+	}
+	return &out
 }
 
 func apiKeyJSON(k merchant.Key, value *string) openapi.ApiKey {
@@ -131,4 +161,13 @@ func eventJSON(e events.Event, related map[string]any) openapi.Event {
 		out.RelatedObject.Object = &related
 	}
 	return out
+}
+
+// valueOf is what an optional field holds, or its zero value.
+func valueOf[T any](p *T) T {
+	var zero T
+	if p == nil {
+		return zero
+	}
+	return *p
 }

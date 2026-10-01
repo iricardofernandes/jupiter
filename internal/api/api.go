@@ -19,6 +19,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 )
@@ -41,9 +42,11 @@ type Deps struct {
 	Subscriptions *subscriptions.Service
 	// Receivables keeps merchants' card receivables and their agenda; nil leaves it out.
 	Receivables *receivables.Service
-	Box         *secretbox.Box
-	Logger      *slog.Logger
-	Now         func() time.Time
+	// Recipients are those payments are split to; nil leaves them out.
+	Recipients *recipients.Service
+	Box        *secretbox.Box
+	Logger     *slog.Logger
+	Now        func() time.Time
 	// AfterPhase, if set, runs after each atomic phase of an idempotent request commits.
 	// It is the seam through which simulations kill requests between phases.
 	AfterPhase func(recoveryPoint string)
