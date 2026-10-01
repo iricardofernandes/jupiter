@@ -1,0 +1,11 @@
+# Jupiter's price for a card payment (the MDR), as a share of the amount captured.
+# One row per price. A lookup considers the rows in effect on the day the payment was
+# captured and takes the most specific: an exact scheme outranks an exact financing;
+# among equally specific rows the latest wins. installments_from and installments_to
+# bound the installment count, inclusive; a payment in one go counts as 1.
+# These are Jupiter's own prices, set by it, not by a scheme or regulator.
+scheme,financed_by,installments_from,installments_to,effective_from,rate,source
+*,*,1,1,2000-01-01,0.0299,"Jupiter's price list: credit in one payment"
+*,merchant,2,6,2000-01-01,0.0349,"Jupiter's price list: 2 to 6 installments financed by the merchant"
+*,merchant,7,12,2000-01-01,0.0399,"Jupiter's price list: 7 to 12 installments financed by the merchant"
+*,issuer,2,12,2000-01-01,0.0299,"Jupiter's price list: installments financed by the issuer, paid to the merchant in one go"

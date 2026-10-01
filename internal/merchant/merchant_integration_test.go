@@ -219,3 +219,37 @@ func TestListKeysPaginatesAndSeparatesModes(t *testing.T) {
 		t.Fatalf("ending_before page = %v, want %v", back, seen[2:4])
 	}
 }
+
+func TestTaxID(t *testing.T) {
+	pool := server.Pool(t)
+	s := merchant.New(nil)
+	a, _ := create(t, pool, s)
+	b, _ := create(t, pool, s)
+	if err := s.SetTaxID(t.Context(), pool, a.ID, "11222333000180"); !errors.Is(err, merchant.ErrInvalid) {
+		t.Fatalf("a CNPJ with wrong check digits: %v", err)
+	}
+	if err := s.SetTaxID(t.Context(), pool, a.ID, "11222333000181"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.Get(t.Context(), pool, a.ID); err != nil || got.TaxID != "11222333000181" {
+		t.Fatalf("Get = %+v, %v", got, err)
+	}
+	if err := s.SetTaxID(t.Context(), pool, b.ID, "11222333000181"); !errors.Is(err, merchant.ErrInvalid) {
+		t.Fatalf("another merchant's CNPJ: %v", err)
+	}
+}
+
+func TestTaxIDIsSetOnce(t *testing.T) {
+	pool := server.Pool(t)
+	s := merchant.New(nil)
+	m, _ := create(t, pool, s)
+	if err := s.SetTaxID(t.Context(), pool, m.ID, "11444777000161"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetTaxID(t.Context(), pool, m.ID, "11444777000161"); err != nil {
+		t.Fatalf("setting the same one again: %v", err)
+	}
+	if err := s.SetTaxID(t.Context(), pool, m.ID, "12345678909"); !errors.Is(err, merchant.ErrInvalid) {
+		t.Fatalf("changing it: %v", err)
+	}
+}

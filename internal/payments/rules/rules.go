@@ -98,7 +98,8 @@ func mustParse(data string) []Validity {
 	return rows
 }
 
-func parse(data string) ([]Validity, error) {
+// table reads a rule file: comment lines start with #, and the header must be columns.
+func table(data string, columns []string) (*csv.Reader, error) {
 	lines := make([]string, 0)
 	for line := range strings.SplitSeq(data, "\n") {
 		if !strings.HasPrefix(line, "#") && strings.TrimSpace(line) != "" {
@@ -108,11 +109,18 @@ func parse(data string) ([]Validity, error) {
 	r := csv.NewReader(strings.NewReader(strings.Join(lines, "\n")))
 	header, err := r.Read()
 	if err != nil {
-		return nil, fmt.Errorf("rules: authorization validity header: %w", err)
+		return nil, fmt.Errorf("header: %w", err)
 	}
-	want := []string{"scheme", "presence", "initiator", "kind", "effective_from", "validity_hours", "verified", "source"}
-	if !slices.Equal(header, want) {
-		return nil, fmt.Errorf("rules: authorization validity columns are %v, want %v", header, want)
+	if !slices.Equal(header, columns) {
+		return nil, fmt.Errorf("columns are %v, want %v", header, columns)
+	}
+	return r, nil
+}
+
+func parse(data string) ([]Validity, error) {
+	r, err := table(data, []string{"scheme", "presence", "initiator", "kind", "effective_from", "validity_hours", "verified", "source"})
+	if err != nil {
+		return nil, fmt.Errorf("rules: authorization validity %w", err)
 	}
 	var out []Validity
 	for {

@@ -1,0 +1,8 @@
+# When the card network pays an installment of a credit card payment, counted from the
+# day it was captured: the first after first_days, each next interval_days later, moved
+# to the next business day. Installments financed by the issuer are paid in one go.
+# A lookup takes the most specific row in effect on the capture day: an exact scheme
+# outranks an exact financing; among equals the latest wins.
+# verified: "cited" when a source the research read says so, "unverified" otherwise.
+scheme,financed_by,effective_from,first_days,interval_days,verified,source
+*,*,2000-01-01,30,30,unverified,"Market practice for credit: D+30 for a payment in one go and for each installment after the previous one"

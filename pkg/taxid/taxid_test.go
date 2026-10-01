@@ -1,12 +1,12 @@
-package payments_test
+package taxid_test
 
 import (
 	"testing"
 
-	"github.com/iricardofernandes/jupiter/internal/payments"
+	"github.com/iricardofernandes/jupiter/pkg/taxid"
 )
 
-func TestValidTaxID(t *testing.T) {
+func TestValid(t *testing.T) {
 	for s, want := range map[string]bool{
 		"12345678909":    true,  // CPF
 		"12345678900":    false, // wrong check digits
@@ -19,8 +19,8 @@ func TestValidTaxID(t *testing.T) {
 		"1234567890a":    false,
 		"":               false,
 	} {
-		if got := payments.ValidTaxID(s); got != want {
-			t.Errorf("ValidTaxID(%q) = %t, want %t", s, got, want)
+		if got := taxid.Valid(s); got != want {
+			t.Errorf("Valid(%q) = %t, want %t", s, got, want)
 		}
 	}
 }

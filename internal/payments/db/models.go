@@ -45,6 +45,7 @@ type PaymentsAttempt struct {
 	Eci                    string
 	AuthenticationValue    string
 	LiabilityShift         bool
+	Fee                    int64
 }
 
 type PaymentsIntent struct {
@@ -173,6 +174,7 @@ type PaymentsRefund struct {
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
 	ClearedOn     pgtype.Date
+	FeeReturned   int64
 }
 
 type PaymentsTestRail struct {

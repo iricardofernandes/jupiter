@@ -1,0 +1,11 @@
+# The regulatory deadlines of a receivables registry, in business days unless the unit
+# says calendar days. The adapter reads them as of the day that matters.
+# verified: "cited" when a source the research read says so, "unverified" otherwise.
+rule,effective_from,days,unit,verified,source
+update_after_sale,2000-01-01,1,business,cited,"Res. BCB 264/2022 art. 3º §1º: units updated by the business day after the sale"
+settlement_notice,2000-01-01,1,business,cited,"Convenção entre Entidades Registradoras 5.3.6: settlement reported by the next business day"
+reconcile_daily,2000-01-01,1,calendar,cited,"Res. BCB 264/2022 art. 11: constituted amounts and contract effects, daily"
+reconcile_weekly,2000-01-01,7,calendar,cited,"Res. BCB 264/2022 art. 11: settlement amounts and domiciles, weekly"
+reconcile_fortnightly,2000-01-01,15,calendar,cited,"Res. BCB 264/2022 art. 11: merchants with an active contract, fortnightly"
+fix_divergence,2000-01-01,2,business,cited,"Res. BCB 264/2022 art. 11: inconsistencies fixed within 2 business days"
+release_effects,2026-05-11,2,business,unverified,"Res. BCB 514/2025 rewrote art. 7º with 2 business days to lift effects after a merchant's resilição; Res. BCB 562/2026 revoked that wording, and the research could not read the new one"

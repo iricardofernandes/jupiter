@@ -12,7 +12,7 @@ import (
 )
 
 const attemptByServerTransaction = `-- name: AttemptByServerTransaction :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift FROM payments.attempts WHERE three_ds_server_trans_id = $1
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee FROM payments.attempts WHERE three_ds_server_trans_id = $1
 `
 
 func (q *Queries) AttemptByServerTransaction(ctx context.Context, threeDsServerTransID string) (PaymentsAttempt, error) {
@@ -55,6 +55,7 @@ func (q *Queries) AttemptByServerTransaction(ctx context.Context, threeDsServerT
 		&i.Eci,
 		&i.AuthenticationValue,
 		&i.LiabilityShift,
+		&i.Fee,
 	)
 	return i, err
 }
@@ -194,8 +195,85 @@ func (q *Queries) ClearRefund(ctx context.Context, arg ClearRefundParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const feeLedgerAccounts = `-- name: FeeLedgerAccounts :many
+SELECT livemode, currency, account_id FROM payments.ledger_accounts WHERE merchant_id = '' AND role = 'card_fees'
+`
+
+type FeeLedgerAccountsRow struct {
+	Livemode  bool
+	Currency  string
+	AccountID string
+}
+
+func (q *Queries) FeeLedgerAccounts(ctx context.Context) ([]FeeLedgerAccountsRow, error) {
+	rows, err := q.db.Query(ctx, feeLedgerAccounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FeeLedgerAccountsRow{}
+	for rows.Next() {
+		var i FeeLedgerAccountsRow
+		if err := rows.Scan(&i.Livemode, &i.Currency, &i.AccountID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const feeTotals = `-- name: FeeTotals :many
+SELECT i.livemode, i.currency,
+       (coalesce(sum(a.fee), 0) - coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r
+            JOIN payments.intents ri ON ri.id = r.intent_id
+            WHERE r.status = 'succeeded' AND ri.livemode = i.livemode AND ri.currency = i.currency), 0))::bigint AS held
+FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+GROUP BY i.livemode, i.currency
+`
+
+type FeeTotalsRow struct {
+	Livemode bool
+	Currency string
+	Held     int64
+}
+
+// What each mode's fee account should hold: the fees charged less what refunds gave back.
+func (q *Queries) FeeTotals(ctx context.Context) ([]FeeTotalsRow, error) {
+	rows, err := q.db.Query(ctx, feeTotals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FeeTotalsRow{}
+	for rows.Next() {
+		var i FeeTotalsRow
+		if err := rows.Scan(&i.Livemode, &i.Currency, &i.Held); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const feesReturned = `-- name: FeesReturned :one
+SELECT coalesce(sum(fee_returned), 0)::bigint FROM payments.refunds WHERE intent_id = $1 AND status = 'succeeded'
+`
+
+func (q *Queries) FeesReturned(ctx context.Context, intentID string) (int64, error) {
+	row := q.db.QueryRow(ctx, feesReturned, intentID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getAttempt = `-- name: GetAttempt :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift FROM payments.attempts WHERE id = $1
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee FROM payments.attempts WHERE id = $1
 `
 
 func (q *Queries) GetAttempt(ctx context.Context, id string) (PaymentsAttempt, error) {
@@ -238,6 +316,7 @@ func (q *Queries) GetAttempt(ctx context.Context, id string) (PaymentsAttempt, e
 		&i.Eci,
 		&i.AuthenticationValue,
 		&i.LiabilityShift,
+		&i.Fee,
 	)
 	return i, err
 }
@@ -521,7 +600,7 @@ func (q *Queries) GetRailOperation(ctx context.Context, key string) (PaymentsTes
 }
 
 const getRefund = `-- name: GetRefund :one
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on FROM payments.refunds WHERE id = $1 AND merchant_id = $2 AND livemode = $3
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
 
 type GetRefundParams struct {
@@ -551,12 +630,13 @@ func (q *Queries) GetRefund(ctx context.Context, arg GetRefundParams) (PaymentsR
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClearedOn,
+		&i.FeeReturned,
 	)
 	return i, err
 }
 
 const getRefundByID = `-- name: GetRefundByID :one
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on FROM payments.refunds WHERE id = $1
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds WHERE id = $1
 `
 
 func (q *Queries) GetRefundByID(ctx context.Context, id string) (PaymentsRefund, error) {
@@ -580,6 +660,7 @@ func (q *Queries) GetRefundByID(ctx context.Context, id string) (PaymentsRefund,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClearedOn,
+		&i.FeeReturned,
 	)
 	return i, err
 }
@@ -1107,7 +1188,7 @@ func (q *Queries) ListPayouts(ctx context.Context, arg ListPayoutsParams) ([]Pay
 }
 
 const listRefunds = `-- name: ListRefunds :many
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on FROM payments.refunds
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds
 WHERE merchant_id = $1 AND livemode = $2
   AND ($3::text = '' OR intent_id = $3)
   AND ($4::text = '' OR id < $4)
@@ -1159,6 +1240,7 @@ func (q *Queries) ListRefunds(ctx context.Context, arg ListRefundsParams) ([]Pay
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ClearedOn,
+			&i.FeeReturned,
 		); err != nil {
 			return nil, err
 		}
@@ -1171,7 +1253,7 @@ func (q *Queries) ListRefunds(ctx context.Context, arg ListRefundsParams) ([]Pay
 }
 
 const lockAttempt = `-- name: LockAttempt :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift FROM payments.attempts WHERE id = $1 FOR UPDATE
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee FROM payments.attempts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, error) {
@@ -1214,6 +1296,7 @@ func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, 
 		&i.Eci,
 		&i.AuthenticationValue,
 		&i.LiabilityShift,
+		&i.Fee,
 	)
 	return i, err
 }
@@ -1397,7 +1480,7 @@ func (q *Queries) LockRailKey(ctx context.Context, key string) error {
 }
 
 const lockRefundByID = `-- name: LockRefundByID :one
-SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on FROM payments.refunds WHERE id = $1 FOR UPDATE
+SELECT id, intent_id, attempt_id, merchant_id, livemode, amount, currency, reason, status, rail_reference, failure_reason, ledger_txn, unknown_since, resolutions, created_at, updated_at, cleared_on, fee_returned FROM payments.refunds WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockRefundByID(ctx context.Context, id string) (PaymentsRefund, error) {
@@ -1421,6 +1504,7 @@ func (q *Queries) LockRefundByID(ctx context.Context, id string) (PaymentsRefund
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClearedOn,
+		&i.FeeReturned,
 	)
 	return i, err
 }
@@ -1464,8 +1548,11 @@ func (q *Queries) MerchantLedgerAccounts(ctx context.Context) ([]MerchantLedgerA
 
 const merchantTotals = `-- name: MerchantTotals :many
 WITH received AS (
-    SELECT merchant_id, livemode, currency, sum(amount_received - amount_refunded) AS posted
-    FROM payments.intents GROUP BY merchant_id, livemode, currency
+    SELECT i.merchant_id, i.livemode, i.currency,
+           sum(i.amount_received - i.amount_refunded
+               - coalesce((SELECT sum(a.fee) FROM payments.attempts a WHERE a.intent_id = i.id), 0)
+               + coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r WHERE r.intent_id = i.id AND r.status = 'succeeded'), 0)) AS posted
+    FROM payments.intents i GROUP BY i.merchant_id, i.livemode, i.currency
 ), held AS (
     SELECT i.merchant_id, i.livemode, i.currency, sum(a.amount) AS held
     FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
@@ -1496,7 +1583,7 @@ type MerchantTotalsRow struct {
 }
 
 // What each merchant's balance should hold: posted, what payments received less what
-// was refunded and paid out; held for the merchant, what open card authorizations hold;
+// was refunded, Jupiter's fees net of what refunds gave back, and what was paid out; held for the merchant, what open card authorizations hold;
 // held against the merchant, what payouts in flight hold.
 func (q *Queries) MerchantTotals(ctx context.Context) ([]MerchantTotalsRow, error) {
 	rows, err := q.db.Query(ctx, merchantTotals)
@@ -2063,6 +2150,20 @@ func (q *Queries) SaveRefund(ctx context.Context, arg SaveRefundParams) error {
 	return err
 }
 
+const setAttemptFee = `-- name: SetAttemptFee :exec
+UPDATE payments.attempts SET fee = $1 WHERE id = $2
+`
+
+type SetAttemptFeeParams struct {
+	Fee int64
+	ID  string
+}
+
+func (q *Queries) SetAttemptFee(ctx context.Context, arg SetAttemptFeeParams) error {
+	_, err := q.db.Exec(ctx, setAttemptFee, arg.Fee, arg.ID)
+	return err
+}
+
 const setNetworkToken = `-- name: SetNetworkToken :exec
 UPDATE payments.payment_methods
 SET network_token_reference = $1, network_token_status = $2, network_token_since = $3
@@ -2100,6 +2201,20 @@ type SetPaymentMethodNetworkTransactionParams struct {
 
 func (q *Queries) SetPaymentMethodNetworkTransaction(ctx context.Context, arg SetPaymentMethodNetworkTransactionParams) error {
 	_, err := q.db.Exec(ctx, setPaymentMethodNetworkTransaction, arg.NetworkTransactionID, arg.ID)
+	return err
+}
+
+const setRefundFee = `-- name: SetRefundFee :exec
+UPDATE payments.refunds SET fee_returned = $1 WHERE id = $2
+`
+
+type SetRefundFeeParams struct {
+	FeeReturned int64
+	ID          string
+}
+
+func (q *Queries) SetRefundFee(ctx context.Context, arg SetRefundFeeParams) error {
+	_, err := q.db.Exec(ctx, setRefundFee, arg.FeeReturned, arg.ID)
 	return err
 }
 

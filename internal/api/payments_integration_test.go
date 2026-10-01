@@ -223,8 +223,9 @@ func TestCaptureRefundAndTheLedger(t *testing.T) {
 	if it.AmountReceived != 45000 || it.AmountCapturable != 0 {
 		t.Fatalf("after partial capture: %+v", it)
 	}
-	if posted, held := h.merchantBalance(); posted != 45000 || held != 0 {
-		t.Fatalf("after capture: posted %d held %d, want 45000 and 0", posted, held)
+	// Less Jupiter's fee: 2.99% of R$ 450.00, rounded half up.
+	if posted, held := h.merchantBalance(); posted != 45000-1346 || held != 0 {
+		t.Fatalf("after capture: posted %d held %d, want 43654 and 0", posted, held)
 	}
 
 	refund := func(amount any, status int) openapi.Refund {
@@ -251,6 +252,7 @@ func TestCaptureRefundAndTheLedger(t *testing.T) {
 	if it = h.getIntent(it.Id); it.AmountRefunded != 45000 {
 		t.Fatalf("amount_refunded = %d", it.AmountRefunded)
 	}
+	// Refunds give the fee back with the payment.
 	if posted, _ := h.merchantBalance(); posted != 0 {
 		t.Fatalf("after refunding everything, posted = %d", posted)
 	}
@@ -445,8 +447,8 @@ func TestACaptureResolvedAfterItsHoldLapsedIsPostedOnce(t *testing.T) {
 	h.resolve()
 	it = h.getIntent(it.Id)
 	wantStatus(t, it, "succeeded")
-	if posted, held := h.merchantBalance(); posted != 5000 || held != 0 {
-		t.Fatalf("merchant balance: posted %d, held %d; want 5000 and 0", posted, held)
+	if posted, held := h.merchantBalance(); posted != 5000-150 || held != 0 {
+		t.Fatalf("merchant balance: posted %d, held %d; want 4850 (less the fee) and 0", posted, held)
 	}
 	h.consistent()
 }

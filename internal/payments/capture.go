@@ -123,6 +123,9 @@ func (s *Service) captured(ctx context.Context, tx pgx.Tx, row *db.PaymentsInten
 	if err := s.postCapture(ctx, tx, row, holdID, amount); err != nil {
 		return err
 	}
+	if err := s.chargeFee(ctx, tx, row, attempt, amount); err != nil {
+		return err
+	}
 	attempt.Status = string(attemptCaptured)
 	attempt.AmountCaptured = amount.Minor()
 	attempt.UnknownSince = pgtype.Timestamptz{}

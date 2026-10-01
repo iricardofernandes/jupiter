@@ -12,8 +12,6 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
-	"github.com/iricardofernandes/jupiter/internal/merchant"
-	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
@@ -46,6 +44,9 @@ const (
 	// subscriptionsEvery is how often the worker looks for subscriptions due a look;
 	// each is looked at no more than hourly, and sooner when the bank notifies.
 	subscriptionsEvery = time.Minute
+	// receivablesEvery is how often units go to the registry, well within the business
+	// day after a sale it allows, and reconciliations that are due run.
+	receivablesEvery = 5 * time.Minute
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -98,23 +99,19 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	}
 	l := ledger.New()
 	riskEngine := risk.New(risk.Config{})
-	paymentsConfig := payments.Config{
-		Ledger: l, Events: eventService, Risk: riskEngine, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
-	}
-	r.configure(&paymentsConfig)
-	paymentService := payments.New(paymentsConfig)
-	subscriptionService := r.subscriptions(pool, paymentService, eventService, logger)
+	s := r.services(pool, l, eventService, riskEngine, cards, logger)
 	a := api.New(api.Deps{
-		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Vault: cards, Risk: riskEngine,
-		Subscriptions: subscriptionService, Box: box, Logger: logger,
+		Pool: pool, Merchants: s.merchants, Events: eventService, Payments: s.payments, Vault: cards, Risk: riskEngine,
+		Subscriptions: s.subscriptions, Receivables: s.receivables, Box: box, Logger: logger,
 	})
 
 	return service.App{
 		Ready: pool.Ping,
-		Background: tasks(jobClient, l, pool, a, paymentService, r.network, []*pix.Connector{r.livePix, r.testPix}, logger,
+		Background: tasks(jobClient, l, pool, a, s.payments, r.network, []*pix.Connector{r.livePix, r.testPix}, logger,
 			service.Every(logger, "subscriptions.advance", subscriptionsEvery, counted(logger, "looked at subscriptions", func(ctx context.Context) (int, error) {
-				return subscriptionService.Advance(ctx, pool)
-			}))),
+				return s.subscriptions.Advance(ctx, pool)
+			})),
+			service.Every(logger, "receivables.advance", receivablesEvery, advanceReceivables(s.receivables, pool, logger))),
 		Close: func() {
 			r.close()
 			pool.Close()

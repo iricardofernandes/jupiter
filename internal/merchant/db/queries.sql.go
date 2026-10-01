@@ -83,16 +83,25 @@ func (q *Queries) GetKey(ctx context.Context, arg GetKeyParams) (GetKeyRow, erro
 }
 
 const getMerchant = `-- name: GetMerchant :one
-SELECT id, name, api_version, created_at FROM merchant.merchants WHERE id = $1
+SELECT id, name, api_version, tax_id, created_at FROM merchant.merchants WHERE id = $1
 `
 
-func (q *Queries) GetMerchant(ctx context.Context, id string) (MerchantMerchant, error) {
+type GetMerchantRow struct {
+	ID         string
+	Name       string
+	ApiVersion string
+	TaxID      string
+	CreatedAt  pgtype.Timestamptz
+}
+
+func (q *Queries) GetMerchant(ctx context.Context, id string) (GetMerchantRow, error) {
 	row := q.db.QueryRow(ctx, getMerchant, id)
-	var i MerchantMerchant
+	var i GetMerchantRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.ApiVersion,
+		&i.TaxID,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -263,4 +272,21 @@ func (q *Queries) RevokeKey(ctx context.Context, arg RevokeKeyParams) (RevokeKey
 		&i.RevokedAt,
 	)
 	return i, err
+}
+
+const setTaxID = `-- name: SetTaxID :execrows
+UPDATE merchant.merchants SET tax_id = $1 WHERE id = $2 AND tax_id = ''
+`
+
+type SetTaxIDParams struct {
+	TaxID string
+	ID    string
+}
+
+func (q *Queries) SetTaxID(ctx context.Context, arg SetTaxIDParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setTaxID, arg.TaxID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

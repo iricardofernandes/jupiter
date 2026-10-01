@@ -11,7 +11,6 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
-	"github.com/iricardofernandes/jupiter/internal/merchant"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
@@ -55,15 +54,11 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		pool.Close()
 		return service.App{}, err
 	}
-	paymentsConfig := payments.Config{
-		Ledger: ledger.New(), Events: eventService, Risk: riskEngine, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards),
-	}
-	r.configure(&paymentsConfig)
-	paymentService := payments.New(paymentsConfig)
-	subscriptionService := r.subscriptions(pool, paymentService, eventService, logger)
+	s := r.services(pool, ledger.New(), eventService, riskEngine, cards, logger)
+	paymentService, subscriptionService := s.payments, s.subscriptions
 	a := api.New(api.Deps{
-		Pool: pool, Merchants: merchant.New(nil), Events: eventService, Payments: paymentService, Risk: riskEngine,
-		Subscriptions: subscriptionService, Vault: cards, Box: box, Logger: logger,
+		Pool: pool, Merchants: s.merchants, Events: eventService, Payments: paymentService, Risk: riskEngine,
+		Subscriptions: subscriptionService, Receivables: s.receivables, Vault: cards, Box: box, Logger: logger,
 	})
 	// The public address also serves the 3DS server's pages and results, and the card
 	// network's token events.

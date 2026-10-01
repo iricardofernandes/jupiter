@@ -138,11 +138,14 @@ WHERE role = 'merchant_balance' ORDER BY merchant_id, livemode, currency;
 
 -- name: MerchantTotals :many
 -- What each merchant's balance should hold: posted, what payments received less what
--- was refunded and paid out; held for the merchant, what open card authorizations hold;
+-- was refunded, Jupiter's fees net of what refunds gave back, and what was paid out; held for the merchant, what open card authorizations hold;
 -- held against the merchant, what payouts in flight hold.
 WITH received AS (
-    SELECT merchant_id, livemode, currency, sum(amount_received - amount_refunded) AS posted
-    FROM payments.intents GROUP BY merchant_id, livemode, currency
+    SELECT i.merchant_id, i.livemode, i.currency,
+           sum(i.amount_received - i.amount_refunded
+               - coalesce((SELECT sum(a.fee) FROM payments.attempts a WHERE a.intent_id = i.id), 0)
+               + coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r WHERE r.intent_id = i.id AND r.status = 'succeeded'), 0)) AS posted
+    FROM payments.intents i GROUP BY i.merchant_id, i.livemode, i.currency
 ), held AS (
     SELECT i.merchant_id, i.livemode, i.currency, sum(a.amount) AS held
     FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
@@ -336,3 +339,24 @@ SELECT pg_advisory_xact_lock(hashtext('payments.payouts/' || @scope::text));
 -- What refunds not yet confirmed will take from a merchant's balance.
 SELECT coalesce(sum(amount), 0)::bigint FROM payments.refunds
 WHERE merchant_id = @merchant_id AND livemode = @livemode AND currency = @currency AND status IN ('pending', 'refund_unknown');
+
+-- name: SetAttemptFee :exec
+UPDATE payments.attempts SET fee = @fee WHERE id = @id;
+
+-- name: SetRefundFee :exec
+UPDATE payments.refunds SET fee_returned = @fee_returned WHERE id = @id;
+
+-- name: FeesReturned :one
+SELECT coalesce(sum(fee_returned), 0)::bigint FROM payments.refunds WHERE intent_id = @intent_id AND status = 'succeeded';
+
+-- name: FeeTotals :many
+-- What each mode's fee account should hold: the fees charged less what refunds gave back.
+SELECT i.livemode, i.currency,
+       (coalesce(sum(a.fee), 0) - coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r
+            JOIN payments.intents ri ON ri.id = r.intent_id
+            WHERE r.status = 'succeeded' AND ri.livemode = i.livemode AND ri.currency = i.currency), 0))::bigint AS held
+FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+GROUP BY i.livemode, i.currency;
+
+-- name: FeeLedgerAccounts :many
+SELECT livemode, currency, account_id FROM payments.ledger_accounts WHERE merchant_id = '' AND role = 'card_fees';

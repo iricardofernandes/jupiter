@@ -2,7 +2,10 @@
 INSERT INTO merchant.merchants (id, name, api_version, created_at) VALUES ($1, $2, $3, $4);
 
 -- name: GetMerchant :one
-SELECT id, name, api_version, created_at FROM merchant.merchants WHERE id = $1;
+SELECT id, name, api_version, tax_id, created_at FROM merchant.merchants WHERE id = $1;
+
+-- name: SetTaxID :execrows
+UPDATE merchant.merchants SET tax_id = @tax_id WHERE id = @id AND tax_id = '';
 
 -- name: InsertKey :exec
 INSERT INTO merchant.api_keys (id, merchant_id, livemode, kind, name, hash, last4, scopes, created_at)

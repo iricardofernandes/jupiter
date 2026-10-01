@@ -22,6 +22,7 @@ tags:
   - name: Refunds
   - name: Payouts
   - name: Subscriptions
+  - name: Receivables
   - name: Risk
   - name: Test helpers
   - name: API keys
@@ -361,6 +362,72 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Subscription" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/receivables/agenda:
+    get:
+      operationId: getReceivablesAgenda
+      tags: [Receivables]
+      description: |
+        The merchant's card receivables with a settlement date from `from` to `to` (up to 400
+        days): one unit per arrangement and date, net of fees and refunds, with what is
+        committed to financiers' contracts at the registry and what is free. With as_of,
+        the agenda as it stood then.
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - name: as_of
+          in: query
+          description: A Unix timestamp; the agenda as it stood then. Now if omitted.
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: The agenda, earliest settlement first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReceivablesAgenda" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/receivables/opt_ins:
+    get:
+      operationId: listReceivablesOptIns
+      tags: [Receivables]
+      responses:
+        "200":
+          description: The financiers the merchant authorized to see its agenda, and those it revoked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReceivablesOptInList" }
+        default: { $ref: "#/components/responses/Failure" }
+    post:
+      operationId: createReceivablesOptIn
+      tags: [Receivables]
+      description: Authorizes a financier, by its CNPJ, to see the merchant's agenda at the registry.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateReceivablesOptInRequest" }
+      responses:
+        "200":
+          description: The opt-in.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReceivablesOptIn" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/receivables/opt_ins/{financier}/revoke:
+    post:
+      operationId: revokeReceivablesOptIn
+      tags: [Receivables]
+      parameters:
+        - { name: financier, in: path, required: true, schema: { type: string } }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The opt-in, no longer active.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReceivablesOptIn" }
         default: { $ref: "#/components/responses/Failure" }
   /v1/risk/decisions:
     get:
@@ -1270,6 +1337,66 @@ components:
             data:
               type: array
               items: { $ref: "#/components/schemas/Subscription" }
+    ReceivableUnit:
+      type: object
+      required: [id, object, arrangement, settlement_date, currency, amount, blocked, committed, free, settled_amount, settled_on, registered]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [receivable_unit] }
+        arrangement:
+          type: string
+          description: The payment arrangement's code (VCC for Visa credit, MCC for Mastercard credit, and so on).
+        settlement_date: { type: string, format: date }
+        currency: { type: string }
+        amount: { type: integer, format: int64, description: "What the unit will settle for, net of fees and refunds." }
+        blocked: { type: integer, format: int64 }
+        committed:
+          type: array
+          items: { $ref: "#/components/schemas/ReceivableCommitment" }
+        free: { type: integer, format: int64, description: What no contract or block holds. }
+        settled_amount: { type: integer, format: int64, nullable: true }
+        settled_on: { type: string, format: date, nullable: true }
+        registered: { type: boolean, description: Whether the registry has the unit. }
+    ReceivableCommitment:
+      type: object
+      required: [contract, beneficiary, effect, amount]
+      properties:
+        contract: { type: string }
+        beneficiary: { type: string, description: The financier's CNPJ. }
+        effect: { type: string, enum: [ownership_transfer, lien] }
+        amount: { type: integer, format: int64 }
+    ReceivablesAgenda:
+      type: object
+      required: [object, as_of, data]
+      properties:
+        object: { type: string, enum: [receivables_agenda] }
+        as_of: { type: integer, format: int64 }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ReceivableUnit" }
+    ReceivablesOptIn:
+      type: object
+      required: [object, financier, active, synced, updated]
+      properties:
+        object: { type: string, enum: [receivables_opt_in] }
+        financier: { type: string }
+        active: { type: boolean }
+        synced: { type: boolean, description: Whether the registry has been told. }
+        updated: { type: integer, format: int64 }
+    ReceivablesOptInList:
+      type: object
+      required: [object, data]
+      properties:
+        object: { type: string, enum: [list] }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ReceivablesOptIn" }
+    CreateReceivablesOptInRequest:
+      type: object
+      additionalProperties: false
+      required: [financier]
+      properties:
+        financier: { type: string, description: The financier's CNPJ. }
     CreateSubscriptionRequest:
       type: object
       additionalProperties: false

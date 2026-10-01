@@ -44,3 +44,22 @@ func TestAuthorizationValidity(t *testing.T) {
 		}
 	}
 }
+
+func TestCardFee(t *testing.T) {
+	at, _ := time.Parse(time.DateOnly, "2026-10-01")
+	for _, c := range []struct {
+		financedBy   string
+		installments int
+		want         string
+	}{
+		{"", 1, "0.0299"}, {"merchant", 6, "0.0349"}, {"merchant", 7, "0.0399"}, {"issuer", 12, "0.0299"},
+	} {
+		f, ok := rules.CardFee("visa", c.financedBy, c.installments, at)
+		if !ok || f.Rate.String() != c.want {
+			t.Errorf("%s %d: %v %t", c.financedBy, c.installments, f.Rate, ok)
+		}
+	}
+	if _, ok := rules.CardFee("visa", "merchant", 13, at); ok {
+		t.Error("13 installments has a price")
+	}
+}

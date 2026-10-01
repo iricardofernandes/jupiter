@@ -132,7 +132,9 @@ type Config struct {
 	// Pix rails serve each mode's Pix payments and payouts; a mode without one has no Pix.
 	TestPix PixRail
 	LivePix PixRail
-	Now     func() time.Time
+	// Receivables, if set, is told of every card capture and refund.
+	Receivables Receivables
+	Now         func() time.Time
 	// ResolveAfter is how long an operation stays in flight before the resolver asks
 	// the rail what happened; GiveUpAfter is when an authorization still unknown is
 	// reversed and failed, so no attempt stays unknown for longer.

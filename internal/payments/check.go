@@ -88,7 +88,53 @@ func (s *Service) checkBalances(ctx context.Context, tx pgx.Tx, q *db.Queries) (
 		}
 	}
 	unmatched, err := s.checkUnmatchedPix(ctx, tx, q)
-	return append(violations, unmatched...), err
+	if err != nil {
+		return nil, err
+	}
+	fees, err := s.checkFees(ctx, tx, q)
+	return append(append(violations, unmatched...), fees...), err
+}
+
+// checkFees: each mode's fee account holds the fees charged less what refunds returned.
+func (s *Service) checkFees(ctx context.Context, tx pgx.Tx, q *db.Queries) ([]Violation, error) {
+	totals, err := q.FeeTotals(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accounts, err := q.FeeLedgerAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	type scope struct {
+		livemode bool
+		currency string
+	}
+	want := map[scope]int64{}
+	for _, t := range totals {
+		want[scope{t.Livemode, t.Currency}] = t.Held
+	}
+	var violations []Violation
+	for _, a := range accounts {
+		accountID, err := ledger.AccountPrefix.Parse(a.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		balance, err := s.cfg.Ledger.Balance(ctx, tx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		posted, err := balance.Posted()
+		if err != nil {
+			return nil, err
+		}
+		if held := want[scope{a.Livemode, a.Currency}]; posted.Minor() != held {
+			violations = append(violations, Violation{
+				Subject: a.AccountID,
+				Detail:  fmt.Sprintf("the fee account holds %d; payments charged %d net of what refunds returned", posted.Minor(), held),
+			})
+		}
+	}
+	return violations, nil
 }
 
 // checkUnmatchedPix: what the held-apart account holds is the Pix received that paid

@@ -26,4 +26,5 @@ type MerchantMerchant struct {
 	Name       string
 	ApiVersion string
 	CreatedAt  pgtype.Timestamptz
+	TaxID      string
 }

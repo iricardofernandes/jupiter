@@ -90,3 +90,12 @@ sql:
         out: internal/subscriptions/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/receivables/migrations
+    queries: internal/receivables/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/receivables/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

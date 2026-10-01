@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,6 +14,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
+	"github.com/iricardofernandes/jupiter/internal/receivables"
 )
 
 func applyQueued(l *ledger.Ledger, pool *pgxpool.Pool) func(context.Context) error {
@@ -170,5 +172,18 @@ func provisionTokens(c *acquirer.Connector, p *payments.Service, logger *slog.Lo
 			logger.InfoContext(ctx, "provisioned network tokens", "count", n)
 		}
 		return err
+	}
+}
+
+// advanceReceivables registers units, passes on opt-ins, runs the reconciliations due,
+// and reports what the receivables check finds.
+func advanceReceivables(r *receivables.Service, pool *pgxpool.Pool, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		err := r.Advance(ctx, pool)
+		violations, checkErr := r.Check(ctx, pool)
+		for _, v := range violations {
+			logger.ErrorContext(ctx, "receivables invariant violated", "subject", v.Subject, "detail", v.Detail)
+		}
+		return errors.Join(err, checkErr)
 	}
 }

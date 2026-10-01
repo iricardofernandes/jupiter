@@ -20,6 +20,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/merchant/migrations"
 	"github.com/iricardofernandes/jupiter/internal/platform/page"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/pkg/taxid"
 )
 
 var (
@@ -63,6 +64,8 @@ const (
 	ScopePayoutsWrite         Scope = "payouts:write"
 	ScopeSubscriptionsRead    Scope = "subscriptions:read"
 	ScopeSubscriptionsWrite   Scope = "subscriptions:write"
+	ScopeReceivablesRead      Scope = "receivables:read"
+	ScopeReceivablesWrite     Scope = "receivables:write"
 )
 
 // AllScopes is what a secret key holds. A restricted key holds a subset; a publishable
@@ -76,14 +79,16 @@ var AllScopes = []Scope{
 	ScopeRefundsRead, ScopeRefundsWrite,
 	ScopeRiskRead, ScopeRiskWrite,
 	ScopePayoutsRead, ScopePayoutsWrite,
-	ScopeSubscriptionsRead, ScopeSubscriptionsWrite,
+	ScopeSubscriptionsRead, ScopeSubscriptionsWrite, ScopeReceivablesRead, ScopeReceivablesWrite,
 }
 
 type Merchant struct {
 	ID         id.ID
 	Name       string
 	APIVersion string
-	CreatedAt  time.Time
+	// TaxID is the merchant's CPF or CNPJ, empty until it is set.
+	TaxID     string
+	CreatedAt time.Time
 }
 
 type Key struct {
@@ -169,7 +174,32 @@ func (s *Service) Get(ctx context.Context, q db.DBTX, merchantID id.ID) (Merchan
 	if err != nil {
 		return Merchant{}, err
 	}
-	return Merchant{ID: merchantID, Name: row.Name, APIVersion: row.ApiVersion, CreatedAt: row.CreatedAt.Time}, nil
+	return Merchant{ID: merchantID, Name: row.Name, APIVersion: row.ApiVersion, TaxID: row.TaxID, CreatedAt: row.CreatedAt.Time}, nil
+}
+
+// SetTaxID records the merchant's CPF or CNPJ.
+func (s *Service) SetTaxID(ctx context.Context, q db.DBTX, merchantID id.ID, taxID string) error {
+	if !taxid.Valid(taxID) {
+		return fmt.Errorf("%w: %q is not a CPF or CNPJ", ErrInvalid, taxID)
+	}
+	// Its receivables are registered under it: once set, it stays.
+	n, err := db.New(q).SetTaxID(ctx, db.SetTaxIDParams{ID: merchantID.String(), TaxID: taxID})
+	if postgres.ErrorCode(err) == "23505" {
+		return fmt.Errorf("%w: %s belongs to another merchant", ErrInvalid, taxID)
+	}
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		m, err := s.Get(ctx, q, merchantID)
+		if err != nil {
+			return err
+		}
+		if m.TaxID != taxID {
+			return fmt.Errorf("%w: the merchant's tax id is set and cannot change", ErrInvalid)
+		}
+	}
+	return nil
 }
 
 // CreateRestrictedKey issues a key limited to scopes, in the principal's mode.

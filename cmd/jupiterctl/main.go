@@ -24,7 +24,9 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/internal/risk"
+	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
@@ -33,6 +35,8 @@ const usage = `usage: jupiterctl <command>
 commands:
   migrate                  apply every module's database migrations
   merchant create <name>   create a merchant and print its API keys, which are shown only once
+  merchant set-tax-id <id> <cpf or cnpj>
+                           record who the merchant's receivables belong to
   ledger check             verify ledger invariants; exits 1 if any is violated
   ledger repair <account>  reset a drifted account's cached balance from its entries
   dev-certs <dir>          write a development CA and the vault's, API's and worker's mTLS certificates
@@ -76,6 +80,12 @@ func run(ctx context.Context, args []string) error {
 		return migrate(ctx, pool)
 	case len(args) == 3 && args[0] == "merchant" && args[1] == "create":
 		return createMerchant(ctx, pool, args[2])
+	case len(args) == 4 && args[0] == "merchant" && args[1] == "set-tax-id":
+		merchantID, err := merchant.MerchantPrefix.Parse(args[2])
+		if err != nil {
+			return err
+		}
+		return merchant.New(nil).SetTaxID(ctx, pool, merchantID, args[3])
 	case len(args) == 2 && args[0] == "ledger" && args[1] == "check":
 		return check(ctx, pool)
 	case len(args) == 3 && args[0] == "ledger" && args[1] == "repair":
@@ -112,6 +122,7 @@ func check(ctx context.Context, pool *pgxpool.Pool) error {
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, m := range []func(context.Context, *pgxpool.Pool) error{
 		ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate,
+		subscriptions.Migrate, receivables.Migrate,
 	} {
 		if err := m(ctx, pool); err != nil {
 			return err

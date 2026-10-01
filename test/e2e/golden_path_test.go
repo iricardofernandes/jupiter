@@ -34,12 +34,16 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/registry"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
+	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
+	"github.com/iricardofernandes/jupiter/pkg/registryapi"
 	"github.com/iricardofernandes/jupiter/pkg/webhook"
 )
 
@@ -47,17 +51,18 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate, receivables.Migrate},
 		vaulttest.Template:           {vaulttest.Migrate},
 	}))
 }
 
-// The golden path, as far as phase 7 reaches: a customer's card goes from their browser
+// The golden path, as far as phase 9 reaches: a customer's card goes from their browser
 // to the vault; the customer pays R$ 600.00 in six installments, passes the risk engine,
 // is authenticated with 3-D Secure without a challenge, and is authorized by the issuer
-// over ISO 8583; the merchant captures it; the ledger and a signed webhook say so; the
-// network's clearing file for the day confirms it; and the merchant is paid out by Pix.
-// Later phases add receivables, split and settlement before the payout.
+// over ISO 8583; the merchant captures it; the ledger, net of Jupiter's fee, and a signed
+// webhook say so; the network's clearing file for the day confirms it; six receivable
+// units are registered with the registry and reconcile with it; and the merchant is paid
+// out by Pix. Later phases add split, anticipation and settlement before the payout.
 func TestGoldenPath(t *testing.T) {
 	ctx := t.Context()
 	pool := server.Pool(t)
@@ -115,13 +120,15 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	bank, pixConnector := startPixBank(t, pool)
+	merchants := merchant.New(nil)
+	registrySim, receivablesService := startRegistry(t, pool, merchants)
 	l := ledger.New()
 	riskEngine := risk.New(risk.Config{})
 	paymentService := payments.New(payments.Config{
 		Ledger: l, Events: eventService, LiveRail: connector, Authenticator: authenticator, Risk: riskEngine,
 		TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client), LivePix: pixConnector,
+		Receivables: receivablesService,
 	})
-	merchants := merchant.New(nil)
 	jupiterAPI := api.New(api.Deps{
 		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Risk: riskEngine, Box: box,
 	})
@@ -142,10 +149,13 @@ func TestGoldenPath(t *testing.T) {
 	go func() { workerDone <- jobs.Run(worker)(workerCtx) }()
 	defer func() { stopWorker(); <-workerDone }()
 
-	t.Log("1. a merchant signs up and receives its live keys")
+	t.Log("1. a merchant signs up with its CNPJ and receives its live keys")
 	var secretKey, publishableKey string
 	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
-		_, keys, err := merchants.Create(ctx, tx, "Loja do Caminho Dourado", api.CurrentVersion)
+		m, keys, err := merchants.Create(ctx, tx, "Loja do Caminho Dourado", api.CurrentVersion)
+		if err != nil {
+			return err
+		}
 		for _, k := range keys {
 			switch {
 			case !k.Livemode:
@@ -155,7 +165,8 @@ func TestGoldenPath(t *testing.T) {
 				publishableKey = k.Value
 			}
 		}
-		return err
+		// Its CNPJ: whom its receivables belong to at the registry.
+		return merchants.SetTaxID(ctx, tx, m.ID, merchantCNPJ)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -230,10 +241,10 @@ func TestGoldenPath(t *testing.T) {
 	if intent.Status != "succeeded" || intent.AmountReceived != 60000 {
 		t.Fatalf("after capture: %+v", intent)
 	}
-	if posted, held := balance(t, paymentService, pool, owner); posted != 60000 || held != 0 {
-		t.Fatalf("ledger after capture: posted %d, held %d; want 60000 and 0", posted, held)
+	if posted, held := balance(t, paymentService, pool, owner); posted != 60000-fee || held != 0 {
+		t.Fatalf("ledger after capture: posted %d, held %d; want %d and 0", posted, held, 60000-fee)
 	}
-	t.Log("   the ledger posts R$ 600.00 to the merchant's balance")
+	t.Log("   the ledger posts R$ 600.00 to the merchant's balance, less Jupiter's fee of R$ 20.94 (3.49% for 6 installments)")
 
 	t.Log("7. a signed webhook reports the payment")
 	select {
@@ -263,7 +274,32 @@ func TestGoldenPath(t *testing.T) {
 	}
 	t.Log("   R$ 600.00 cleared")
 
-	t.Log("9. the merchant pays its balance out, by Pix, to its owner's key")
+	t.Log("9. six receivable units, one per installment, are registered with the registry, and reconcile with it")
+	if _, err := receivablesService.Register(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	agenda, err := receivablesService.Agenda(ctx, pool, owner, receivables.AgendaQuery{From: today, To: today.AddDate(0, 0, 250)})
+	if err != nil || len(agenda) != 6 {
+		t.Fatalf("the agenda: %+v, %v", agenda, err)
+	}
+	for _, e := range agenda {
+		if e.Value != 9651 || !e.Registered || e.Arrangement != registryapi.ArrangementVisaCredit {
+			t.Fatalf("a unit: %+v", e)
+		}
+	}
+	positions, err := registrySim.Positions(registrysim.Participant{TaxID: jupiterCNPJ, Role: registrysim.Accreditor}, merchantCNPJ, "", "", nil)
+	if err != nil || len(positions) != 6 {
+		t.Fatalf("the registry has %d units, %v", len(positions), err)
+	}
+	for _, kind := range []string{receivables.Daily, receivables.Weekly, receivables.Fortnightly} {
+		if r, err := receivablesService.ReconcileNow(ctx, pool, true, kind); err != nil || len(r.Divergences) != 0 {
+			t.Fatalf("the %s reconciliation: %+v, %v", kind, r.Divergences, err)
+		}
+	}
+	t.Logf("   R$ 96.51 settles on each of %s … %s; daily, weekly and fortnightly reconciliations find no divergence",
+		agenda[0].SettlementDate, agenda[5].SettlementDate)
+
+	t.Log("10. the merchant pays its balance out, by Pix, to its owner's key")
 	var payout struct {
 		Status      string `json:"status"`
 		EndToEndID  string `json:"end_to_end_id"`
@@ -272,21 +308,21 @@ func TestGoldenPath(t *testing.T) {
 		} `json:"destination"`
 	}
 	client.post("/v1/payouts", map[string]any{
-		"amount": 60000, "currency": "brl", "destination": map[string]any{"type": "pix", "pix_key": sellerKey},
+		"amount": 60000 - fee, "currency": "brl", "destination": map[string]any{"type": "pix", "pix_key": sellerKey},
 	}, &payout)
 	if payout.Status != "paid" || payout.Destination.RecipientName != "Vendedora do Caminho" {
 		t.Fatalf("the payout: %+v", payout)
 	}
 	transfers := bank.Transfers()
-	if len(transfers) != 1 || transfers[0].Valor != "600.00" || transfers[0].Chave != sellerKey || transfers[0].EndToEndID != payout.EndToEndID {
+	if len(transfers) != 1 || transfers[0].Valor != "579.06" || transfers[0].Chave != sellerKey || transfers[0].EndToEndID != payout.EndToEndID {
 		t.Fatalf("the bank sent %+v", transfers)
 	}
 	if posted, held := balance(t, paymentService, pool, owner); posted != 0 || held != 0 {
 		t.Fatalf("ledger after the payout: posted %d, held %d; want 0 and 0", posted, held)
 	}
-	t.Logf("   R$ 600.00 sent through the SPI to %s (%s); the merchant's balance is zero", payout.Destination.RecipientName, payout.EndToEndID)
+	t.Logf("   R$ 579.06 sent through the SPI to %s (%s); the merchant's balance is zero", payout.Destination.RecipientName, payout.EndToEndID)
 
-	t.Log("10. every invariant holds")
+	t.Log("11. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}
@@ -298,6 +334,33 @@ func TestGoldenPath(t *testing.T) {
 	if err != nil || len(violations) > 0 {
 		t.Fatalf("payments check: %v %+v", err, violations)
 	}
+	found, err := receivablesService.Check(ctx, pool)
+	if err != nil || len(found) > 0 {
+		t.Fatalf("receivables check: %v %+v", err, found)
+	}
+}
+
+const (
+	jupiterCNPJ   = "11222333000181"
+	merchantCNPJ  = "11444777000161"
+	registryToken = "golden path registry token" //nolint:gosec // a test credential for the simulator
+	// fee is Jupiter's on R$ 600.00 in 6 installments financed by the merchant: 3.49%.
+	fee = 2094
+)
+
+// startRegistry runs the registry simulator and the receivables Jupiter registers there.
+func startRegistry(t *testing.T, pool *pgxpool.Pool, merchants *merchant.Service) (*registrysim.Sim, *receivables.Service) {
+	t.Helper()
+	sim := registrysim.New(registrysim.Config{Participants: []registrysim.Participant{{Token: registryToken, TaxID: jupiterCNPJ, Role: registrysim.Accreditor}}})
+	srv := httptest.NewServer(sim.Handler())
+	t.Cleanup(srv.Close)
+	connector, err := registry.New(registry.Config{BaseURL: srv.URL, Token: registryToken})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sim, receivables.New(receivables.Config{
+		Pool: pool, Merchants: merchants, LiveRegistry: connector, Domicile: registryapi.Domicile{ISPB: "30000001", Branch: "0001"},
+	})
 }
 
 const sellerKey = "+5511987654321"

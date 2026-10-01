@@ -182,6 +182,11 @@ func (s *Service) refunded(ctx context.Context, tx pgx.Tx, refund *db.PaymentsRe
 	if err != nil {
 		return fmt.Errorf("posting refund to the ledger: %w", err)
 	}
+	if !isPix(attempt.PaymentMethod) {
+		if err := s.returnFee(ctx, tx, intent, attempt, refund); err != nil {
+			return err
+		}
+	}
 	refund.Status, refund.RailReference = string(RefundSucceeded), res.Reference
 	refund.LedgerTxn = text(txn.ID.String())
 	refund.UnknownSince = pgtype.Timestamptz{}
