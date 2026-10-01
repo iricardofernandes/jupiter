@@ -6,7 +6,7 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **13 — Reconciliation** · milestone M3 reached
+> ### Current phase: **14 — Correctness and performance** · milestone M3 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
 > kept in a separate vault, live payments over ISO 8583 to a card network and issuer
@@ -68,8 +68,28 @@ This repository is the **backend only**.
 > [`docs/reconciliation.md`](docs/reconciliation.md). The simulators lose, duplicate and
 > delay records on purpose, and reconciliation finds each, and nothing else.
 >
-> A deterministic simulation runs 10,000 payments with faults on every push. Next is
-> correctness and performance (phase 14); see [`docs/plan.md`](docs/plan.md).
+> And hardened, measured:
+> - **Simulations.** Two deterministic simulations, of card payments and of every rail
+>   (Pix with MED, boleto, payouts, receivables settled through the registry and the
+>   SLC, chargebacks), run thousands of seeded scenarios. They inject:
+>   - lost and late messages, duplicated and delayed records;
+>   - crashes between phases and in background work, part-way through;
+>   - simulators whose clocks drift from Jupiter's.
+>
+>   Each run ends drained, with every invariant holding and reconciliation finding exactly
+>   the breaks the faults made. A fixed budget of seeds runs on every push, random ones
+>   nightly, and any seed that finds a bug stays as a regression.
+> - **Load tests.** The authorization path, over HTTP and ISO 8583, and the ledger are
+>   load-tested to saturation, with p50, p95 and p99. On one 8-core machine Jupiter
+>   authorizes about 2,300 payments a second, about as many at one merchant as across
+>   eight, and the ledger posts about 17,000 a second.
+> - **Profiling.** It found what held one merchant's payments to 1,300 a second, a risk
+>   lock and a hot balance row, and each fix is recorded with its numbers before and
+>   after ([`docs/benchmarks/`](docs/benchmarks/)).
+> - **Metrics, alerts and runbooks.** Metrics flow through OpenTelemetry to Prometheus,
+>   which evaluates 21 alerts, each with a runbook ([`docs/runbooks/`](docs/runbooks/)).
+>
+> Next is the live deployment (phase 15); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -119,7 +139,8 @@ primary source, its documentation says so.
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |
 | [`docs/adr/`](docs/adr/) | Architecture decisions, each with the alternatives rejected |
-| [`docs/benchmarks/`](docs/benchmarks/) | Measurements, with the command and hardware that produced them |
+| [`docs/benchmarks/`](docs/benchmarks/) | Measurements, with the command and hardware that produced them: the authorization path and the ledger to saturation, and what profiling changed |
+| [`docs/runbooks/`](docs/runbooks/) | What to do about each alert in [`deploy/prometheus/alerts.yml`](deploy/prometheus/alerts.yml) |
 | [`docs/research/`](docs/research/) | How the payments market works, globally and in Brazil, and what it implies for Jupiter |
 
 ## Getting started
@@ -137,7 +158,9 @@ make certs             # a development CA and the mTLS certificates of the vault
 make merchant NAME=x   # create a merchant; prints its API keys once
 make ledger-check      # verify the ledger's invariants on it
 make demo              # walk through the golden path, step by step
-make test-simulation   # the deterministic simulation (SIM_PAYMENTS, SIM_SEED)
+make test-simulation   # the deterministic simulations, cards and every rail (SIM_SEEDS, SIM_SEED, SIM_PAYMENTS, SIM_RAIL_SCENARIOS)
+make bench-authorization  # the authorization path's load test, recorded in docs/benchmarks
+make check-alerts      # the alert rules and their unit tests, with promtool
 make down
 make help              # every target
 ```
@@ -156,7 +179,9 @@ stacks:
 | Prometheus | http://127.0.0.1:59090 |
 | Grafana | http://127.0.0.1:53000 |
 
-Each port can be changed in a `.env` file; see [`.env.example`](.env.example).
+Each port can be changed in a `.env` file; see [`.env.example`](.env.example). The API and
+the worker send their metrics to the Collector when `OTEL_EXPORTER_OTLP_ENDPOINT` is
+`http://127.0.0.1:54318`, and Prometheus evaluates the alerts on them.
 
 To run the binaries, start the vault first (`go run ./cmd/vault`) and, for live mode, the
 card network and 3-D Secure simulators (`go run ./cmd/sim-card-network`,
@@ -195,7 +220,9 @@ test/e2e/            the golden path
 test/pci/            the test that the API database never holds a card number
 test/cardrail/       live payments through the card network and 3-D Secure simulators
 test/risk/           a card-testing burst from the load generator
-test/simulation/     the deterministic simulation
+test/simulation/     the deterministic simulations, of cards and of every rail
+test/load/           the authorization path's load test
+test/observability/  the test that alerts, runbooks and metrics agree
 deploy/              configuration for the local infrastructure
 tools/               pinned development tools
 ```

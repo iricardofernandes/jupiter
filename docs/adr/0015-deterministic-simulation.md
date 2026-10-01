@@ -1,6 +1,6 @@
 # 0015. Correctness under faults is tested by deterministic simulation
 
-- Status: Accepted
+- Status: Accepted. Extended by [ADR 0042](0042-simulation-of-every-rail.md) to every rail.
 - Date: 2026-09-30
 
 ## Context

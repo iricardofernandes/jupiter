@@ -1,6 +1,6 @@
 # 0008. Hot accounts keep synchronous entries and batched balances
 
-- Status: Accepted
+- Status: Accepted. Amended by [ADR 0040](0040-measured-capacity-of-the-authorization-path.md): merchant balances are batched too.
 - Date: 2026-09-30
 
 ## Context
@@ -38,7 +38,7 @@ Each account is created either synchronous or **batched**.
   exact; only the stored cache lags.
 - A batched account cannot be non-negative (the database refuses the combination),
   because its balance is not known when an entry is written. Hot accounts are platform
-  accounts, which have no such limit; customer and merchant balances stay synchronous.
+  accounts, which have no such limit; customer balances stay synchronous (merchant balances became batched in ADR 0040).
 
 The invariant checker compares cached plus queued deltas against a recomputation from
 entries, so the batched path is proven the same way as the synchronous one.

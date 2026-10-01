@@ -1,6 +1,6 @@
 # 0022. A rules-based risk engine, with velocity in PostgreSQL and a decision log
 
-- Status: Accepted
+- Status: Accepted. Amended by [ADR 0040](0040-measured-capacity-of-the-authorization-path.md): decisions lock per card, and per merchant only under watch.
 - Date: 2026-09-30
 
 ## Context

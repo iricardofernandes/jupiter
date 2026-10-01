@@ -46,6 +46,9 @@ point at its replacement.
 | [0037](0037-chargebacks-recovered-from-future-units.md) | A chargeback is the liable recipient's, recovered from its future units in the Convenção's order | Accepted |
 | [0038](0038-med-claims.md) | MED claims: held, traced, answered, and contestable | Accepted |
 | [0039](0039-three-way-reconciliation.md) | Three-way reconciliation by streams, matched exactly or broken | Accepted |
+| [0040](0040-measured-capacity-of-the-authorization-path.md) | Risk decisions lock per card, and merchant balances are batched | Accepted |
+| [0041](0041-metrics-alerts-and-runbooks.md) | Metrics through OpenTelemetry, alerts in Prometheus, a runbook for each | Accepted |
+| [0042](0042-simulation-of-every-rail.md) | Every rail simulated, on a fixed seed budget per push and random seeds nightly | Accepted |
 
 ## Template
 
