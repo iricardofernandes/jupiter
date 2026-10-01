@@ -42,6 +42,9 @@ point at its replacement.
 | [0033](0033-boleto-through-cnab-240.md) | Boletos go to the bank in CNAB 240 files, and their returns settle the intent | Accepted |
 | [0034](0034-settlement-through-the-slc.md) | Card receivables settle through the SLC, gross, in a grade built once a day | Accepted |
 | [0035](0035-payouts-lifecycle.md) | Payouts by Pix or bank transfer, held, returned and scheduled | Accepted |
+| [0036](0036-one-dispute-model-with-dated-deadlines.md) | One dispute model for chargebacks and MED, moved on by dated deadlines | Accepted |
+| [0037](0037-chargebacks-recovered-from-future-units.md) | A chargeback is the liable recipient's, recovered from its future units in the Convenção's order | Accepted |
+| [0038](0038-med-claims.md) | MED claims: held, traced, answered, and contestable | Accepted |
 
 ## Template
 

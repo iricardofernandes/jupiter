@@ -160,3 +160,26 @@ simulator's controls:
 
 The simulator's clock moves the charges every ten seconds (`/admin/tick` moves them at
 once). Its [README](../../internal/sim/pix/README.md) lists the routes.
+
+## Disputes
+
+Test mode has no card network; a test network plays the issuer. Open a chargeback on a
+card payment that succeeded, with a Visa or Mastercard reason code and, if not all of it,
+an amount:
+
+```sh
+curl -X POST http://127.0.0.1:8080/v1/test_helpers/disputes -H "Authorization: Bearer $SK_TEST" \
+  -H "Idempotency-Key: $(uuidgen)" -d '{"payment_intent": "pi_…", "reason_code": "13.1"}'
+```
+
+Then answer it ([Disputes](disputes.md)). The issuer reads your evidence:
+
+| Evidence contains | What happens |
+|---|---|
+| `winning_evidence` | The issuer accepts the representment: won |
+| `losing_evidence` | The issuer rejects it into pre-arbitration; escalate with `winning_evidence` to win the arbitration |
+| anything else | The issuer stays silent, and the dispute is won when its 30 days run out |
+
+Report a payment as fraud with `POST /v1/test_helpers/fraud_reports`
+(`{"payment_intent": "pi_…", "fraud_type": "card_not_present"}`). MED claims on test Pix come
+from the bank's sandbox; the simulator makes one with `/admin/infraction-reports`.

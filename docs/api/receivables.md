@@ -68,3 +68,9 @@ On a unit's date, the card network pays it through centralized settlement (the S
 
 A unit settles once, on its date or, if Jupiter could not settle it then, the next business
 day. Its `settled_amount` and `settled_on` show it in the agenda.
+
+## Chargebacks
+
+A chargeback a recipient cannot pay from its available balance reduces its future units,
+as the registries reduce them: what is free on each first, then other financiers'
+contracts from the latest back. The units' `amount` shows it. See [Disputes](disputes.md).
