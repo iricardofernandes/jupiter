@@ -30,7 +30,7 @@ JUPITER_SIM_REGISTRY_PARTICIPANTS='<token>:11222333000181:accreditor,<token>:330
 | Settlement pays contracts in the order accepted, then the holder; the block stays with the accreditor. A unit settles once, and the same notice again answers the same split | Sourced: Convenção 3.13. Repeated notices are the simulator's |
 | A settlement notice after the business day following the settlement is listed as late, as is an update after the business day following the change it carries | Sourced: Convenção 5.3.6, Res. BCB 264 art. 3º §1º |
 | A financier sees a holder's agenda only after the holder's opt-in, which an accreditor of the holder's units passes on | Sourced: Res. BCB 264 art. 15 |
-| Contracts need no opt-in; their ids are each financier's own | The simulator's: a contract is signed with the merchant outside the registry |
+| Contracts need no opt-in; their ids are each financier's own, and the same contract placed again is accepted again | The simulator's: a contract is signed with the merchant outside the registry |
 | Accreditors read their units, settled or not, and the holders with something committed on an unsettled unit: the daily, weekly and fortnightly reconciliations | Sourced: Res. BCB 264 art. 11 |
 | Lien and ownership transfer behave alike in settlement | The simulator's; real registries differ for judicial liens (Convenção 5.9.16) |
 | Not simulated: portability between registries, contestations, judicial constrictions, prepaid arrangements, interoperability between registries, tariffs | |

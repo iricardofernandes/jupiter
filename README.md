@@ -6,7 +6,7 @@ carries them through settlement on a double-entry ledger, and pays merchants out
 
 This repository is the **backend only**.
 
-> ### Current phase: **9 — Receivables and the registry** · milestone M2 reached
+> ### Current phase: **10 — Anticipation, split and recipients** · milestone M2 reached
 >
 > A correct ledger, a Stripe-grade API with idempotency and signed webhooks, card numbers
 > kept in a separate vault, live payments over ISO 8583 to a card network and issuer
@@ -29,8 +29,15 @@ This repository is the **backend only**.
 > - reconciled daily, weekly and fortnightly on a Brazilian business-day calendar;
 > - shown to each merchant as an agenda that can be read as of any moment.
 >
+> And marketplaces:
+> - recipients with verification and balances (pending, available, reserved);
+> - card payments split among them as typed ledger lines, property-tested to never lose a
+>   centavo;
+> - anticipation priced as present value and registered as an ownership transfer to
+>   Jupiter, on demand or automatically.
+>
 > A deterministic simulation runs 10,000 payments with faults on every push. Next are
-> anticipation, split and recipients (phase 10); see [`docs/plan.md`](docs/plan.md).
+> settlement, payouts and boleto (phase 11); see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -74,7 +81,7 @@ primary source, its documentation says so.
 |---|---|
 | [`docs/plan.md`](docs/plan.md) | Phases, deliverables, exit criteria, non-goals, milestones |
 | [`api/openapi.yaml`](api/openapi.yaml) | The API contract; the server is generated from it |
-| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, payouts, subscriptions and receivables |
+| [`docs/api/`](docs/api/) | Error codes, receiving webhooks, test cards and amounts, the risk engine, Pix, payouts, subscriptions, receivables, recipients and anticipation |
 | [`api/bacen-pix/`](api/bacen-pix/) | The Banco Central's API Pix specification, pinned, which `pkg/pixapi` is generated from |
 | [`docs/pci-scope.md`](docs/pci-scope.md) | What handles card data, what does not, and the tests that keep it so |
 | [`docs/cardnet/`](docs/cardnet/) | The card network's ISO 8583 specification, field by field, sourced or not |

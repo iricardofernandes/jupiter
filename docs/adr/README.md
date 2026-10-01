@@ -37,6 +37,8 @@ point at its replacement.
 | [0028](0028-subscriptions-by-pix-automatico.md) | Subscriptions charge by Pix Automático, one payment intent per cycle | Accepted |
 | [0029](0029-card-fees-taken-at-capture.md) | Card fees are a dated price table, taken from the merchant at capture | Accepted |
 | [0030](0030-receivable-units-and-the-registry.md) | Receivable units kept beside the ledger, registered and reconciled with a registry | Accepted |
+| [0031](0031-recipients-split-and-balances.md) | Recipients hold balances, and a split is typed ledger lines at capture | Accepted |
+| [0032](0032-anticipation-by-jupiter.md) | Anticipation: Jupiter buys units at a dated rate, registered as an ownership transfer | Accepted |
 
 ## Template
 

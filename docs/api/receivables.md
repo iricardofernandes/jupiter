@@ -37,7 +37,8 @@ Each unit says:
 - `registered`: whether the registry has it yet;
 - once settled, `settled_amount` and `settled_on`.
 
-`as_of`, a Unix timestamp, shows the agenda as it stood then.
+`as_of`, a Unix timestamp, shows the agenda as it stood then. `recipient` shows a
+recipient's agenda instead of the merchant's own ([recipients](recipients.md)).
 
 R$ 600.00 in six installments captured on 1 October 2026 becomes six units of R$ 96.51:
 R$ 100.00 each, less 3.49%. The first settles 30 days later. That day is a Saturday and
