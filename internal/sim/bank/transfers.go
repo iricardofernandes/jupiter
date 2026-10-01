@@ -95,10 +95,10 @@ func (s *Sim) advanceTransfers(c *client) {
 		case t.Status == TransferProcessing:
 			t.Status, t.CompletedAt = TransferCompleted, &now
 			t.returnOnTick = t.Account == accountReturned
-			c.statement = append(c.statement, Entry{Date: day, Kind: "debit", Amount: t.Amount, Reference: t.ID, Description: "TRANSFERENCIA ENVIADA"})
+			s.book(c, Entry{Date: day, Kind: "debit", Amount: t.Amount, Reference: t.ID, Description: "TRANSFERENCIA ENVIADA"})
 		case t.Status == TransferCompleted && t.returnOnTick:
 			t.Status, t.Reason, t.ReturnedAt, t.returnOnTick = TransferReturned, "AC04", &now, false // conta encerrada
-			c.statement = append(c.statement, Entry{Date: day, Kind: "credit", Amount: t.Amount, Reference: t.ID, Description: "DEVOLUCAO TRANSFERENCIA"})
+			s.book(c, Entry{Date: day, Kind: "credit", Amount: t.Amount, Reference: t.ID, Description: "DEVOLUCAO TRANSFERENCIA"})
 		}
 	}
 }

@@ -126,3 +126,12 @@ sql:
         out: internal/disputes/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/reconciliation/migrations
+    queries: internal/reconciliation/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/reconciliation/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

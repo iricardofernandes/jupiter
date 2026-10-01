@@ -35,6 +35,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/internal/registry"
 	banksim "github.com/iricardofernandes/jupiter/internal/sim/bank"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
@@ -48,7 +49,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate, reconciliation.Migrate},
 	}))
 }
 
@@ -91,6 +92,8 @@ type harness struct {
 	receivables *receivables.Service
 	recipients  *recipients.Service
 	disputes    *disputes.Service
+	recon       *reconciliation.Service
+	transfers   *bank.Connector
 	registry    *registrysim.Sim
 	slc         *slcsim.Sim
 	bank        *banksim.Sim
@@ -98,6 +101,25 @@ type harness struct {
 	merchants   *merchant.Service
 	key         string
 	owner       payments.Owner
+
+	mu         sync.Mutex
+	bankFaults func(banksim.Event) banksim.Fault
+}
+
+// bankFault is what the bank simulator asks before writing a record.
+func (h *harness) bankFault(e banksim.Event) banksim.Fault {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.bankFaults == nil {
+		return banksim.Fault{}
+	}
+	return h.bankFaults(e)
+}
+
+func (h *harness) setBankFaults(f func(banksim.Event) banksim.Fault) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.bankFaults = f
 }
 
 // another signs up a second merchant, with taxID if not empty, and returns its test key.
@@ -157,13 +179,24 @@ func newHarness(t *testing.T) *harness {
 		TestRegistry: connector, TestSettlement: settlement, Now: h.clock.Now,
 		Domicile: registryapi.Domicile{ISPB: jupiterISPB, Branch: "0001"},
 	})
+	h.transfers = transfers
 	h.payments = payments.New(payments.Config{
 		Ledger: h.ledger, Events: eventService, Now: h.clock.Now, Receivables: h.receivables, Balances: h.receivables,
-		Recipients: h.recipients, TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil), TestTransfers: transfers,
+		Recipients: h.recipients, TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil), TestTransfers: transfers, TestBoleto: transfers,
 	})
 	h.receivables.UsePayments(h.payments)
 	h.merchants = merchants
 	h.disputes = disputes.New(disputes.Config{Pool: h.pool, Payments: h.payments, Events: eventService, Now: h.clock.Now})
+	h.recon = reconciliation.New(reconciliation.Config{Pool: h.pool, Now: h.clock.Now, Test: reconciliation.Mode{
+		Streams: []reconciliation.Stream{
+			{Counterparty: "slc", Name: "grade", Ours: []reconciliation.OursFunc{h.receivables.Grades}, Theirs: settlement.Grades},
+			transfers.Returns(h.payments),
+			{Counterparty: "bank", Name: "statement", Theirs: transfers.Statement, Ours: []reconciliation.OursFunc{
+				transfers.BoletoCredits(h.payments), h.payments.BankTransferRecords, h.receivables.SettlementCredits,
+			}},
+		},
+		Divergences: map[string]reconciliation.DivergenceFunc{"registry": h.receivables.Divergences},
+	}})
 	a := api.New(api.Deps{
 		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Receivables: h.receivables,
 		Recipients: h.recipients, Disputes: h.disputes, Box: box, Now: h.clock.Now,
@@ -192,7 +225,14 @@ func newHarness(t *testing.T) *harness {
 // connectSLCAndBank starts the settlement and bank simulators, with Jupiter taking part.
 func (h *harness) connectSLCAndBank() (*slc.Connector, *bank.Connector) {
 	h.t.Helper()
-	h.slc = slcsim.New(slcsim.Config{Now: h.clock.Now, Participants: []slcsim.Participant{{Token: slcToken, TaxID: jupiterCNPJ, ISPB: jupiterISPB}}})
+	h.slc = slcsim.New(slcsim.Config{
+		Now: h.clock.Now, Participants: []slcsim.Participant{{Token: slcToken, TaxID: jupiterCNPJ, ISPB: jupiterISPB}},
+		Credit: func(p slcsim.Participant, date string, amount int64) {
+			if err := h.bank.Credit(p.TaxID, date, amount, slcsim.CreditReference(date), "LIQUIDACAO SLC"); err != nil {
+				h.t.Error(err)
+			}
+		},
+	})
 	slcServer := httptest.NewServer(h.slc.Handler())
 	h.t.Cleanup(slcServer.Close)
 	settlement, err := slc.New(slc.Config{BaseURL: slcServer.URL, Token: slcToken})
@@ -200,7 +240,7 @@ func (h *harness) connectSLCAndBank() (*slc.Connector, *bank.Connector) {
 		h.t.Fatal(err)
 	}
 	account := cnab240.Account{Branch: "00001", BranchDV: "0", Number: "000000123456", NumberDV: "7"}
-	h.bank = banksim.New(banksim.Config{Now: h.clock.Now, Host: "banco.example", Clients: []banksim.Client{{
+	h.bank = banksim.New(banksim.Config{Now: h.clock.Now, Host: "banco.example", Faults: h.bankFault, Clients: []banksim.Client{{
 		Token: jupiterBank, TaxID: jupiterCNPJ, Name: "Jupiter Pagamentos", Agreement: "CONVENIO-0001", Account: account,
 	}}})
 	bankServer := httptest.NewServer(h.bank.Handler())

@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/iricardofernandes/jupiter/pkg/pixapi"
 )
 
 // Participants' ISPBs. The simulated bank is Jupiter's; payers bank elsewhere.
@@ -69,7 +71,7 @@ type Config struct {
 
 // Event is something the simulator is about to do that a test may want to disturb.
 type Event struct {
-	Kind   string // "charge", "webhook", "transfer", "return" or "infraction"
+	Kind   string // "charge", "webhook", "transfer", "return", "infraction" or "statement"
 	Client string
 	TxID   string
 	E2EID  string
@@ -77,8 +79,11 @@ type Event struct {
 }
 
 type Fault struct {
-	// Drop loses a notification.
+	// Drop loses a notification or a statement line.
 	Drop bool
+	// Duplicate writes a statement line twice; Delay puts it on the next day.
+	Duplicate bool
+	Delay     bool
 	// Pending leaves a transfer or return in processing for PendingFor.
 	Pending    bool
 	PendingFor time.Duration
@@ -130,8 +135,11 @@ type account struct {
 	Client
 	balance int64
 	// blocked is what MED claims hold of balance: neither transfers nor returns spend it.
-	blocked  int64
-	webhooks map[string]string // key -> URL
+	blocked int64
+	// statement is the account's movements, a line each.
+	statement []pixapi.StatementLine
+	entries   int64
+	webhooks  map[string]string // key -> URL
 	// recWebhook and cobrWebhook receive the notifications of Pix Automático.
 	recWebhook  string
 	cobrWebhook string
@@ -234,6 +242,7 @@ func (s *Sim) Handler() http.Handler {
 	s.recurringChargeRoutes(mux)
 	s.locationRoutes(mux)
 	s.infractionRoutes(mux)
+	s.statementRoute(mux)
 	return mux
 }
 

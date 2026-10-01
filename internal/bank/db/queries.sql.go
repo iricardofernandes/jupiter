@@ -12,7 +12,7 @@ import (
 )
 
 const getTitle = `-- name: GetTitle :one
-SELECT attempt_id, livemode, sequence, our_number, barcode, line, due, amount, payer_name, payer_tax_id, hybrid, days_after_due, status, remittance, write_off_requested, write_off_remittance, pix_code, created_at, updated_at FROM bank.titles WHERE attempt_id = $1
+SELECT attempt_id, livemode, sequence, our_number, barcode, line, due, amount, payer_name, payer_tax_id, hybrid, days_after_due, status, remittance, write_off_requested, write_off_remittance, pix_code, created_at, updated_at, credit_on FROM bank.titles WHERE attempt_id = $1
 `
 
 func (q *Queries) GetTitle(ctx context.Context, attemptID string) (BankTitle, error) {
@@ -38,6 +38,7 @@ func (q *Queries) GetTitle(ctx context.Context, attemptID string) (BankTitle, er
 		&i.PixCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CreditOn,
 	)
 	return i, err
 }
@@ -118,6 +119,38 @@ func (q *Queries) InsertReturn(ctx context.Context, arg InsertReturnParams) (int
 	return result.RowsAffected(), nil
 }
 
+const insertReturnRecord = `-- name: InsertReturnRecord :exec
+INSERT INTO bank.return_records (livemode, return_sequence, line, our_number, occurrence, paid, occurred_on, credit_on, imported_on)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`
+
+type InsertReturnRecordParams struct {
+	Livemode       bool
+	ReturnSequence int64
+	Line           int32
+	OurNumber      string
+	Occurrence     int32
+	Paid           int64
+	OccurredOn     pgtype.Date
+	CreditOn       pgtype.Date
+	ImportedOn     pgtype.Date
+}
+
+func (q *Queries) InsertReturnRecord(ctx context.Context, arg InsertReturnRecordParams) error {
+	_, err := q.db.Exec(ctx, insertReturnRecord,
+		arg.Livemode,
+		arg.ReturnSequence,
+		arg.Line,
+		arg.OurNumber,
+		arg.Occurrence,
+		arg.Paid,
+		arg.OccurredOn,
+		arg.CreditOn,
+		arg.ImportedOn,
+	)
+	return err
+}
+
 const insertTitle = `-- name: InsertTitle :exec
 INSERT INTO bank.titles (attempt_id, livemode, sequence, our_number, barcode, line, due, amount, payer_name, payer_tax_id,
     hybrid, days_after_due, status, created_at, updated_at)
@@ -181,7 +214,7 @@ func (q *Queries) LockSequence(ctx context.Context, scope string) error {
 }
 
 const lockTitleByOurNumber = `-- name: LockTitleByOurNumber :one
-SELECT attempt_id, livemode, sequence, our_number, barcode, line, due, amount, payer_name, payer_tax_id, hybrid, days_after_due, status, remittance, write_off_requested, write_off_remittance, pix_code, created_at, updated_at FROM bank.titles WHERE livemode = $1 AND our_number = $2 FOR UPDATE
+SELECT attempt_id, livemode, sequence, our_number, barcode, line, due, amount, payer_name, payer_tax_id, hybrid, days_after_due, status, remittance, write_off_requested, write_off_remittance, pix_code, created_at, updated_at, credit_on FROM bank.titles WHERE livemode = $1 AND our_number = $2 FOR UPDATE
 `
 
 type LockTitleByOurNumberParams struct {
@@ -212,6 +245,7 @@ func (q *Queries) LockTitleByOurNumber(ctx context.Context, arg LockTitleByOurNu
 		&i.PixCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CreditOn,
 	)
 	return i, err
 }
@@ -272,6 +306,51 @@ func (q *Queries) NextSequence(ctx context.Context, livemode bool) (int64, error
 	return column_1, err
 }
 
+const paidTitlesSince = `-- name: PaidTitlesSince :many
+SELECT attempt_id, our_number, amount, credit_on, updated_at FROM bank.titles
+WHERE livemode = $1 AND status = 'paid' AND updated_at >= $2
+ORDER BY updated_at, attempt_id
+`
+
+type PaidTitlesSinceParams struct {
+	Livemode bool
+	Since    pgtype.Timestamptz
+}
+
+type PaidTitlesSinceRow struct {
+	AttemptID string
+	OurNumber string
+	Amount    int64
+	CreditOn  pgtype.Date
+	UpdatedAt pgtype.Timestamptz
+}
+
+func (q *Queries) PaidTitlesSince(ctx context.Context, arg PaidTitlesSinceParams) ([]PaidTitlesSinceRow, error) {
+	rows, err := q.db.Query(ctx, paidTitlesSince, arg.Livemode, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PaidTitlesSinceRow{}
+	for rows.Next() {
+		var i PaidTitlesSinceRow
+		if err := rows.Scan(
+			&i.AttemptID,
+			&i.OurNumber,
+			&i.Amount,
+			&i.CreditOn,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const requestWriteOff = `-- name: RequestWriteOff :one
 UPDATE bank.titles SET write_off_requested = true, updated_at = $1
 WHERE attempt_id = $2 AND status IN ('issued', 'remitted', 'registered')
@@ -288,6 +367,59 @@ func (q *Queries) RequestWriteOff(ctx context.Context, arg RequestWriteOffParams
 	var status string
 	err := row.Scan(&status)
 	return status, err
+}
+
+const returnRecordsImportedOn = `-- name: ReturnRecordsImportedOn :many
+SELECT livemode, return_sequence, line, our_number, occurrence, paid, occurred_on, credit_on, imported_on FROM bank.return_records WHERE livemode = $1 AND imported_on = $2 ORDER BY return_sequence, line
+`
+
+type ReturnRecordsImportedOnParams struct {
+	Livemode bool
+	Day      pgtype.Date
+}
+
+func (q *Queries) ReturnRecordsImportedOn(ctx context.Context, arg ReturnRecordsImportedOnParams) ([]BankReturnRecord, error) {
+	rows, err := q.db.Query(ctx, returnRecordsImportedOn, arg.Livemode, arg.Day)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BankReturnRecord{}
+	for rows.Next() {
+		var i BankReturnRecord
+		if err := rows.Scan(
+			&i.Livemode,
+			&i.ReturnSequence,
+			&i.Line,
+			&i.OurNumber,
+			&i.Occurrence,
+			&i.Paid,
+			&i.OccurredOn,
+			&i.CreditOn,
+			&i.ImportedOn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setTitleCredit = `-- name: SetTitleCredit :exec
+UPDATE bank.titles SET credit_on = $1 WHERE attempt_id = $2
+`
+
+type SetTitleCreditParams struct {
+	CreditOn  pgtype.Date
+	AttemptID string
+}
+
+func (q *Queries) SetTitleCredit(ctx context.Context, arg SetTitleCreditParams) error {
+	_, err := q.db.Exec(ctx, setTitleCredit, arg.CreditOn, arg.AttemptID)
+	return err
 }
 
 const setTitleStatus = `-- name: SetTitleStatus :exec
@@ -312,7 +444,7 @@ func (q *Queries) SetTitleStatus(ctx context.Context, arg SetTitleStatusParams) 
 }
 
 const titlesToRemit = `-- name: TitlesToRemit :many
-SELECT attempt_id, livemode, sequence, our_number, barcode, line, due, amount, payer_name, payer_tax_id, hybrid, days_after_due, status, remittance, write_off_requested, write_off_remittance, pix_code, created_at, updated_at FROM bank.titles
+SELECT attempt_id, livemode, sequence, our_number, barcode, line, due, amount, payer_name, payer_tax_id, hybrid, days_after_due, status, remittance, write_off_requested, write_off_remittance, pix_code, created_at, updated_at, credit_on FROM bank.titles
 WHERE livemode = $1
   AND ((status = 'issued' AND NOT write_off_requested)
        OR (status = 'registered' AND write_off_requested AND write_off_remittance IS NULL))
@@ -351,6 +483,7 @@ func (q *Queries) TitlesToRemit(ctx context.Context, livemode bool) ([]BankTitle
 			&i.PixCode,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CreditOn,
 		); err != nil {
 			return nil, err
 		}

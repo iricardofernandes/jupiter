@@ -2010,6 +2010,46 @@ func (q *Queries) SetOptIn(ctx context.Context, arg SetOptInParams) error {
 	return err
 }
 
+const settledGradesSince = `-- name: SettledGradesSince :many
+SELECT livemode, date, entries, total, credited, status, error, ledger_txn, created_at, updated_at FROM receivables.grades WHERE livemode = $1 AND status = 'settled' AND date >= $2 ORDER BY date
+`
+
+type SettledGradesSinceParams struct {
+	Livemode bool
+	Since    pgtype.Date
+}
+
+func (q *Queries) SettledGradesSince(ctx context.Context, arg SettledGradesSinceParams) ([]ReceivablesGrade, error) {
+	rows, err := q.db.Query(ctx, settledGradesSince, arg.Livemode, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceivablesGrade{}
+	for rows.Next() {
+		var i ReceivablesGrade
+		if err := rows.Scan(
+			&i.Livemode,
+			&i.Date,
+			&i.Entries,
+			&i.Total,
+			&i.Credited,
+			&i.Status,
+			&i.Error,
+			&i.LedgerTxn,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const splitLinesOfIntent = `-- name: SplitLinesOfIntent :many
 SELECT attempt_id, payment_intent, recipient_id, type, amount, liable, ledger_txn FROM receivables.split_lines WHERE payment_intent = $1 ORDER BY recipient_id, type
 `

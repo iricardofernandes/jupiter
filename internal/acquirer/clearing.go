@@ -88,6 +88,14 @@ func (c *Connector) apply(ctx context.Context, tx pgx.Tx, p *payments.Service, f
 	if err != nil {
 		return report, err
 	}
+	for i, r := range file.Records {
+		if err := q.InsertClearingRecord(ctx, db.InsertClearingRecordParams{
+			BusinessDate: date, Line: int32(i + 1), Kind: string(r.Kind), Rrn: r.RRN, NetworkTransactionID: r.NetworkTransactionID,
+			Amount: r.Amount, MerchantCode: r.MerchantID,
+		}); err != nil {
+			return report, err
+		}
+	}
 	seen := map[string]bool{}
 	for _, r := range file.Records {
 		var reason string

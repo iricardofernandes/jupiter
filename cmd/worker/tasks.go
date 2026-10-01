@@ -18,6 +18,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/service"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 )
 
 func applyQueued(l *ledger.Ledger, pool *pgxpool.Pool) func(context.Context) error {
@@ -262,5 +263,19 @@ func domainTasks(s services, r rails, pool *pgxpool.Pool, logger *slog.Logger) [
 			return s.disputes.ReconcileCases(ctx, pool)
 		})),
 		service.Every(logger, "disputes.monitor", monitorEvery, monitorDisputes(s.disputes, pool, logger)),
+		service.Every(logger, "reconciliation.run", reconcileEvery, reconcile(s.reconciliation, logger)),
+	}
+}
+
+// reconcile reconciles each mode through yesterday and reports what it found.
+func reconcile(r *reconciliation.Service, logger *slog.Logger) func(context.Context) error {
+	return func(ctx context.Context) error {
+		runs, err := r.RunDue(ctx)
+		for _, run := range runs {
+			if run.Matched+run.Opened+run.Resolved > 0 {
+				logger.InfoContext(ctx, "reconciled", "through", run.Through.Format(time.DateOnly), "matched", run.Matched, "opened", run.Opened, "resolved", run.Resolved)
+			}
+		}
+		return err
 	}
 }

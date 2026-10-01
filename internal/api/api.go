@@ -21,6 +21,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 )
@@ -47,9 +48,11 @@ type Deps struct {
 	Recipients *recipients.Service
 	// Disputes keeps chargebacks, MED claims and fraud reports; nil leaves them out.
 	Disputes *disputes.Service
-	Box      *secretbox.Box
-	Logger   *slog.Logger
-	Now      func() time.Time
+	// Reconciliation reports what matched with every counterparty; nil leaves it out.
+	Reconciliation *reconciliation.Service
+	Box            *secretbox.Box
+	Logger         *slog.Logger
+	Now            func() time.Time
 	// AfterPhase, if set, runs after each atomic phase of an idempotent request commits.
 	// It is the seam through which simulations kill requests between phases.
 	AfterPhase func(recoveryPoint string)

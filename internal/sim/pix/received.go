@@ -281,6 +281,7 @@ func (s *Sim) settleReturn(ctx context.Context, p *received, d *devolucao) {
 	default:
 		acct.balance -= d.amount
 		d.status = returnDone
+		s.bookLocked(acct, pixapi.StatementDebit, d.amount, d.id, d.rtrID, "DEVOLUCAO PIX "+d.nature)
 	}
 	d.settled = s.now()
 	s.mu.Unlock()

@@ -50,19 +50,20 @@ type PaymentsAttempt struct {
 }
 
 type PaymentsDisputeFund struct {
-	Reference  string
-	IntentID   string
-	AttemptID  string
-	MerchantID string
-	Livemode   bool
-	Currency   string
-	Amount     int64
-	SplitBack  int64
-	Status     string
-	LedgerHold pgtype.Text
-	LedgerTxn  pgtype.Text
-	CreatedAt  pgtype.Timestamptz
-	UpdatedAt  pgtype.Timestamptz
+	Reference   string
+	IntentID    string
+	AttemptID   string
+	MerchantID  string
+	Livemode    bool
+	Currency    string
+	Amount      int64
+	SplitBack   int64
+	Status      string
+	LedgerHold  pgtype.Text
+	LedgerTxn   pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	WithdrawnAt pgtype.Timestamptz
 }
 
 type PaymentsIntent struct {

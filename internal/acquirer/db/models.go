@@ -27,6 +27,16 @@ type AcquirerClearingFile struct {
 	ImportedAt   pgtype.Timestamptz
 }
 
+type AcquirerClearingRecord struct {
+	BusinessDate         pgtype.Date
+	Line                 int32
+	Kind                 string
+	Rrn                  string
+	NetworkTransactionID string
+	Amount               int64
+	MerchantCode         string
+}
+
 type AcquirerExchange struct {
 	Key                  string
 	Kind                 string

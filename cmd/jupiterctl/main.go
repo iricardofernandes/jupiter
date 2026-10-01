@@ -28,6 +28,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 	"github.com/iricardofernandes/jupiter/internal/vault"
@@ -46,6 +47,12 @@ commands:
                            hold a recipient's payouts, or lift the hold and send those held
   dispute decide <id> agreed|disagreed <operator>
                            decide a MED claim the merchant answered: return the money, or not
+  reconcile report <YYYY-MM-DD> [live]
+                           a day's reconciliation with every counterparty, in test or live mode
+  reconcile resolve <break> <operator> <note>
+                           close a break by hand, saying why
+  reconcile confirm <break> <operator>
+                           accept a probable match
   ledger check             verify ledger invariants; exits 1 if any is violated
   ledger repair <account>  reset a drifted account's cached balance from its entries
   dev-certs <dir>          write a development CA and the vault's, API's and worker's mTLS certificates
@@ -95,12 +102,8 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		return merchant.New(nil).SetTaxID(ctx, pool, merchantID, args[3])
-	case len(args) == 4 && args[0] == "recipient" && args[1] == "verify":
-		return verifyRecipient(ctx, pool, args[2], recipients.Status(args[3]))
-	case len(args) == 3 && args[0] == "recipient" && (args[1] == "hold-payouts" || args[1] == "release-payouts"):
-		return holdPayouts(ctx, pool, args[2], args[1] == "hold-payouts")
-	case len(args) == 5 && args[0] == "dispute" && args[1] == "decide" && (args[3] == "agreed" || args[3] == "disagreed"):
-		return decideDispute(ctx, pool, args[2], args[3] == "agreed", args[4])
+	case args[0] == "recipient" || args[0] == "dispute" || args[0] == "reconcile":
+		return operate(ctx, pool, args)
 	case len(args) == 2 && args[0] == "ledger" && args[1] == "check":
 		return check(ctx, pool)
 	case len(args) == 3 && args[0] == "ledger" && args[1] == "repair":
@@ -137,7 +140,7 @@ func check(ctx context.Context, pool *pgxpool.Pool) error {
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, m := range []func(context.Context, *pgxpool.Pool) error{
 		ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate,
-		subscriptions.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate,
+		subscriptions.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate, reconciliation.Migrate,
 	} {
 		if err := m(ctx, pool); err != nil {
 			return err
@@ -256,4 +259,51 @@ func decideDispute(ctx context.Context, pool *pgxpool.Pool, disputeID string, ag
 		return err
 	}
 	return disputes.New(disputes.Config{Pool: pool, Payments: payments.New(payments.Config{})}).Decide(ctx, pool, parsed, agree, operator)
+}
+
+// reconcileCommand reports a day's reconciliation, or resolves a break by hand.
+func reconcileCommand(ctx context.Context, pool *pgxpool.Pool, args []string) error {
+	s := reconciliation.New(reconciliation.Config{Pool: pool})
+	switch {
+	case args[0] == "report" && (len(args) == 2 || (len(args) == 3 && args[2] == "live")):
+		day, err := time.Parse(time.DateOnly, args[1])
+		if err != nil {
+			return err
+		}
+		report, err := s.Report(ctx, pool, len(args) == 3, day, "")
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(report)
+	case args[0] == "resolve" && len(args) == 4:
+		breakID, err := reconciliation.BreakPrefix.Parse(args[1])
+		if err != nil {
+			return err
+		}
+		return s.Resolve(ctx, breakID, args[3], args[2])
+	case args[0] == "confirm" && len(args) == 3:
+		breakID, err := reconciliation.BreakPrefix.Parse(args[1])
+		if err != nil {
+			return err
+		}
+		return s.Confirm(ctx, breakID, args[2])
+	}
+	return errUsage
+}
+
+// operate runs the commands on recipients, disputes and reconciliation.
+func operate(ctx context.Context, pool *pgxpool.Pool, args []string) error {
+	switch {
+	case len(args) == 4 && args[0] == "recipient" && args[1] == "verify":
+		return verifyRecipient(ctx, pool, args[2], recipients.Status(args[3]))
+	case len(args) == 3 && args[0] == "recipient" && (args[1] == "hold-payouts" || args[1] == "release-payouts"):
+		return holdPayouts(ctx, pool, args[2], args[1] == "hold-payouts")
+	case len(args) == 5 && args[0] == "dispute" && args[1] == "decide" && (args[3] == "agreed" || args[3] == "disagreed"):
+		return decideDispute(ctx, pool, args[2], args[3] == "agreed", args[4])
+	case len(args) >= 3 && args[0] == "reconcile":
+		return reconcileCommand(ctx, pool, args[1:])
+	}
+	return errUsage
 }

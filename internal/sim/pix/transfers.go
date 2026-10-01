@@ -154,8 +154,10 @@ func (s *Sim) settleTransferLocked(t *transfer) {
 		t.status, t.reason = transferFailed, "Saldo insuficiente."
 	default:
 		acct.balance -= t.amount
+		s.bookLocked(acct, pixapi.StatementDebit, t.amount, t.id, t.e2eid, "PIX ENVIADO")
 		if receiver := s.clients[entry.Account]; receiver != nil && entry.ISPB == s.cfg.ISPB {
 			receiver.balance += t.amount
+			s.bookLocked(receiver, pixapi.StatementCredit, t.amount, t.e2eid, t.e2eid, "PIX RECEBIDO")
 		}
 		t.status, t.destination = transferDone, entry
 	}

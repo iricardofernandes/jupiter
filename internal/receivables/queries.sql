@@ -370,3 +370,6 @@ VALUES (@recipient_id, @unit_id, @amount, @from_free, @from_contracts, @at);
 
 -- name: RecoveriesOf :many
 SELECT * FROM receivables.recoveries WHERE recipient_id = @recipient_id ORDER BY id;
+
+-- name: SettledGradesSince :many
+SELECT * FROM receivables.grades WHERE livemode = @livemode AND status = 'settled' AND date >= @since ORDER BY date;

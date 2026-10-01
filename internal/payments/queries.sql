@@ -402,8 +402,9 @@ ORDER BY a.created_at DESC
 LIMIT 1;
 
 -- name: InsertDisputeFunds :execrows
-INSERT INTO payments.dispute_funds (reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, status, ledger_hold, ledger_txn, created_at, updated_at)
-VALUES (@reference, @intent_id, @attempt_id, @merchant_id, @livemode, @currency, @amount, @status, @ledger_hold, @ledger_txn, @now, @now)
+INSERT INTO payments.dispute_funds (reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, status, ledger_hold, ledger_txn, created_at, updated_at, withdrawn_at)
+VALUES (@reference, @intent_id, @attempt_id, @merchant_id, @livemode, @currency, @amount, @status, @ledger_hold, @ledger_txn, @now, @now,
+        CASE WHEN @status = 'withdrawn' THEN @now::timestamptz END)
 ON CONFLICT (reference) DO NOTHING;
 
 -- name: LockDisputeFunds :one
@@ -411,7 +412,8 @@ SELECT * FROM payments.dispute_funds WHERE reference = @reference FOR UPDATE;
 
 -- name: SaveDisputeFunds :exec
 UPDATE payments.dispute_funds
-SET status = @status, split_back = @split_back, ledger_txn = @ledger_txn, updated_at = @now
+SET status = @status, split_back = @split_back, ledger_txn = @ledger_txn, updated_at = @now,
+    withdrawn_at = CASE WHEN @status = 'withdrawn' AND withdrawn_at IS NULL THEN @now ELSE withdrawn_at END
 WHERE reference = @reference;
 
 -- name: DisputedAmount :one
@@ -438,3 +440,41 @@ SELECT * FROM payments.pix_received WHERE livemode = @livemode AND e2e_id = @e2e
 
 -- name: AllDisputeFunds :many
 SELECT reference, status, amount FROM payments.dispute_funds ORDER BY reference;
+
+-- name: MerchantsOfObjects :many
+-- The merchants attempts and refunds belong to.
+SELECT a.id::text AS object, i.merchant_id::text AS merchant_id FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+WHERE a.id = ANY(@ids::text[])
+UNION ALL
+SELECT r.id::text, r.merchant_id::text FROM payments.refunds r WHERE r.id = ANY(@ids::text[]);
+
+-- name: CapturedAttempts :many
+-- Which of some attempts were captured: their money booked.
+SELECT id FROM payments.attempts WHERE id = ANY(@ids::text[]) AND status = 'captured';
+
+-- name: PixReceivedSince :many
+SELECT r.e2e_id, r.amount, r.received_at, r.status, r.updated_at, coalesce(i.merchant_id, '')::text AS merchant_id
+FROM payments.pix_received r
+LEFT JOIN payments.attempts a ON a.id = r.attempt_id
+LEFT JOIN payments.intents i ON i.id = a.intent_id
+WHERE r.livemode = @livemode AND (r.received_at >= @since OR r.updated_at >= @since)
+ORDER BY r.received_at, r.e2e_id;
+
+-- name: PixRefundsSince :many
+-- Refunds of Pix payments the bank returned.
+SELECT r.id, r.merchant_id, r.amount, r.updated_at FROM payments.refunds r JOIN payments.attempts a ON a.id = r.attempt_id
+WHERE r.livemode = @livemode AND r.status = 'succeeded' AND a.payment_method = 'pix' AND r.updated_at >= @since
+ORDER BY r.updated_at, r.id;
+
+-- name: PayoutsSince :many
+-- Payouts paid, or paid and returned, by a method, since a moment.
+SELECT id, merchant_id, amount, status, arrived_at, returned_at FROM payments.payouts
+WHERE livemode = @livemode AND method = @method AND status IN ('paid', 'returned') AND (arrived_at >= @since OR returned_at >= @since)
+ORDER BY arrived_at, id;
+
+-- name: PixDisputeFundsSince :many
+-- What MED claims took from Pix payments, and gave back.
+SELECT f.reference, f.merchant_id, f.amount, f.status, f.withdrawn_at, f.updated_at FROM payments.dispute_funds f
+JOIN payments.attempts a ON a.id = f.attempt_id
+WHERE f.livemode = @livemode AND a.payment_method = 'pix' AND f.status IN ('withdrawn', 'reinstated') AND f.withdrawn_at >= @since
+ORDER BY f.withdrawn_at, f.reference;

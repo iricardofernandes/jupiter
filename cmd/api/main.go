@@ -59,7 +59,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	paymentService, subscriptionService := s.payments, s.subscriptions
 	a := api.New(api.Deps{
 		Pool: pool, Merchants: s.merchants, Events: eventService, Payments: paymentService, Risk: riskEngine,
-		Subscriptions: subscriptionService, Receivables: s.receivables, Recipients: s.recipients, Disputes: s.disputes,
+		Subscriptions: subscriptionService, Receivables: s.receivables, Recipients: s.recipients, Disputes: s.disputes, Reconciliation: s.reconciliation,
 		Vault: cards, Box: box, Logger: logger,
 	})
 	// The public address also serves the 3DS server's pages and results, and the card

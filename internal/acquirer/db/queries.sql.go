@@ -11,6 +11,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearedExchangesSince = `-- name: ClearedExchangesSince :many
+SELECT key, kind, authorization_key, rrn, amount, created_at FROM acquirer.exchanges
+WHERE created_at >= $1 AND ((kind = 'capture' AND state = 'acknowledged') OR (kind = 'refund' AND state = 'approved'))
+ORDER BY created_at, key
+LIMIT 100000
+`
+
+type ClearedExchangesSinceRow struct {
+	Key              string
+	Kind             string
+	AuthorizationKey pgtype.Text
+	Rrn              string
+	Amount           int64
+	CreatedAt        pgtype.Timestamptz
+}
+
+// The captures the network acknowledged and the refunds it approved since a moment: what
+// its clearing files must list.
+func (q *Queries) ClearedExchangesSince(ctx context.Context, since pgtype.Timestamptz) ([]ClearedExchangesSinceRow, error) {
+	rows, err := q.db.Query(ctx, clearedExchangesSince, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClearedExchangesSinceRow{}
+	for rows.Next() {
+		var i ClearedExchangesSinceRow
+		if err := rows.Scan(
+			&i.Key,
+			&i.Kind,
+			&i.AuthorizationKey,
+			&i.Rrn,
+			&i.Amount,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearingExceptions = `-- name: ClearingExceptions :many
 SELECT id, business_date, kind, rrn, network_transaction_id, amount, merchant_code, reason, resolved_at FROM acquirer.clearing_exceptions WHERE business_date = $1 ORDER BY id
 `
@@ -34,6 +79,38 @@ func (q *Queries) ClearingExceptions(ctx context.Context, businessDate pgtype.Da
 			&i.MerchantCode,
 			&i.Reason,
 			&i.ResolvedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const clearingRecordsOn = `-- name: ClearingRecordsOn :many
+SELECT business_date, line, kind, rrn, network_transaction_id, amount, merchant_code FROM acquirer.clearing_records WHERE business_date = $1 ORDER BY line
+`
+
+func (q *Queries) ClearingRecordsOn(ctx context.Context, businessDate pgtype.Date) ([]AcquirerClearingRecord, error) {
+	rows, err := q.db.Query(ctx, clearingRecordsOn, businessDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AcquirerClearingRecord{}
+	for rows.Next() {
+		var i AcquirerClearingRecord
+		if err := rows.Scan(
+			&i.BusinessDate,
+			&i.Line,
+			&i.Kind,
+			&i.Rrn,
+			&i.NetworkTransactionID,
+			&i.Amount,
+			&i.MerchantCode,
 		); err != nil {
 			return nil, err
 		}
@@ -286,6 +363,34 @@ func (q *Queries) InsertClearingFile(ctx context.Context, arg InsertClearingFile
 	var business_date pgtype.Date
 	err := row.Scan(&business_date)
 	return business_date, err
+}
+
+const insertClearingRecord = `-- name: InsertClearingRecord :exec
+INSERT INTO acquirer.clearing_records (business_date, line, kind, rrn, network_transaction_id, amount, merchant_code)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type InsertClearingRecordParams struct {
+	BusinessDate         pgtype.Date
+	Line                 int32
+	Kind                 string
+	Rrn                  string
+	NetworkTransactionID string
+	Amount               int64
+	MerchantCode         string
+}
+
+func (q *Queries) InsertClearingRecord(ctx context.Context, arg InsertClearingRecordParams) error {
+	_, err := q.db.Exec(ctx, insertClearingRecord,
+		arg.BusinessDate,
+		arg.Line,
+		arg.Kind,
+		arg.Rrn,
+		arg.NetworkTransactionID,
+		arg.Amount,
+		arg.MerchantCode,
+	)
+	return err
 }
 
 const insertExchange = `-- name: InsertExchange :one

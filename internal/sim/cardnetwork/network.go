@@ -39,6 +39,17 @@ type Config struct {
 	// AcquirerToken, if set, is what the acquirer's dispute requests must carry as a
 	// bearer token.
 	AcquirerToken string
+	// ClearingFaults, if set, is asked about every record before it goes into a clearing
+	// file.
+	ClearingFaults func(cardnet.ClearingRecord) RecordFault
+}
+
+// RecordFault is what happens to a clearing record: lost, listed twice, or put in the
+// next business day's file.
+type RecordFault struct {
+	Drop      bool
+	Duplicate bool
+	Delay     bool
 }
 
 type Network struct {
@@ -68,7 +79,7 @@ func New(cfg Config) *Network {
 		cfg.LateAfter = 30 * time.Second
 	}
 	return &Network{
-		cfg: cfg, issuer: newIssuer(cfg.Now, cfg.AuthenticationKey), tokens: newTokenService(),
+		cfg: cfg, issuer: newIssuer(cfg.Now, cfg.AuthenticationKey, cfg.ClearingFaults), tokens: newTokenService(),
 		files: map[string][]byte{}, stop: make(chan struct{}), book: disputeBook{cases: map[string]*disputeCase{}},
 	}
 }

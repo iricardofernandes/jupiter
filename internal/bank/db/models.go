@@ -35,6 +35,18 @@ type BankReturn struct {
 	ImportedAt pgtype.Timestamptz
 }
 
+type BankReturnRecord struct {
+	Livemode       bool
+	ReturnSequence int64
+	Line           int32
+	OurNumber      string
+	Occurrence     int32
+	Paid           int64
+	OccurredOn     pgtype.Date
+	CreditOn       pgtype.Date
+	ImportedOn     pgtype.Date
+}
+
 type BankTitle struct {
 	AttemptID          string
 	Livemode           bool
@@ -55,4 +67,5 @@ type BankTitle struct {
 	PixCode            string
 	CreatedAt          pgtype.Timestamptz
 	UpdatedAt          pgtype.Timestamptz
+	CreditOn           pgtype.Date
 }

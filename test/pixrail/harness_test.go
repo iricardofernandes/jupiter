@@ -36,6 +36,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 )
@@ -44,7 +45,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, subscriptions.Migrate, disputes.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, subscriptions.Migrate, disputes.Migrate, reconciliation.Migrate},
 	}))
 }
 
@@ -83,6 +84,7 @@ type harness struct {
 	payments  *payments.Service
 	subs      *subscriptions.Service
 	disputes  *disputes.Service
+	recon     *reconciliation.Service
 	ledger    *ledger.Ledger
 	api       *httptest.Server
 	liveKey   string
@@ -158,6 +160,9 @@ func newHarness(t *testing.T) *harness {
 	})
 	h.subs = subscriptions.New(subscriptions.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveBank: h.connector, Now: h.clock.Now})
 	h.disputes = disputes.New(disputes.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveBank: h.connector, Now: h.clock.Now})
+	h.recon = reconciliation.New(reconciliation.Config{Pool: h.pool, Now: h.clock.Now, Live: reconciliation.Mode{Streams: []reconciliation.Stream{{
+		Counterparty: "pix_bank", Name: "statement", Ours: []reconciliation.OursFunc{h.payments.PixRecords}, Theirs: h.connector.Statement,
+	}}}})
 	mux := http.NewServeMux()
 	mux.Handle("/pix/live/", http.StripPrefix("/pix/live", h.connector.Handler(h.payments, h.subs, h.disputes)))
 	notifications = mux

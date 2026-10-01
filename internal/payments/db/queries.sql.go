@@ -216,6 +216,31 @@ func (q *Queries) CapturedAttemptByNetworkID(ctx context.Context, arg CapturedAt
 	return i, err
 }
 
+const capturedAttempts = `-- name: CapturedAttempts :many
+SELECT id FROM payments.attempts WHERE id = ANY($1::text[]) AND status = 'captured'
+`
+
+// Which of some attempts were captured: their money booked.
+func (q *Queries) CapturedAttempts(ctx context.Context, ids []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, capturedAttempts, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cardAttemptsBetween = `-- name: CardAttemptsBetween :one
 SELECT count(*)::bigint FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
 WHERE i.merchant_id = $1 AND i.livemode = $2 AND a.status = 'captured'
@@ -863,8 +888,9 @@ func (q *Queries) InsertAttempt(ctx context.Context, arg InsertAttemptParams) er
 }
 
 const insertDisputeFunds = `-- name: InsertDisputeFunds :execrows
-INSERT INTO payments.dispute_funds (reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, status, ledger_hold, ledger_txn, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+INSERT INTO payments.dispute_funds (reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, status, ledger_hold, ledger_txn, created_at, updated_at, withdrawn_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11,
+        CASE WHEN $8 = 'withdrawn' THEN $11::timestamptz END)
 ON CONFLICT (reference) DO NOTHING
 `
 
@@ -1540,7 +1566,7 @@ func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, 
 }
 
 const lockDisputeFunds = `-- name: LockDisputeFunds :one
-SELECT reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, split_back, status, ledger_hold, ledger_txn, created_at, updated_at FROM payments.dispute_funds WHERE reference = $1 FOR UPDATE
+SELECT reference, intent_id, attempt_id, merchant_id, livemode, currency, amount, split_back, status, ledger_hold, ledger_txn, created_at, updated_at, withdrawn_at FROM payments.dispute_funds WHERE reference = $1 FOR UPDATE
 `
 
 func (q *Queries) LockDisputeFunds(ctx context.Context, reference string) (PaymentsDisputeFund, error) {
@@ -1560,6 +1586,7 @@ func (q *Queries) LockDisputeFunds(ctx context.Context, reference string) (Payme
 		&i.LedgerTxn,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WithdrawnAt,
 	)
 	return i, err
 }
@@ -1898,6 +1925,39 @@ func (q *Queries) MerchantTotals(ctx context.Context) ([]MerchantTotalsRow, erro
 	return items, nil
 }
 
+const merchantsOfObjects = `-- name: MerchantsOfObjects :many
+SELECT a.id::text AS object, i.merchant_id::text AS merchant_id FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+WHERE a.id = ANY($1::text[])
+UNION ALL
+SELECT r.id::text, r.merchant_id::text FROM payments.refunds r WHERE r.id = ANY($1::text[])
+`
+
+type MerchantsOfObjectsRow struct {
+	Object     string
+	MerchantID string
+}
+
+// The merchants attempts and refunds belong to.
+func (q *Queries) MerchantsOfObjects(ctx context.Context, ids []string) ([]MerchantsOfObjectsRow, error) {
+	rows, err := q.db.Query(ctx, merchantsOfObjects, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MerchantsOfObjectsRow{}
+	for rows.Next() {
+		var i MerchantsOfObjectsRow
+		if err := rows.Scan(&i.Object, &i.MerchantID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextAttemptNumber = `-- name: NextAttemptNumber :one
 SELECT (coalesce(max(number), 0) + 1)::integer FROM payments.attempts WHERE intent_id = $1
 `
@@ -1965,6 +2025,55 @@ func (q *Queries) PaidOutSince(ctx context.Context, arg PaidOutSinceParams) ([]P
 			&i.E2eID,
 			&i.Method,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const payoutsSince = `-- name: PayoutsSince :many
+SELECT id, merchant_id, amount, status, arrived_at, returned_at FROM payments.payouts
+WHERE livemode = $1 AND method = $2 AND status IN ('paid', 'returned') AND (arrived_at >= $3 OR returned_at >= $3)
+ORDER BY arrived_at, id
+`
+
+type PayoutsSinceParams struct {
+	Livemode bool
+	Method   string
+	Since    pgtype.Timestamptz
+}
+
+type PayoutsSinceRow struct {
+	ID         string
+	MerchantID string
+	Amount     int64
+	Status     string
+	ArrivedAt  pgtype.Timestamptz
+	ReturnedAt pgtype.Timestamptz
+}
+
+// Payouts paid, or paid and returned, by a method, since a moment.
+func (q *Queries) PayoutsSince(ctx context.Context, arg PayoutsSinceParams) ([]PayoutsSinceRow, error) {
+	rows, err := q.db.Query(ctx, payoutsSince, arg.Livemode, arg.Method, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PayoutsSinceRow{}
+	for rows.Next() {
+		var i PayoutsSinceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.Amount,
+			&i.Status,
+			&i.ArrivedAt,
+			&i.ReturnedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2088,6 +2197,55 @@ func (q *Queries) PixChargeByTxid(ctx context.Context, arg PixChargeByTxidParams
 	return i, err
 }
 
+const pixDisputeFundsSince = `-- name: PixDisputeFundsSince :many
+SELECT f.reference, f.merchant_id, f.amount, f.status, f.withdrawn_at, f.updated_at FROM payments.dispute_funds f
+JOIN payments.attempts a ON a.id = f.attempt_id
+WHERE f.livemode = $1 AND a.payment_method = 'pix' AND f.status IN ('withdrawn', 'reinstated') AND f.withdrawn_at >= $2
+ORDER BY f.withdrawn_at, f.reference
+`
+
+type PixDisputeFundsSinceParams struct {
+	Livemode bool
+	Since    pgtype.Timestamptz
+}
+
+type PixDisputeFundsSinceRow struct {
+	Reference   string
+	MerchantID  string
+	Amount      int64
+	Status      string
+	WithdrawnAt pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+// What MED claims took from Pix payments, and gave back.
+func (q *Queries) PixDisputeFundsSince(ctx context.Context, arg PixDisputeFundsSinceParams) ([]PixDisputeFundsSinceRow, error) {
+	rows, err := q.db.Query(ctx, pixDisputeFundsSince, arg.Livemode, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PixDisputeFundsSinceRow{}
+	for rows.Next() {
+		var i PixDisputeFundsSinceRow
+		if err := rows.Scan(
+			&i.Reference,
+			&i.MerchantID,
+			&i.Amount,
+			&i.Status,
+			&i.WithdrawnAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pixLedgerAccounts = `-- name: PixLedgerAccounts :many
 SELECT livemode, currency, account_id FROM payments.ledger_accounts WHERE role = 'pix_unmatched'
 `
@@ -2148,6 +2306,56 @@ func (q *Queries) PixReceivedOf(ctx context.Context, arg PixReceivedOfParams) (P
 	return i, err
 }
 
+const pixReceivedSince = `-- name: PixReceivedSince :many
+SELECT r.e2e_id, r.amount, r.received_at, r.status, r.updated_at, coalesce(i.merchant_id, '')::text AS merchant_id
+FROM payments.pix_received r
+LEFT JOIN payments.attempts a ON a.id = r.attempt_id
+LEFT JOIN payments.intents i ON i.id = a.intent_id
+WHERE r.livemode = $1 AND (r.received_at >= $2 OR r.updated_at >= $2)
+ORDER BY r.received_at, r.e2e_id
+`
+
+type PixReceivedSinceParams struct {
+	Livemode bool
+	Since    pgtype.Timestamptz
+}
+
+type PixReceivedSinceRow struct {
+	E2eID      string
+	Amount     int64
+	ReceivedAt pgtype.Timestamptz
+	Status     string
+	UpdatedAt  pgtype.Timestamptz
+	MerchantID string
+}
+
+func (q *Queries) PixReceivedSince(ctx context.Context, arg PixReceivedSinceParams) ([]PixReceivedSinceRow, error) {
+	rows, err := q.db.Query(ctx, pixReceivedSince, arg.Livemode, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PixReceivedSinceRow{}
+	for rows.Next() {
+		var i PixReceivedSinceRow
+		if err := rows.Scan(
+			&i.E2eID,
+			&i.Amount,
+			&i.ReceivedAt,
+			&i.Status,
+			&i.UpdatedAt,
+			&i.MerchantID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pixReceivedToReturn = `-- name: PixReceivedToReturn :many
 SELECT livemode, e2e_id FROM payments.pix_received
 WHERE status IN ('unmatched', 'returning') AND updated_at <= $1::timestamptz
@@ -2175,6 +2383,50 @@ func (q *Queries) PixReceivedToReturn(ctx context.Context, arg PixReceivedToRetu
 	for rows.Next() {
 		var i PixReceivedToReturnRow
 		if err := rows.Scan(&i.Livemode, &i.E2eID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pixRefundsSince = `-- name: PixRefundsSince :many
+SELECT r.id, r.merchant_id, r.amount, r.updated_at FROM payments.refunds r JOIN payments.attempts a ON a.id = r.attempt_id
+WHERE r.livemode = $1 AND r.status = 'succeeded' AND a.payment_method = 'pix' AND r.updated_at >= $2
+ORDER BY r.updated_at, r.id
+`
+
+type PixRefundsSinceParams struct {
+	Livemode bool
+	Since    pgtype.Timestamptz
+}
+
+type PixRefundsSinceRow struct {
+	ID         string
+	MerchantID string
+	Amount     int64
+	UpdatedAt  pgtype.Timestamptz
+}
+
+// Refunds of Pix payments the bank returned.
+func (q *Queries) PixRefundsSince(ctx context.Context, arg PixRefundsSinceParams) ([]PixRefundsSinceRow, error) {
+	rows, err := q.db.Query(ctx, pixRefundsSince, arg.Livemode, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PixRefundsSinceRow{}
+	for rows.Next() {
+		var i PixRefundsSinceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.Amount,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2361,7 +2613,8 @@ func (q *Queries) SaveAttempt(ctx context.Context, arg SaveAttemptParams) error 
 
 const saveDisputeFunds = `-- name: SaveDisputeFunds :exec
 UPDATE payments.dispute_funds
-SET status = $1, split_back = $2, ledger_txn = $3, updated_at = $4
+SET status = $1, split_back = $2, ledger_txn = $3, updated_at = $4,
+    withdrawn_at = CASE WHEN $1 = 'withdrawn' AND withdrawn_at IS NULL THEN $4 ELSE withdrawn_at END
 WHERE reference = $5
 `
 

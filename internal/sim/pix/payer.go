@@ -264,6 +264,7 @@ func (s *Sim) settlePayment(t target, p Payment) (*received, error) {
 	}
 	s.pix[rec.e2eid] = rec
 	s.clients[entry.Account].balance += t.amount
+	s.bookLocked(s.clients[entry.Account], pixapi.StatementCredit, t.amount, rec.e2eid, rec.e2eid, "PIX RECEBIDO")
 	return rec, nil
 }
 

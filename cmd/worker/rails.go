@@ -18,6 +18,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/internal/registry"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	"github.com/iricardofernandes/jupiter/internal/slc"
@@ -72,12 +73,13 @@ func connectRails(ctx context.Context, pool *pgxpool.Pool, cards *vault.Client, 
 
 // services are the domain services both the api and the worker build alike.
 type services struct {
-	merchants     *merchant.Service
-	payments      *payments.Service
-	subscriptions *subscriptions.Service
-	receivables   *receivables.Service
-	recipients    *recipients.Service
-	disputes      *disputes.Service
+	merchants      *merchant.Service
+	payments       *payments.Service
+	subscriptions  *subscriptions.Service
+	receivables    *receivables.Service
+	recipients     *recipients.Service
+	disputes       *disputes.Service
+	reconciliation *reconciliation.Service
 }
 
 func (r rails) services(pool *pgxpool.Pool, l *ledger.Ledger, e *events.Service, riskEngine *risk.Service, cards *vault.Client, logger *slog.Logger) services {
@@ -91,7 +93,44 @@ func (r rails) services(pool *pgxpool.Pool, l *ledger.Ledger, e *events.Service,
 	s.receivables.UsePayments(s.payments)
 	s.subscriptions = r.subscriptions(pool, s.payments, e, logger)
 	s.disputes = r.disputes(pool, s.payments, e, logger)
+	s.reconciliation = reconciliation.New(reconciliation.Config{
+		Pool: pool, Live: r.reconciled(true, s), Test: r.reconciled(false, s), Logger: logger,
+	})
 	return s
+}
+
+// reconciled is what is reconciled in a mode: each counterparty configured in it.
+func (r rails) reconciled(livemode bool, s services) reconciliation.Mode {
+	var m reconciliation.Mode
+	slcConn, bankConn, pixConn, registryConn := r.testSLC, r.testBank, r.testPix, r.testRegistry
+	if livemode {
+		slcConn, bankConn, pixConn, registryConn = r.liveSLC, r.liveBank, r.livePix, r.liveRegistry
+		if r.network != nil {
+			m.Streams = append(m.Streams, r.network.Clearing(s.payments))
+		}
+	}
+	if slcConn != nil {
+		m.Streams = append(m.Streams, reconciliation.Stream{
+			Counterparty: "slc", Name: "grade", Ours: []reconciliation.OursFunc{s.receivables.Grades}, Theirs: slcConn.Grades,
+		})
+	}
+	if bankConn != nil {
+		ours := []reconciliation.OursFunc{bankConn.BoletoCredits(s.payments), s.payments.BankTransferRecords}
+		if slcConn != nil {
+			ours = append(ours, s.receivables.SettlementCredits)
+		}
+		m.Streams = append(m.Streams, bankConn.Returns(s.payments),
+			reconciliation.Stream{Counterparty: "bank", Name: "statement", Ours: ours, Theirs: bankConn.Statement})
+	}
+	if pixConn != nil {
+		m.Streams = append(m.Streams, reconciliation.Stream{
+			Counterparty: "pix_bank", Name: "statement", Ours: []reconciliation.OursFunc{s.payments.PixRecords}, Theirs: pixConn.Statement,
+		})
+	}
+	if registryConn != nil {
+		m.Divergences = map[string]reconciliation.DivergenceFunc{"registry": s.receivables.Divergences}
+	}
+	return m
 }
 
 // disputes keeps chargebacks from the card network in live mode, the test network's in

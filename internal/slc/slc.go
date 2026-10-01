@@ -16,9 +16,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/iricardofernandes/jupiter/internal/receivables"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/pkg/slcapi"
 )
+
+// errNoGrade is the SLC having no grade of a day.
+var errNoGrade = errors.New("slc: no grade of that day")
 
 const (
 	callTimeout = 30 * time.Second
@@ -148,6 +154,9 @@ func (c *Connector) call(ctx context.Context, method, path string, in, out any) 
 		}
 		_ = json.Unmarshal(raw, &e)
 		err := fmt.Errorf("slc: %s %s: %d %.200s", method, path, resp.StatusCode, e.Error)
+		if resp.StatusCode == http.StatusNotFound && method == http.MethodGet {
+			return fmt.Errorf("%w: %w", errNoGrade, err)
+		}
 		if resp.StatusCode == http.StatusConflict || resp.StatusCode == http.StatusUnprocessableEntity {
 			return fmt.Errorf("%w: %w", receivables.ErrSettlementRefused, err)
 		}
@@ -159,4 +168,17 @@ func (c *Connector) call(ctx context.Context, method, path string, in, out any) 
 		return fmt.Errorf("slc: %s %s: an answer that is not the settlement system's: %w", method, path, err)
 	}
 	return nil
+}
+
+// Grades are the SLC's side of its grades: a settled day's grade, for its total.
+func (c *Connector) Grades(ctx context.Context, _ *pgxpool.Pool, _ bool, day time.Time) ([]reconciliation.Record, error) {
+	date := day.Format(time.DateOnly)
+	g, err := c.Grade(ctx, date)
+	if errors.Is(err, errNoGrade) {
+		return nil, nil
+	}
+	if err != nil || g.Status != slcapi.Settled {
+		return nil, err
+	}
+	return []reconciliation.Record{{Identity: date, Key: date, Direction: reconciliation.In, Amount: g.Total, Date: day}}, nil
 }

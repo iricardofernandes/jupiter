@@ -71,3 +71,18 @@ UPDATE acquirer.clearing_exceptions SET reason = @reason WHERE id = @id;
 
 -- name: ClearingExceptions :many
 SELECT * FROM acquirer.clearing_exceptions WHERE business_date = @business_date ORDER BY id;
+
+-- name: InsertClearingRecord :exec
+INSERT INTO acquirer.clearing_records (business_date, line, kind, rrn, network_transaction_id, amount, merchant_code)
+VALUES (@business_date, @line, @kind, @rrn, @network_transaction_id, @amount, @merchant_code);
+
+-- name: ClearingRecordsOn :many
+SELECT * FROM acquirer.clearing_records WHERE business_date = @business_date ORDER BY line;
+
+-- name: ClearedExchangesSince :many
+-- The captures the network acknowledged and the refunds it approved since a moment: what
+-- its clearing files must list.
+SELECT key, kind, authorization_key, rrn, amount, created_at FROM acquirer.exchanges
+WHERE created_at >= @since AND ((kind = 'capture' AND state = 'acknowledged') OR (kind = 'refund' AND state = 'approved'))
+ORDER BY created_at, key
+LIMIT 100000;

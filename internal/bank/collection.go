@@ -208,8 +208,16 @@ func (c *Connector) apply(ctx context.Context, tx pgx.Tx, p *payments.Service, s
 	if err != nil || inserted == 0 {
 		return err // read already
 	}
+	line := int32(0)
 	for _, b := range f.Batches {
 		for _, rt := range b.Titles {
+			line++
+			if err := q.InsertReturnRecord(ctx, db.InsertReturnRecordParams{
+				Livemode: c.cfg.Livemode, ReturnSequence: sequence, Line: line, OurNumber: rt.T.OurNumber, Occurrence: int32(rt.T.Occurrence), //nolint:gosec // two digits
+				Paid: rt.U.Paid, OccurredOn: dateOf(rt.U.OccurredOn), CreditOn: dateOf(rt.U.CreditOn), ImportedOn: dateOf(day(c.cfg.Now())),
+			}); err != nil {
+				return err
+			}
 			if err := c.occurrence(ctx, tx, p, sequence, rt); err != nil {
 				return err
 			}
@@ -217,6 +225,18 @@ func (c *Connector) apply(ctx context.Context, tx pgx.Tx, p *payments.Service, s
 	}
 	return nil
 }
+
+func dateOf(t time.Time) pgtype.Date {
+	return pgtype.Date{Time: time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), Valid: !t.IsZero()}
+}
+
+// day is the calendar day t falls on in Brasília.
+func day(t time.Time) time.Time {
+	y, m, d := t.In(brasilia).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+var brasilia = time.FixedZone("BRT", -3*60*60)
 
 // moves are the title statuses an occurrence may follow; a return that would take a
 // title anywhere else is out of order or repeated.
@@ -266,6 +286,11 @@ func (c *Connector) occurrence(ctx context.Context, tx pgx.Tx, p *payments.Servi
 	}
 	if err := q.SetTitleStatus(ctx, db.SetTitleStatusParams{AttemptID: t.AttemptID, Status: status, PixCode: pix, Now: c.now()}); err != nil {
 		return err
+	}
+	if e.Kind == payments.BoletoPaid {
+		if err := q.SetTitleCredit(ctx, db.SetTitleCreditParams{AttemptID: t.AttemptID, CreditOn: dateOf(rt.U.CreditOn)}); err != nil {
+			return err
+		}
 	}
 	err = p.ApplyBoletoEvent(ctx, tx, e)
 	switch {

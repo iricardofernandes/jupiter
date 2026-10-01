@@ -190,3 +190,37 @@ func TestCategories(t *testing.T) {
 		}
 	}
 }
+
+// A clearing record a fault loses is in no file; one it duplicates is listed twice; one it
+// delays is in the next day's file.
+func TestClearingFaults(t *testing.T) {
+	a := startWith(t, cardnetwork.Config{
+		Now: func() time.Time { return time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC) }, LateAfter: 2 * timeout,
+		ClearingFaults: func(r cardnet.ClearingRecord) cardnetwork.RecordFault {
+			return cardnetwork.RecordFault{Drop: r.Amount == 1100, Duplicate: r.Amount == 1200, Delay: r.Amount == 1300}
+		},
+	})
+	for _, amount := range []int64{1000, 1100, 1200, 1300} {
+		completed(t, a, amount, nil)
+	}
+	amounts := func(day time.Time) []int64 {
+		if err := a.net.CloseDay(day); err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := a.net.ClearingFile(acquirer, day)
+		f, err := cardnet.DecodeClearing(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []int64
+		for _, r := range f.Records {
+			out = append(out, r.Amount)
+		}
+		return out
+	}
+	first := amounts(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+	second := amounts(time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC))
+	if len(first) != 3 || first[0] != 1000 || first[1] != 1200 || first[2] != 1200 || len(second) != 1 || second[0] != 1300 {
+		t.Fatalf("the files: %v, then %v", first, second)
+	}
+}

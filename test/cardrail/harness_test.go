@@ -35,6 +35,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
@@ -47,7 +48,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate, disputes.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate, disputes.Migrate, reconciliation.Migrate},
 		vaulttest.Template:           {vaulttest.Migrate},
 	}))
 }
@@ -94,6 +95,7 @@ type harness struct {
 	connector *acquirer.Connector
 	payments  *payments.Service
 	disputes  *disputes.Service
+	recon     *reconciliation.Service
 	ledger    *ledger.Ledger
 	api       *httptest.Server
 	threeDS   *httptest.Server
@@ -106,6 +108,7 @@ type harness struct {
 	directoryDown atomic.Bool
 	// disputeEventsDown loses the network's dispute events.
 	disputeEventsDown atomic.Bool
+	clearingFaults    func(cardnet.ClearingRecord) cardnetwork.RecordFault
 }
 
 func newHarness(t *testing.T) *harness {
@@ -126,6 +129,14 @@ func newHarness(t *testing.T) *harness {
 		Now: h.clock.Now, LateAfter: 2 * timeout, Faults: h.fault, AuthenticationKey: schemeKey,
 		TokenEventsURL: h.api.URL + acquirer.EventsPath, TokenEventsSecret: eventsSecret,
 		DisputeEventsURL: h.api.URL + acquirer.DisputeEventsPath, DisputeEventsSecret: disputeEventsSecret, AcquirerToken: networkToken,
+		ClearingFaults: func(r cardnet.ClearingRecord) cardnetwork.RecordFault {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			if h.clearingFaults == nil {
+				return cardnetwork.RecordFault{}
+			}
+			return h.clearingFaults(r)
+		},
 	})
 	if err := h.network.Start("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
@@ -183,6 +194,9 @@ func newHarness(t *testing.T) *harness {
 	})
 	merchants := merchant.New(h.clock.Now)
 	h.disputes = disputes.New(disputes.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveNetwork: connector, Now: h.clock.Now})
+	h.recon = reconciliation.New(reconciliation.Config{Pool: h.pool, Now: h.clock.Now, Live: reconciliation.Mode{
+		Streams: []reconciliation.Stream{connector.Clearing(h.payments)},
+	}})
 	a := api.New(api.Deps{
 		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Vault: cardVault.Client, Box: box, Now: h.clock.Now,
 		Disputes: h.disputes,

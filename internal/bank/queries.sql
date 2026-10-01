@@ -70,3 +70,18 @@ VALUES (@livemode, @return_sequence, @our_number, @attempt_id, @kind, @amount, @
 
 -- name: SetTitleStatus :exec
 UPDATE bank.titles SET status = @status, pix_code = @pix_code, updated_at = @now WHERE attempt_id = @attempt_id;
+
+-- name: InsertReturnRecord :exec
+INSERT INTO bank.return_records (livemode, return_sequence, line, our_number, occurrence, paid, occurred_on, credit_on, imported_on)
+VALUES (@livemode, @return_sequence, @line, @our_number, @occurrence, @paid, @occurred_on, @credit_on, @imported_on);
+
+-- name: SetTitleCredit :exec
+UPDATE bank.titles SET credit_on = @credit_on WHERE attempt_id = @attempt_id;
+
+-- name: ReturnRecordsImportedOn :many
+SELECT * FROM bank.return_records WHERE livemode = @livemode AND imported_on = @day ORDER BY return_sequence, line;
+
+-- name: PaidTitlesSince :many
+SELECT attempt_id, our_number, amount, credit_on, updated_at FROM bank.titles
+WHERE livemode = @livemode AND status = 'paid' AND updated_at >= @since
+ORDER BY updated_at, attempt_id;

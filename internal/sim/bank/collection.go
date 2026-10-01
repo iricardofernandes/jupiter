@@ -225,10 +225,8 @@ func (s *Sim) settle(c *client, t *title, channel cnab240.Reason) error {
 	ret := s.answer(c, t.p, t.q, cnab240.Settled, channel)
 	credit := bizday.Next(s.today().AddDate(0, 0, 1))
 	ret.U.Paid, ret.U.Credited, ret.U.CreditOn = t.p.Amount, t.p.Amount, credit
-	c.pending = append(c.pending, ret)
-	c.statement = append(c.statement, Entry{
-		Date: credit.Format(time.DateOnly), Kind: "credit", Amount: t.p.Amount, Reference: t.p.OurNumber, Description: "LIQUIDACAO BOLETO",
-	})
+	s.queue(c, ret)
+	s.book(c, Entry{Date: credit.Format(time.DateOnly), Kind: "credit", Amount: t.p.Amount, Reference: t.p.OurNumber, Description: "LIQUIDACAO BOLETO"})
 	return nil
 }
 
@@ -239,13 +237,14 @@ func (s *Sim) writeOffDue(c *client) {
 	for _, t := range c.titles {
 		if t.status == registered && today.After(t.p.Due.AddDate(0, 0, int(t.p.WriteOffDays))) {
 			t.status = writtenOff
-			c.pending = append(c.pending, s.answer(c, t.p, t.q, cnab240.WrittenOff, cnab240.WrittenOffByBank))
+			s.queue(c, s.answer(c, t.p, t.q, cnab240.WrittenOff, cnab240.WrittenOffByBank))
 		}
 	}
 }
 
 // flush writes what happened since the last return file into a new one.
 func (s *Sim) flush(c *client) {
+	c.release()
 	if len(c.pending) == 0 {
 		return
 	}

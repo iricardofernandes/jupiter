@@ -38,7 +38,13 @@ type Config struct {
 	Now          func() time.Time
 	Logger       *slog.Logger
 	Participants []Participant
+	// Credit, if set, pays what a settled grade credited into the participant's settlement
+	// account at its bank: a statement line there, referenced CreditReference.
+	Credit func(p Participant, date string, amount int64)
 }
+
+// CreditReference is how a grade's credit reads on the participant's statement.
+func CreditReference(date string) string { return "SLC/" + date }
 
 type (
 	Domicile = slcapi.Domicile
@@ -134,6 +140,17 @@ func validEntries(entries []Entry, date string) error {
 // Tick runs the settlement window: every accepted grade is paid, the participant's
 // share to its settlement account, the rest to the other institutions.
 func (s *Sim) Tick() {
+	type credit struct {
+		p      Participant
+		date   string
+		amount int64
+	}
+	var credits []credit
+	defer func() {
+		for _, c := range credits {
+			s.cfg.Credit(c.p, c.date, c.amount)
+		}
+	}()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, p := range s.byToken {
@@ -149,6 +166,9 @@ func (s *Sim) Tick() {
 				}
 			}
 			g.Status = slcapi.Settled
+			if s.cfg.Credit != nil && g.Credited > 0 {
+				credits = append(credits, credit{p: p.Participant, date: g.Date, amount: g.Credited})
+			}
 		}
 	}
 }

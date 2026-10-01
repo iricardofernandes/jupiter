@@ -66,12 +66,16 @@ type issuer struct {
 	acquirers    map[string]bool
 	sequence     int64
 	authKey      []byte
+	faults       func(cardnet.ClearingRecord) RecordFault
+	// delayed are the records held back for the next day's file.
+	delayed map[string][]cardnet.ClearingRecord
 }
 
-func newIssuer(now func() time.Time, authKey []byte) *issuer {
+func newIssuer(now func() time.Time, authKey []byte, faults func(cardnet.ClearingRecord) RecordFault) *issuer {
 	return &issuer{
-		authKey: authKey, now: now, creditLimit: defaultCreditLimit, standInLimit: defaultStandInLimit,
-		used: map[string]int64{}, byNTI: map[string]*authorization{}, byOriginal: map[string]*authorization{},
+		authKey: authKey, now: now, creditLimit: defaultCreditLimit, standInLimit: defaultStandInLimit, faults: faults,
+		delayed: map[string][]cardnet.ClearingRecord{},
+		used:    map[string]int64{}, byNTI: map[string]*authorization{}, byOriginal: map[string]*authorization{},
 		refunds: map[string]*refund{}, pending: map[string][]cardnet.ClearingRecord{}, acquirers: map[string]bool{},
 	}
 }
@@ -198,7 +202,7 @@ func (s *issuer) complete(req cardnet.Message) cardnet.Message {
 	}
 	a.Status, a.Completed = completed, req.Amount
 	s.used[a.PAN] -= a.Amount - req.Amount
-	s.pending[a.AcquirerID] = append(s.pending[a.AcquirerID], cardnet.ClearingRecord{
+	s.clear(a.AcquirerID, cardnet.ClearingRecord{
 		Kind: cardnet.ClearingCompletion, RRN: req.RRN, NetworkTransactionID: a.NTI, Amount: req.Amount,
 		Currency: cardnet.CurrencyBRL, Installments: a.Installments, AuthorizationCode: a.AuthCode, MerchantID: a.MerchantID,
 	})
@@ -227,7 +231,7 @@ func (s *issuer) refund(req cardnet.Message) cardnet.Message {
 		Currency: cardnet.CurrencyBRL, Installments: a.Installments, MerchantID: a.MerchantID,
 	}
 	s.refunds[key] = &refund{record: record, auth: a}
-	s.pending[a.AcquirerID] = append(s.pending[a.AcquirerID], record)
+	s.clear(a.AcquirerID, record)
 	return answer(req, cardnet.Approved)
 }
 
@@ -299,8 +303,25 @@ func (s *issuer) closeDay(date time.Time) map[string]cardnet.ClearingFile {
 	for acquirer := range s.acquirers {
 		files[acquirer] = cardnet.ClearingFile{BusinessDate: date, AcquirerID: acquirer, Records: s.pending[acquirer]}
 	}
-	s.pending = map[string][]cardnet.ClearingRecord{}
+	s.pending, s.delayed = s.delayed, map[string][]cardnet.ClearingRecord{}
 	return files
+}
+
+// clear puts a record into the day's clearing, as a fault says.
+func (s *issuer) clear(acquirer string, r cardnet.ClearingRecord) {
+	var f RecordFault
+	if s.faults != nil {
+		f = s.faults(r)
+	}
+	switch {
+	case f.Drop:
+	case f.Delay:
+		s.delayed[acquirer] = append(s.delayed[acquirer], r)
+	case f.Duplicate:
+		s.pending[acquirer] = append(s.pending[acquirer], r, r)
+	default:
+		s.pending[acquirer] = append(s.pending[acquirer], r)
+	}
 }
 
 // Hold is an authorization still holding the cardholder's credit.

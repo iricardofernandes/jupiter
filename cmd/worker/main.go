@@ -57,6 +57,9 @@ const (
 	// monitorEvery, how often dispute ratios and the disputes check run.
 	medEvery     = 5 * time.Minute
 	monitorEvery = time.Hour
+	// reconcileEvery is how often yesterday is reconciled: again and again, so what a
+	// counterparty sends late is matched the day it arrives.
+	reconcileEvery = time.Hour
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -112,7 +115,8 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	s := r.services(pool, l, eventService, riskEngine, cards, logger)
 	a := api.New(api.Deps{
 		Pool: pool, Merchants: s.merchants, Events: eventService, Payments: s.payments, Vault: cards, Risk: riskEngine,
-		Subscriptions: s.subscriptions, Receivables: s.receivables, Recipients: s.recipients, Disputes: s.disputes, Box: box, Logger: logger,
+		Subscriptions: s.subscriptions, Receivables: s.receivables, Recipients: s.recipients, Disputes: s.disputes,
+		Reconciliation: s.reconciliation, Box: box, Logger: logger,
 	})
 
 	return service.App{

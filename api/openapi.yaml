@@ -26,6 +26,7 @@ tags:
   - name: Recipients
   - name: Anticipations
   - name: Disputes
+  - name: Reconciliation
   - name: Risk
   - name: Test helpers
   - name: API keys
@@ -734,6 +735,45 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/FraudReport" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/reconciliation/reports/{date}:
+    get:
+      operationId: getReconciliationReport
+      tags: [Reconciliation]
+      description: |
+        A day's reconciliation of your payments with every counterparty: per counterparty and
+        stream, how many of your movements of the day matched what the counterparty
+        reported, and the breaks still open at the day's end, by age.
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: The day's report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationReport" }
+        default: { $ref: "#/components/responses/Failure" }
+  /v1/reconciliation/breaks:
+    get:
+      operationId: listReconciliationBreaks
+      tags: [Reconciliation]
+      description: What did not match on your movements, newest first.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, resolved] }
+      responses:
+        "200":
+          description: A page of breaks.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationBreakList" }
         default: { $ref: "#/components/responses/Failure" }
   /v1/risk/decisions:
     get:
@@ -2125,6 +2165,75 @@ components:
         threshold_bps: { type: integer, format: int64 }
         minimum_count: { type: integer, format: int64 }
         excessive: { type: boolean }
+    ReconciliationReport:
+      type: object
+      required: [object, livemode, date, streams, breaks]
+      properties:
+        object: { type: string, enum: [reconciliation_report] }
+        livemode: { type: boolean }
+        date: { type: string, format: date }
+        streams:
+          type: array
+          items: { $ref: "#/components/schemas/ReconciliationStream" }
+        breaks:
+          type: array
+          items: { $ref: "#/components/schemas/ReconciliationBreak" }
+    ReconciliationStream:
+      type: object
+      required: [counterparty, stream, matched, matched_amount, open, opened, resolved, ageing]
+      properties:
+        counterparty: { type: string, description: "card_network, slc, bank, pix_bank or registry." }
+        stream: { type: string, description: "clearing, grade, cnab_return, statement or positions." }
+        matched: { type: integer, format: int64, description: "Your movements of the day that matched." }
+        matched_amount: { type: integer, format: int64 }
+        open: { type: integer, description: "Breaks open at the day's end." }
+        opened: { type: integer, description: "Breaks opened by the day's reconciliation." }
+        resolved: { type: integer, description: "Breaks resolved by it." }
+        ageing:
+          type: object
+          required: [up_to_1_day, up_to_7_days, up_to_30_days, older]
+          properties:
+            up_to_1_day: { type: integer }
+            up_to_7_days: { type: integer }
+            up_to_30_days: { type: integer }
+            older: { type: integer }
+    ReconciliationBreak:
+      type: object
+      required: [id, object, livemode, counterparty, stream, kind, amount, status, opened_on, age_days, reasons]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [reconciliation_break] }
+        livemode: { type: boolean }
+        counterparty: { type: string }
+        stream: { type: string }
+        kind:
+          type: string
+          enum: [missing_at_counterparty, missing_at_jupiter, duplicate, amount_mismatch, probable_match, divergence]
+        key: { type: string, description: "What the movement is known by: an RRN, a nosso número, an end-to-end id, a transfer, a day." }
+        amount: { type: integer, format: int64 }
+        value_date: { type: string, format: date }
+        detail: { type: string }
+        score: { type: integer, description: "How alike the two sides' records are, out of 100." }
+        reasons:
+          type: array
+          items: { type: string }
+        status: { type: string, enum: [open, resolved] }
+        resolution:
+          type: string
+          enum: [matched, superseded, fixed_at_counterparty, confirmed, resolved_by_operator]
+          description: How a resolved break ended.
+        opened_on: { type: string, format: date }
+        resolved_on: { type: string, format: date }
+        age_days: { type: integer }
+    ReconciliationBreakList:
+      allOf:
+        - $ref: "#/components/schemas/ListMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/ReconciliationBreak" }
     WebhookEndpoint:
       type: object
       required: [id, object, livemode, url, description, enabled_events, status, api_version, created]

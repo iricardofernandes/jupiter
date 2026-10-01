@@ -129,6 +129,23 @@ func (s *Sim) AdminHandler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"our_number": ourNumber})
 	})
+	mux.HandleFunc("POST /admin/credits", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			TaxID       string `json:"tax_id"`
+			Date        string `json:"date"`
+			Amount      int64  `json:"amount"`
+			Reference   string `json:"reference"`
+			Description string `json:"description"`
+		}
+		if !decode(w, r, &body) {
+			return
+		}
+		if err := s.Credit(body.TaxID, body.Date, body.Amount, body.Reference, body.Description); err != nil {
+			fail(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("POST /admin/tick", func(w http.ResponseWriter, _ *http.Request) {
 		s.Tick()
 		w.WriteHeader(http.StatusNoContent)

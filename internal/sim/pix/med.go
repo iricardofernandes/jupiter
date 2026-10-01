@@ -284,6 +284,7 @@ func (s *Sim) contest(w http.ResponseWriter, r *http.Request) {
 		inf.contestation.Status = pixapi.ContestationUpheld
 		inf.contestation.ReversalEndToEndID = endToEndID("E", PayerISPB, s.now())
 		s.clients[inf.client].balance += inf.refund.amount
+		s.bookLocked(s.clients[inf.client], pixapi.StatementCredit, inf.refund.amount, inf.refund.id, inf.contestation.ReversalEndToEndID, "CONTESTACAO MED ACOLHIDA")
 	}
 	inf.modified = s.now()
 	writeJSON(w, http.StatusOK, inf.render())

@@ -449,6 +449,7 @@ func (s *Sim) debitLocked(c *recurringCharge, a *chargeAttempt, payer string, no
 	p := &received{client: c.client, e2eid: a.e2eid, txid: c.txid, amount: c.amount, at: now, payerTaxID: payer}
 	s.pix[p.e2eid] = p
 	s.clients[c.client].balance += c.amount
+	s.bookLocked(s.clients[c.client], pixapi.StatementCredit, c.amount, p.e2eid, p.e2eid, "PIX AUTOMATICO RECEBIDO")
 	a.set(attemptPaid, now)
 	c.pix = append(c.pix, p.e2eid)
 	c.set(cobrCompleted, now)

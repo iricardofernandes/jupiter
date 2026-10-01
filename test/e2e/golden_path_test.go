@@ -37,14 +37,17 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/pix"
 	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
+	"github.com/iricardofernandes/jupiter/internal/platform/page"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
+	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	"github.com/iricardofernandes/jupiter/internal/registry"
 	"github.com/iricardofernandes/jupiter/internal/risk"
 	threedssim "github.com/iricardofernandes/jupiter/internal/sim/3ds"
+	banksim "github.com/iricardofernandes/jupiter/internal/sim/bank"
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
@@ -52,6 +55,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/slc"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
+	"github.com/iricardofernandes/jupiter/pkg/cnab240"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
 	"github.com/iricardofernandes/jupiter/pkg/webhook"
 )
@@ -62,7 +66,7 @@ func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
 		postgrestest.DefaultTemplate: {
 			ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate,
-			authentication.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate,
+			authentication.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate, disputes.Migrate, reconciliation.Migrate,
 		},
 		vaulttest.Template: {vaulttest.Migrate},
 	}))
@@ -146,7 +150,8 @@ func TestGoldenPath(t *testing.T) {
 	// Settlement is months away: the receivables and the SLC run on a clock that can be
 	// moved ahead.
 	clock := &laterClock{}
-	slcSim, slcConnector := startSLC(t, clock.Now)
+	bankSim, bankConnector := startBank(t, pool, clock.Now)
+	slcSim, slcConnector := startSLC(t, clock.Now, bankSim)
 	registrySim, receivablesService := startRegistry(t, pool, l, merchants, recipientService, eventService, slcConnector, clock.Now)
 	riskEngine := risk.New(risk.Config{})
 	paymentService := payments.New(payments.Config{
@@ -156,6 +161,18 @@ func TestGoldenPath(t *testing.T) {
 	})
 	receivablesService.UsePayments(paymentService)
 	disputeService := disputes.New(disputes.Config{Pool: pool, Payments: paymentService, Events: eventService, LiveNetwork: connector})
+	reconciliationService := reconciliation.New(reconciliation.Config{Pool: pool, Live: reconciliation.Mode{
+		Streams: []reconciliation.Stream{
+			connector.Clearing(paymentService),
+			{Counterparty: "slc", Name: "grade", Ours: []reconciliation.OursFunc{receivablesService.Grades}, Theirs: slcConnector.Grades},
+			bankConnector.Returns(paymentService),
+			{Counterparty: "bank", Name: "statement", Theirs: bankConnector.Statement, Ours: []reconciliation.OursFunc{
+				bankConnector.BoletoCredits(paymentService), paymentService.BankTransferRecords, receivablesService.SettlementCredits,
+			}},
+			{Counterparty: "pix_bank", Name: "statement", Ours: []reconciliation.OursFunc{paymentService.PixRecords}, Theirs: pixConnector.Statement},
+		},
+		Divergences: map[string]reconciliation.DivergenceFunc{"registry": receivablesService.Divergences},
+	}})
 	jupiterAPI := api.New(api.Deps{
 		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Risk: riskEngine, Box: box,
 		Receivables: receivablesService, Recipients: recipientService, Disputes: disputeService,
@@ -494,7 +511,39 @@ func TestGoldenPath(t *testing.T) {
 	reconcile(t, receivablesService, pool)
 	t.Log("   won: the R$ 600.00 is the seller's again; her reduced units stay reduced, so R$ 270.00 is available to her now; the registry and Jupiter agree")
 
-	t.Log("16. every invariant holds")
+	t.Log("16. three-way reconciliation: the ledger against the network's clearing file, the SLC's grade, the bank's statement, the Pix bank's SPI statement and the registry's positions")
+	if _, err := reconciliationService.Reconcile(ctx, true, reconciliation.UTCDay(time.Now())); err != nil {
+		t.Fatal(err)
+	}
+	// Two months on, it catches up a month at a time, as the worker's hourly runs would.
+	for run := (reconciliation.Run{}); run.Through.Before(third); {
+		if run, err = reconciliationService.Reconcile(ctx, true, third); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if open, _, err := reconciliationService.Breaks(ctx, pool, true, "", "open", page.Request{Limit: 100}); err != nil || len(open) > 0 {
+		t.Fatalf("open breaks: %+v, %v", open, err)
+	}
+	var matched int64
+	days := []time.Time{reconciliation.UTCDay(time.Now()), third}
+	if day := reconciliation.Day(time.Now()); !day.Equal(days[0]) {
+		days = append(days, day)
+	}
+	for _, day := range days {
+		report, err := reconciliationService.Report(ctx, pool, true, day, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range report.Streams {
+			matched += s.Matched
+		}
+	}
+	if matched != 5 {
+		t.Fatalf("matched %d records, want 5", matched)
+	}
+	t.Log("   all 5 of Jupiter's movements match what the counterparties reported: the capture in the clearing file, the grade and its credit to the bank account, the two Pix payouts; zero breaks")
+
+	t.Log("17. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}
@@ -527,6 +576,7 @@ const (
 	// its dispute system.
 	disputeEventsSecret = "golden path dispute events secret"
 	networkToken        = "golden path network token"
+	bankToken           = "golden path bank token"
 	jupiterISPB         = "30000001"
 	// fee is Jupiter's on R$ 600.00 in 6 installments financed by the merchant: 3.49%.
 	fee = 2094
@@ -578,10 +628,17 @@ func startRegistry(t *testing.T, pool *pgxpool.Pool, l *ledger.Ledger, merchants
 }
 
 // startSLC runs the settlement simulator, with Jupiter taking part, and Jupiter's
-// connector to it.
-func startSLC(t *testing.T, now func() time.Time) (*slcsim.Sim, *slc.Connector) {
+// connector to it. What it settles is credited to Jupiter's account at bank.
+func startSLC(t *testing.T, now func() time.Time, bank *banksim.Sim) (*slcsim.Sim, *slc.Connector) {
 	t.Helper()
-	sim := slcsim.New(slcsim.Config{Now: now, Participants: []slcsim.Participant{{Token: slcToken, TaxID: jupiterCNPJ, ISPB: jupiterISPB}}})
+	sim := slcsim.New(slcsim.Config{
+		Now: now, Participants: []slcsim.Participant{{Token: slcToken, TaxID: jupiterCNPJ, ISPB: jupiterISPB}},
+		Credit: func(p slcsim.Participant, date string, amount int64) {
+			if err := bank.Credit(p.TaxID, date, amount, slcsim.CreditReference(date), "LIQUIDACAO SLC"); err != nil {
+				t.Error(err)
+			}
+		},
+	})
 	srv := httptest.NewServer(sim.Handler())
 	t.Cleanup(srv.Close)
 	connector, err := slc.New(slc.Config{BaseURL: srv.URL, Token: slcToken})
@@ -719,4 +776,24 @@ func balance(t *testing.T, s *payments.Service, q *pgxpool.Pool, owner payments.
 		t.Fatal(err)
 	}
 	return p.Minor(), b.PendingCredits.Minor()
+}
+
+// startBank runs the bank simulator, which holds Jupiter's settlement account, and
+// Jupiter's connector to it.
+func startBank(t *testing.T, pool *pgxpool.Pool, now func() time.Time) (*banksim.Sim, *bank.Connector) {
+	t.Helper()
+	account := cnab240.Account{Branch: "00001", BranchDV: "0", Number: "000000123456", NumberDV: "7"}
+	sim := banksim.New(banksim.Config{Now: now, Host: "banco.example", Clients: []banksim.Client{{
+		Token: bankToken, TaxID: jupiterCNPJ, Name: "Jupiter Pagamentos", Agreement: "CONVENIO-0001", Account: account,
+	}}})
+	srv := httptest.NewServer(sim.Handler())
+	t.Cleanup(srv.Close)
+	connector, err := bank.New(bank.Config{
+		BaseURL: srv.URL, Token: bankToken, Profile: cnab240.Febraban{BankCode: banksim.Code, BankName: "BANCO SIMULADO"}, Account: account,
+		Agreement: "CONVENIO-0001", TaxID: jupiterCNPJ, Name: "Jupiter Pagamentos", Pool: pool, Livemode: true, Now: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sim, connector
 }

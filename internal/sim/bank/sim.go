@@ -39,6 +39,8 @@ type Config struct {
 	// Host is where hybrid boletos' Pix QR codes point, as host[:port].
 	Host    string
 	Clients []Client
+	// Faults, if set, is asked before each statement line and return record is written.
+	Faults func(Event) Fault
 }
 
 type Sim struct {
@@ -58,6 +60,8 @@ type client struct {
 	returns     []returnFile
 	transfers   map[string]*transfer
 	statement   []Entry
+	entries     int64
+	held        []heldReturn
 }
 
 type returnFile struct {
@@ -66,8 +70,9 @@ type returnFile struct {
 	data     []byte
 }
 
-// Entry is a line of an account statement.
+// Entry is a line of an account statement; ID names the line, a duplicate included.
 type Entry struct {
+	ID          string `json:"id"`
 	Date        string `json:"date"`
 	Kind        string `json:"kind"` // credit or debit
 	Amount      int64  `json:"amount"`
