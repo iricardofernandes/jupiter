@@ -1,8 +1,9 @@
 //go:build integration
 
 // Package receivables_test runs card payments through the API in test mode into
-// receivable units, registers them with the registry simulator over HTTP, and has
-// financiers place contracts on them.
+// receivable units, registers them with the registry simulator over HTTP, has financiers
+// place contracts on them, settles them through the SLC simulator, and pays recipients
+// out through the bank simulator.
 package receivables_test
 
 import (
@@ -22,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/bank"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -33,7 +35,11 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/receivables"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/registry"
+	banksim "github.com/iricardofernandes/jupiter/internal/sim/bank"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
+	slcsim "github.com/iricardofernandes/jupiter/internal/sim/slc"
+	"github.com/iricardofernandes/jupiter/internal/slc"
+	"github.com/iricardofernandes/jupiter/pkg/cnab240"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
 )
 
@@ -41,7 +47,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, recipients.Migrate, receivables.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate},
 	}))
 }
 
@@ -52,6 +58,9 @@ const (
 	jupiterToken   = "jupiter registry token"
 	financierToken = "jupiter financier token"
 	bankToken      = "bank registry token"
+	slcToken       = "jupiter slc token" //nolint:gosec // a test credential for the simulator
+	jupiterBank    = "jupiter bank token"
+	jupiterISPB    = "30000001"
 )
 
 // clock starts on Thursday 1 October 2026, noon in Brasília.
@@ -81,6 +90,8 @@ type harness struct {
 	receivables *receivables.Service
 	recipients  *recipients.Service
 	registry    *registrysim.Sim
+	slc         *slcsim.Sim
+	bank        *banksim.Sim
 	api         *httptest.Server
 	merchants   *merchant.Service
 	key         string
@@ -136,16 +147,19 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
+	settlement, transfers := h.connectSLCAndBank()
 	merchants := merchant.New(h.clock.Now)
 	h.recipients = recipients.New(recipients.Config{Merchants: merchants, Events: eventService, Now: h.clock.Now})
 	h.receivables = receivables.New(receivables.Config{
 		Pool: h.pool, Ledger: h.ledger, Merchants: merchants, Recipients: h.recipients, Events: eventService, TaxID: jupiterCNPJ,
-		TestRegistry: connector, Now: h.clock.Now, Domicile: registryapi.Domicile{ISPB: "30000001", Branch: "0001"},
+		TestRegistry: connector, TestSettlement: settlement, Now: h.clock.Now,
+		Domicile: registryapi.Domicile{ISPB: jupiterISPB, Branch: "0001"},
 	})
 	h.payments = payments.New(payments.Config{
 		Ledger: h.ledger, Events: eventService, Now: h.clock.Now, Receivables: h.receivables, Balances: h.receivables,
-		Recipients: h.recipients, TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil),
+		Recipients: h.recipients, TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil), TestTransfers: transfers,
 	})
+	h.receivables.UsePayments(h.payments)
 	h.merchants = merchants
 	a := api.New(api.Deps{
 		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Receivables: h.receivables,
@@ -170,6 +184,32 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	return h
+}
+
+// connectSLCAndBank starts the settlement and bank simulators, with Jupiter taking part.
+func (h *harness) connectSLCAndBank() (*slc.Connector, *bank.Connector) {
+	h.t.Helper()
+	h.slc = slcsim.New(slcsim.Config{Now: h.clock.Now, Participants: []slcsim.Participant{{Token: slcToken, TaxID: jupiterCNPJ, ISPB: jupiterISPB}}})
+	slcServer := httptest.NewServer(h.slc.Handler())
+	h.t.Cleanup(slcServer.Close)
+	settlement, err := slc.New(slc.Config{BaseURL: slcServer.URL, Token: slcToken})
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	account := cnab240.Account{Branch: "00001", BranchDV: "0", Number: "000000123456", NumberDV: "7"}
+	h.bank = banksim.New(banksim.Config{Now: h.clock.Now, Host: "banco.example", Clients: []banksim.Client{{
+		Token: jupiterBank, TaxID: jupiterCNPJ, Name: "Jupiter Pagamentos", Agreement: "CONVENIO-0001", Account: account,
+	}}})
+	bankServer := httptest.NewServer(h.bank.Handler())
+	h.t.Cleanup(bankServer.Close)
+	transfers, err := bank.New(bank.Config{
+		BaseURL: bankServer.URL, Token: jupiterBank, Profile: cnab240.Febraban{BankCode: banksim.Code, BankName: "BANCO SIMULADO"},
+		Account: account, Agreement: "CONVENIO-0001", TaxID: jupiterCNPJ, Name: "Jupiter Pagamentos", Pool: h.pool, Now: h.clock.Now,
+	})
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return settlement, transfers
 }
 
 type reply struct {

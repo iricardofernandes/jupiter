@@ -117,7 +117,7 @@ func (s *Service) checkSplit(ctx context.Context, tx pgx.Tx, owner Owner, rules 
 	if len(rules) == 0 {
 		return nil
 	}
-	if isPix(paymentMethod) {
+	if isPix(paymentMethod) || paymentMethod == PaymentMethodBoleto {
 		return fmt.Errorf("%w: only card payments can be split", ErrInvalid)
 	}
 	if err := validateSplit(rules, amount); err != nil {

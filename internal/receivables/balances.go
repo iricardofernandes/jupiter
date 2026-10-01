@@ -152,17 +152,32 @@ func (s *Service) recipient(ctx context.Context, tx pgx.Tx, owner payments.Owner
 	return rec, nil
 }
 
-// PayoutSource is a verified recipient's available account, and its Pix key.
-func (s *Service) PayoutSource(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string, currency money.Currency) (id.ID, string, error) {
+// PayoutSource is a verified recipient's available account and payout destination.
+func (s *Service) PayoutSource(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string, currency money.Currency) (payments.PayoutSource, error) {
 	rec, err := s.recipient(ctx, tx, owner, recipientID)
 	if err != nil {
-		return id.ID{}, "", fmt.Errorf("%w: %w", payments.ErrInvalid, err)
+		return payments.PayoutSource{}, fmt.Errorf("%w: %w", payments.ErrInvalid, err)
 	}
 	if rec.Status != recipients.Verified {
-		return id.ID{}, "", fmt.Errorf("%w: recipient %s is %s, not verified", payments.ErrInvalid, recipientID, rec.Status)
+		return payments.PayoutSource{}, fmt.Errorf("%w: recipient %s is %s, not verified", payments.ErrInvalid, recipientID, rec.Status)
 	}
 	accountID, err := s.account(ctx, tx, rec.ID.String(), owner.Livemode, currency, Available)
-	return accountID, rec.Destination.PixKey, err
+	d := rec.Destination
+	method := d.Method
+	if method == "bank_account" {
+		method = payments.PayoutBankTransfer
+	}
+	return payments.PayoutSource{
+		Account: accountID, Held: rec.PayoutsHeld,
+		Destination: payments.PayoutDestination{
+			Method: method, PixKey: d.PixKey, ISPB: d.ISPB, Branch: d.Branch, Account: d.Account, HolderName: rec.Name, HolderTaxID: rec.TaxID,
+		},
+	}, err
+}
+
+// PayoutReturned records that a payout came back to the recipient's available balance.
+func (s *Service) PayoutReturned(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID, payoutID string, amount money.Amount) error {
+	return s.movement(ctx, db.New(tx), recipientID, owner.Livemode, amount.Currency(), Available, "payout", amount.Minor(), payoutID)
 }
 
 // PaidOut records that a payout left a recipient's available balance.

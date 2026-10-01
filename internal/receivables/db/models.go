@@ -43,6 +43,7 @@ type ReceivablesAnticipationUnit struct {
 	Price          int64
 	Days           int32
 	Contract       string
+	ReportedAt     pgtype.Timestamptz
 }
 
 type ReceivablesDivergence struct {
@@ -62,6 +63,19 @@ type ReceivablesEffectSnapshot struct {
 	Commitments []byte
 }
 
+type ReceivablesGrade struct {
+	Livemode  bool
+	Date      pgtype.Date
+	Entries   []byte
+	Total     int64
+	Credited  int64
+	Status    string
+	Error     string
+	LedgerTxn string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
 type ReceivablesInstallment struct {
 	AttemptID     string
 	Number        int32
@@ -72,6 +86,7 @@ type ReceivablesInstallment struct {
 	Net           int64
 	Reduced       int64
 	RecipientID   string
+	FeeReduced    int64
 }
 
 type ReceivablesLedgerAccount struct {
@@ -145,6 +160,7 @@ type ReceivablesUnit struct {
 	UpdatedAt         pgtype.Timestamptz
 	RecipientID       string
 	Anticipated       int64
+	GradeDate         pgtype.Date
 }
 
 type ReceivablesUnitEvent struct {

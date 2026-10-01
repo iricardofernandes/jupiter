@@ -31,6 +31,8 @@ type Result struct {
 	NetworkTransactionID string
 	// Pix is the charge a Pix attempt waits on, with ActionRequired.
 	Pix *PixCharge
+	// Boleto is the boleto a boleto attempt waits on, with ActionRequired.
+	Boleto *BoletoTitle
 }
 
 type AuthorizeRequest struct {

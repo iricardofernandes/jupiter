@@ -20,6 +20,7 @@ const (
 	roleNetworkReceivable = "network_receivable"
 	rolePixSettlement     = "pix_settlement"
 	rolePixUnmatched      = "pix_unmatched"
+	roleBankSettlement    = "bank_settlement"
 )
 
 // accounts are the two ledger accounts a card payment moves between: what the card
@@ -161,6 +162,9 @@ func intentFromRow(row db.PaymentsIntent) (Intent, error) {
 		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, CreatedAt: row.CreatedAt.Time,
 		NextActionData: row.NextActionData, NextActionExpiresAt: row.NextActionExpiresAt.Time,
 	}
+	if it.Boleto, err = boletoOf(row); err != nil {
+		return Intent{}, err
+	}
 	if it.Split, err = splitOf(row); err != nil {
 		return Intent{}, err
 	}
@@ -221,7 +225,7 @@ func saveIntent(ctx context.Context, q *db.Queries, row db.PaymentsIntent) error
 		CancellationReason: row.CancellationReason, Installments: row.Installments,
 		InstallmentsFinancedBy: row.InstallmentsFinancedBy, SetupFutureUsage: row.SetupFutureUsage,
 		RequestThreeDSecure: row.RequestThreeDSecure, NextActionUrl: row.NextActionUrl,
-		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, PixOptions: row.PixOptions, Split: row.Split,
+		RiskDecision: row.RiskDecision, RiskDecisionID: row.RiskDecisionID, PixOptions: row.PixOptions, Split: row.Split, BoletoOptions: row.BoletoOptions,
 		NextActionData: row.NextActionData, NextActionExpiresAt: row.NextActionExpiresAt, UpdatedAt: row.UpdatedAt,
 	})
 }
@@ -238,4 +242,22 @@ func saveAttempt(ctx context.Context, q *db.Queries, row db.PaymentsAttempt) err
 		AcsTransID: row.AcsTransID, AcsUrl: row.AcsUrl, Eci: row.Eci, AuthenticationValue: row.AuthenticationValue,
 		LiabilityShift: row.LiabilityShift, UpdatedAt: row.UpdatedAt,
 	})
+}
+
+// bankAccount is Jupiter's account at the bank that collects its boletos and makes its
+// transfers: a hot account (ADR 0008).
+func (s *Service) bankAccount(ctx context.Context, tx pgx.Tx, livemode bool, currency money.Currency) (id.ID, error) {
+	return s.scopedAccount(ctx, tx, db.New(tx), "", livemode, currency, roleBankSettlement,
+		ledger.AccountSpec{Book: ledger.ClientFunds, Code: "bank_settlement", Currency: currency, Normal: ledger.DebitNormal, Batched: true})
+}
+
+// SettlementAccounts are the accounts a card settlement moves: what the networks owe,
+// and Jupiter's account at the bank the settlement is paid into.
+func (s *Service) SettlementAccounts(ctx context.Context, tx pgx.Tx, livemode bool, currency money.Currency) (network, bank id.ID, err error) {
+	if network, err = s.scopedAccount(ctx, tx, db.New(tx), "", livemode, currency, roleNetworkReceivable,
+		ledger.AccountSpec{Book: ledger.ClientFunds, Code: "network_receivable", Currency: currency, Normal: ledger.DebitNormal, Batched: true}); err != nil {
+		return id.ID{}, id.ID{}, err
+	}
+	bank, err = s.bankAccount(ctx, tx, livemode, currency)
+	return network, bank, err
 }

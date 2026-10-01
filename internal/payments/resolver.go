@@ -83,6 +83,9 @@ func (s *Service) resolveAttempt(ctx context.Context, pool *pgxpool.Pool, attemp
 	if isPix(attempt.PaymentMethod) {
 		return s.resolvePix(ctx, pool, owner, intentID, intent, attempt)
 	}
+	if attempt.PaymentMethod == PaymentMethodBoleto {
+		return s.resolveBoleto(ctx, pool, owner, intentID, intent, attempt)
+	}
 	rail, err := s.rail(owner.Livemode)
 	if err != nil {
 		return false, err

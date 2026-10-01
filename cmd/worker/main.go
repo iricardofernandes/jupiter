@@ -47,6 +47,8 @@ const (
 	// receivablesEvery is how often units go to the registry, well within the business
 	// day after a sale it allows, and reconciliations that are due run.
 	receivablesEvery = 5 * time.Minute
+	// collectionEvery is how often boletos go to the bank and its return files are read.
+	collectionEvery = time.Minute
 )
 
 var checkOptions = ledger.CheckOptions{
@@ -111,7 +113,8 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 			service.Every(logger, "subscriptions.advance", subscriptionsEvery, counted(logger, "looked at subscriptions", func(ctx context.Context) (int, error) {
 				return s.subscriptions.Advance(ctx, pool)
 			})),
-			service.Every(logger, "receivables.advance", receivablesEvery, advanceReceivables(s.receivables, pool, logger))),
+			service.Every(logger, "receivables.advance", receivablesEvery, advanceReceivables(s.receivables, pool, logger)),
+			service.Every(logger, "bank.collection", collectionEvery, collect(s.payments, pool, logger, r.liveBank, r.testBank))),
 		Close: func() {
 			r.close()
 			pool.Close()

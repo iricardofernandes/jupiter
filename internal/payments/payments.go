@@ -70,6 +70,7 @@ type Intent struct {
 	NextActionExpiresAt time.Time
 	Pix                 *PixOptions
 	Split               []SplitRule
+	Boleto              *BoletoOptions
 	CancellationReason  string
 	Installments        *Installments
 	SetupFutureUsage    string
@@ -133,6 +134,12 @@ type Config struct {
 	// Pix rails serve each mode's Pix payments and payouts; a mode without one has no Pix.
 	TestPix PixRail
 	LivePix PixRail
+	// Boleto rails are Jupiter's bank for boletos in each mode; transfer rails, the bank
+	// that makes its bank transfers.
+	TestBoleto    BoletoRail
+	LiveBoleto    BoletoRail
+	TestTransfers BankTransferRail
+	LiveTransfers BankTransferRail
 	// Receivables, if set, is told of every card capture and refund.
 	Receivables Receivables
 	// Recipients, if set, checks the recipients of a split; without it, payments cannot be

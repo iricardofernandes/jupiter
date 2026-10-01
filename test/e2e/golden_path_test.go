@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
+	"github.com/iricardofernandes/jupiter/internal/bank"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
@@ -45,6 +47,8 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/sim/cardnetwork"
 	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
+	slcsim "github.com/iricardofernandes/jupiter/internal/sim/slc"
+	"github.com/iricardofernandes/jupiter/internal/slc"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
@@ -57,20 +61,21 @@ func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
 		postgrestest.DefaultTemplate: {
 			ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate,
-			authentication.Migrate, recipients.Migrate, receivables.Migrate,
+			authentication.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate,
 		},
 		vaulttest.Template: {vaulttest.Migrate},
 	}))
 }
 
-// The golden path, as far as phase 10 reaches: a marketplace onboards a seller; a
+// The golden path, as far as phase 11 reaches: a marketplace onboards a seller; a
 // customer's card goes from their browser to the vault; the customer pays R$ 600.00 in
 // six installments, split between the seller and the marketplace, passes the risk engine,
 // is authenticated with 3-D Secure without a challenge, and is authorized by the issuer
 // over ISO 8583; the marketplace captures it; the ledger's typed split lines and a signed
 // webhook say so; the network's clearing file for the day confirms it; each one's
 // receivable units are registered with the registry and reconcile with it; the seller
-// anticipates two units; and she is paid out by Pix. Later phases add settlement.
+// anticipates two units, which Jupiter reports to the SLC, and is paid out by Pix; months
+// later the SLC settles the units due, and she is paid out what settled to her by Pix.
 func TestGoldenPath(t *testing.T) {
 	ctx := t.Context()
 	pool := server.Pool(t)
@@ -131,13 +136,18 @@ func TestGoldenPath(t *testing.T) {
 	merchants := merchant.New(nil)
 	l := ledger.New()
 	recipientService := recipients.New(recipients.Config{Merchants: merchants, Events: eventService})
-	registrySim, receivablesService := startRegistry(t, pool, l, merchants, recipientService, eventService)
+	// Settlement is months away: the receivables and the SLC run on a clock that can be
+	// moved ahead.
+	clock := &laterClock{}
+	slcSim, slcConnector := startSLC(t, clock.Now)
+	registrySim, receivablesService := startRegistry(t, pool, l, merchants, recipientService, eventService, slcConnector, clock.Now)
 	riskEngine := risk.New(risk.Config{})
 	paymentService := payments.New(payments.Config{
 		Ledger: l, Events: eventService, LiveRail: connector, Authenticator: authenticator, Risk: riskEngine,
 		TestRail: payments.NewTestRail(pool, nil, nil).WithCards(cardVault.Client), LivePix: pixConnector,
 		Receivables: receivablesService, Balances: receivablesService, Recipients: recipientService,
 	})
+	receivablesService.UsePayments(paymentService)
 	jupiterAPI := api.New(api.Deps{
 		Pool: pool, Merchants: merchants, Events: eventService, Payments: paymentService, Vault: cardVault.Client, Risk: riskEngine, Box: box,
 		Receivables: receivablesService, Recipients: recipientService,
@@ -360,7 +370,13 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	reconcile(t, receivablesService, pool)
-	t.Logf("   R$ 180.00 settling on %s and %s bought for R$ %d.%02d at 1.99%% a month; both units now settle to Jupiter; the ledger, the balances and the registry agree",
+	if n, err := receivablesService.ReportAnticipations(ctx, pool); err != nil || n != 2 {
+		t.Fatalf("reporting the anticipations: %d, %v", n, err)
+	}
+	if reports, late := slcSim.Reports(slcToken); len(reports) != 2 || len(late) != 0 {
+		t.Fatalf("the SLC has %+v, late %+v", reports, late)
+	}
+	t.Logf("   R$ 180.00 settling on %s and %s bought for R$ %d.%02d at 1.99%% a month; both units now settle to Jupiter, which reports them to the SLC; the ledger, the balances and the registry agree",
 		agenda[0].SettlementDate, agenda[1].SettlementDate, anticipation.Price/100, anticipation.Price%100)
 
 	t.Log("11. the seller is paid out her available balance, by Pix, to her key")
@@ -385,7 +401,41 @@ func TestGoldenPath(t *testing.T) {
 	}
 	t.Logf("   R$ %s sent through the SPI to %s (%s); her available balance is zero, R$ 360.00 still pending", want, payout.Destination.RecipientName, payout.EndToEndID)
 
-	t.Log("12. every invariant holds")
+	t.Logf("12. on %s, the third installments' date, the SLC settles the units due: the network pays their gross into Jupiter's settlement account", agenda[2].SettlementDate)
+	third, err := time.Parse(time.DateOnly, agenda[2].SettlementDate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.Until(third.Add(15 * time.Hour))
+	if err := receivablesService.SettleDay(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	slcSim.Tick()
+	if err := receivablesService.SettleDay(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	grade, err := slcSim.GradeOf(slcToken, agenda[2].SettlementDate)
+	if err != nil || grade.Status != "settled" || grade.Total != 30000 || grade.Credited != 30000 || len(grade.Entries) != 9 {
+		t.Fatalf("the grade: %+v, %v", grade, err)
+	}
+	sellerBalance = recipientBalance(t, receivablesService, pool, owner, seller.ID)
+	ownBalance = recipientBalance(t, receivablesService, pool, owner, "")
+	if sellerBalance.Available != 9000 || sellerBalance.Pending != 27000 || ownBalance.Available != 3*651 {
+		t.Fatalf("after settlement: the seller %+v, the marketplace %+v", sellerBalance, ownBalance)
+	}
+	t.Log("   R$ 300.00 for three installments: R$ 180.00 Jupiter bought, R$ 90.00 the seller's, R$ 19.53 the marketplace's and R$ 10.47 of Jupiter's fee; the seller has R$ 90.00 available")
+
+	t.Log("13. the seller is paid out what settled to her, by Pix")
+	client.post("/v1/payouts", map[string]any{"amount": 9000, "currency": "brl", "recipient": seller.ID}, &payout)
+	if payout.Status != "paid" || len(bank.Transfers()) != 2 {
+		t.Fatalf("the second payout: %+v", payout)
+	}
+	if b := recipientBalance(t, receivablesService, pool, owner, seller.ID); b.Available != 0 || b.Pending != 27000 {
+		t.Fatalf("the seller's balance after the second payout: %+v", b)
+	}
+	t.Logf("   R$ 90.00 sent through the SPI (%s)", payout.EndToEndID)
+
+	t.Log("14. every invariant holds")
 	if _, err := l.ApplyQueued(ctx, pool, 10_000); err != nil {
 		t.Fatal(err)
 	}
@@ -409,6 +459,8 @@ const (
 	sellerCNPJ     = "11222333000262"
 	registryToken  = "golden path registry token"  //nolint:gosec // a test credential for the simulator
 	financierToken = "golden path financier token" //nolint:gosec // a test credential for the simulator
+	slcToken       = "golden path slc token"       //nolint:gosec // a test credential for the simulator
+	jupiterISPB    = "30000001"
 	// fee is Jupiter's on R$ 600.00 in 6 installments financed by the merchant: 3.49%.
 	fee = 2094
 )
@@ -437,8 +489,10 @@ func reconcile(t *testing.T, s *receivables.Service, pool *pgxpool.Pool) {
 }
 
 // startRegistry runs the registry simulator and the receivables Jupiter registers there,
-// as accreditor and as the financier of what it anticipates.
-func startRegistry(t *testing.T, pool *pgxpool.Pool, l *ledger.Ledger, merchants *merchant.Service, recs *recipients.Service, e *events.Service) (*registrysim.Sim, *receivables.Service) {
+// as accreditor and as the financier of what it anticipates, and settles through the SLC.
+func startRegistry(t *testing.T, pool *pgxpool.Pool, l *ledger.Ledger, merchants *merchant.Service, recs *recipients.Service, e *events.Service,
+	settlement *slc.Connector, now func() time.Time,
+) (*registrysim.Sim, *receivables.Service) {
 	t.Helper()
 	sim := registrysim.New(registrysim.Config{Participants: []registrysim.Participant{
 		{Token: registryToken, TaxID: jupiterCNPJ, Role: registrysim.Accreditor},
@@ -452,9 +506,33 @@ func startRegistry(t *testing.T, pool *pgxpool.Pool, l *ledger.Ledger, merchants
 	}
 	return sim, receivables.New(receivables.Config{
 		Pool: pool, Ledger: l, Merchants: merchants, Recipients: recs, Events: e, TaxID: jupiterCNPJ, LiveRegistry: connector,
-		Domicile: registryapi.Domicile{ISPB: "30000001", Branch: "0001"},
+		LiveSettlement: settlement, Domicile: registryapi.Domicile{ISPB: jupiterISPB, Branch: "0001"}, Now: now,
 	})
 }
+
+// startSLC runs the settlement simulator, with Jupiter taking part, and Jupiter's
+// connector to it.
+func startSLC(t *testing.T, now func() time.Time) (*slcsim.Sim, *slc.Connector) {
+	t.Helper()
+	sim := slcsim.New(slcsim.Config{Now: now, Participants: []slcsim.Participant{{Token: slcToken, TaxID: jupiterCNPJ, ISPB: jupiterISPB}}})
+	srv := httptest.NewServer(sim.Handler())
+	t.Cleanup(srv.Close)
+	connector, err := slc.New(slc.Config{BaseURL: srv.URL, Token: slcToken})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sim, connector
+}
+
+// laterClock is the time now, or, once moved, a moment later that runs on from there.
+type laterClock struct {
+	ahead atomic.Int64
+}
+
+func (c *laterClock) Now() time.Time { return time.Now().Add(time.Duration(c.ahead.Load())) }
+
+// Until moves the clock ahead to t.
+func (c *laterClock) Until(t time.Time) { c.ahead.Store(int64(time.Until(t))) }
 
 const sellerKey = "+5511987654321"
 

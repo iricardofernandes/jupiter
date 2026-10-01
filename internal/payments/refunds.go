@@ -39,6 +39,9 @@ func (s *Service) StartRefund(ctx context.Context, tx pgx.Tx, owner Owner, p Ref
 	if Status(row.Status) != Succeeded || !inStatus(attempt, attemptCaptured) {
 		return Refund{}, fmt.Errorf("%w: only a succeeded payment intent can be refunded", ErrInvalidState)
 	}
+	if attempt.PaymentMethod == PaymentMethodBoleto {
+		return Refund{}, fmt.Errorf("%w: a boleto cannot be refunded through it; pay the customer back with a payout", ErrInvalidState)
+	}
 	outstanding, err := q.OutstandingRefunds(ctx, row.ID)
 	if err != nil {
 		return Refund{}, err

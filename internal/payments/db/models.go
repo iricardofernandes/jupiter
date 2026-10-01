@@ -81,6 +81,7 @@ type PaymentsIntent struct {
 	NextActionData         string
 	NextActionExpiresAt    pgtype.Timestamptz
 	Split                  []byte
+	BoletoOptions          []byte
 }
 
 type PaymentsLedgerAccount struct {
@@ -131,6 +132,15 @@ type PaymentsPayout struct {
 	CreatedAt      pgtype.Timestamptz
 	UpdatedAt      pgtype.Timestamptz
 	RecipientID    string
+	Method         string
+	BankIspb       string
+	BankBranch     string
+	BankAccount    string
+	HolderName     string
+	HolderTaxID    string
+	ReturnedAt     pgtype.Timestamptz
+	ScheduledOn    pgtype.Date
+	SourceAccount  string
 }
 
 type PaymentsPixCharge struct {

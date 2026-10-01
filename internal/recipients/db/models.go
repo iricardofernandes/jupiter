@@ -27,4 +27,5 @@ type RecipientsRecipient struct {
 	AutoAnticipationDelay int32
 	CreatedAt             pgtype.Timestamptz
 	UpdatedAt             pgtype.Timestamptz
+	PayoutsHeld           bool
 }

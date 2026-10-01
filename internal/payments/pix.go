@@ -141,6 +141,9 @@ const (
 	PixTransferProcessing = "processing"
 	PixTransferPaid       = "paid"
 	PixTransferFailed     = "failed"
+	// PixTransferReturned is a bank transfer the receiving bank sent back after it was
+	// made.
+	PixTransferReturned = "returned"
 )
 
 // PixOptions says how an intent's Pix charge is made: immediate, payable for

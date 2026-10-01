@@ -44,6 +44,9 @@ func (s *Service) Refunded(ctx context.Context, tx pgx.Tx, r payments.CardRefund
 	if err != nil {
 		return 0, err
 	}
+	if err := reduceFees(ctx, q, installments, r.FeeReturned); err != nil {
+		return 0, err
+	}
 	if uncovered := reduction.Minor() - covered; uncovered > 0 {
 		liable := lines[0].RecipientID
 		for _, l := range lines {
@@ -134,6 +137,39 @@ func (s *Service) postRefund(ctx context.Context, tx pgx.Tx, r payments.CardRefu
 	}
 	if _, err := s.cfg.Ledger.Post(ctx, tx, ledger.Posting{Description: "split back for " + r.Refund, Legs: legs}); err != nil {
 		return fmt.Errorf("posting the refund's split: %w", err)
+	}
+	return nil
+}
+
+// reduceFees takes the fee a refund gave back off the open installments, in proportion to
+// the fee each still has: the network pays Jupiter that much less on them. What settled
+// installments had, the network nets out of later settlements.
+func reduceFees(ctx context.Context, q *db.Queries, installments []db.InstallmentsOfIntentRow, returned money.Amount) error {
+	var open []db.InstallmentsOfIntentRow
+	var weights []int64
+	var total int64
+	for _, inst := range installments {
+		if left := inst.Fee - inst.FeeReduced; !inst.UnitSettled && left > 0 {
+			open = append(open, inst)
+			weights = append(weights, left)
+			total += left
+		}
+	}
+	taken := min(returned.Minor(), total)
+	if taken <= 0 {
+		return nil
+	}
+	amount, _ := money.New(taken, returned.Currency())
+	shares, err := amount.Allocate(weights...)
+	if err != nil {
+		return err
+	}
+	for i, inst := range open {
+		if x := min(shares[i].Minor(), weights[i]); x > 0 {
+			if err := q.ReduceInstallmentFee(ctx, db.ReduceInstallmentFeeParams{AttemptID: inst.AttemptID, RecipientID: inst.RecipientID, Number: inst.Number, Amount: x}); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

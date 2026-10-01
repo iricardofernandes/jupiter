@@ -95,7 +95,7 @@ func (s *Service) checkPaymentMethod(ctx context.Context, q db.DBTX, owner Owner
 	if knownPaymentMethod(pm) && owner.Livemode {
 		return fmt.Errorf("%w: %s is a test payment method, for test mode only", ErrInvalid, pm)
 	}
-	if pm == "" || knownPaymentMethod(pm) || pm == PaymentMethodPix {
+	if pm == "" || knownPaymentMethod(pm) || pm == PaymentMethodPix || pm == PaymentMethodBoleto {
 		return nil
 	}
 	if _, err := s.methodRow(ctx, q, owner, pm); err != nil {

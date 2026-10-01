@@ -17,6 +17,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
+	"github.com/iricardofernandes/jupiter/internal/bank"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -40,6 +41,8 @@ commands:
                            record who the merchant's receivables belong to
   recipient verify <id> verified|rejected
                            record the outcome of a recipient's verification (KYC/KYB)
+  recipient hold-payouts <id> | release-payouts <id>
+                           hold a recipient's payouts, or lift the hold and send those held
   ledger check             verify ledger invariants; exits 1 if any is violated
   ledger repair <account>  reset a drifted account's cached balance from its entries
   dev-certs <dir>          write a development CA and the vault's, API's and worker's mTLS certificates
@@ -91,6 +94,8 @@ func run(ctx context.Context, args []string) error {
 		return merchant.New(nil).SetTaxID(ctx, pool, merchantID, args[3])
 	case len(args) == 4 && args[0] == "recipient" && args[1] == "verify":
 		return verifyRecipient(ctx, pool, args[2], recipients.Status(args[3]))
+	case len(args) == 3 && args[0] == "recipient" && (args[1] == "hold-payouts" || args[1] == "release-payouts"):
+		return holdPayouts(ctx, pool, args[2], args[1] == "hold-payouts")
 	case len(args) == 2 && args[0] == "ledger" && args[1] == "check":
 		return check(ctx, pool)
 	case len(args) == 3 && args[0] == "ledger" && args[1] == "repair":
@@ -127,7 +132,7 @@ func check(ctx context.Context, pool *pgxpool.Pool) error {
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	for _, m := range []func(context.Context, *pgxpool.Pool) error{
 		ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, risk.Migrate, acquirer.Migrate, authentication.Migrate,
-		subscriptions.Migrate, recipients.Migrate, receivables.Migrate,
+		subscriptions.Migrate, recipients.Migrate, receivables.Migrate, bank.Migrate,
 	} {
 		if err := m(ctx, pool); err != nil {
 			return err
@@ -209,6 +214,32 @@ func verifyRecipient(ctx context.Context, pool *pgxpool.Pool, recipientID string
 	}
 	return postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
 		_, err := s.Verify(ctx, tx, rec.Owner, rid, status)
+		return err
+	})
+}
+
+// holdPayouts holds a recipient's payouts, or lifts the hold and lets those held go.
+func holdPayouts(ctx context.Context, pool *pgxpool.Pool, recipientID string, held bool) error {
+	rid, err := recipients.Prefix.Parse(recipientID)
+	if err != nil {
+		return err
+	}
+	s := recipients.New(recipients.Config{Merchants: merchant.New(nil)})
+	rec, err := s.ByID(ctx, pool, rid.String())
+	if err != nil {
+		return err
+	}
+	if !held && rec.Status != recipients.Verified {
+		return fmt.Errorf("recipient %s is %s: its payouts go only once it is verified", rid, rec.Status)
+	}
+	return postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		if err := s.HoldPayouts(ctx, tx, rid.String(), held); err != nil || held {
+			return err
+		}
+		released, err := payments.New(payments.Config{}).ReleaseHeldPayouts(ctx, tx, rid.String())
+		if err == nil {
+			fmt.Printf("released %d payouts\n", released)
+		}
 		return err
 	})
 }

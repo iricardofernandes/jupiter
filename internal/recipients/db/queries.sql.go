@@ -12,7 +12,7 @@ import (
 )
 
 const autoAnticipating = `-- name: AutoAnticipating :many
-SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at FROM recipients.recipients
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients
 WHERE livemode = $1 AND auto_anticipation AND status = 'verified' AND id > $2
 ORDER BY id LIMIT 200
 `
@@ -51,6 +51,7 @@ func (q *Queries) AutoAnticipating(ctx context.Context, arg AutoAnticipatingPara
 			&i.AutoAnticipationDelay,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PayoutsHeld,
 		); err != nil {
 			return nil, err
 		}
@@ -79,7 +80,7 @@ func (q *Queries) CountRecipients(ctx context.Context, arg CountRecipientsParams
 }
 
 const defaultRecipient = `-- name: DefaultRecipient :one
-SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at FROM recipients.recipients WHERE merchant_id = $1 AND livemode = $2 AND is_default
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients WHERE merchant_id = $1 AND livemode = $2 AND is_default
 `
 
 type DefaultRecipientParams struct {
@@ -109,12 +110,13 @@ func (q *Queries) DefaultRecipient(ctx context.Context, arg DefaultRecipientPara
 		&i.AutoAnticipationDelay,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutsHeld,
 	)
 	return i, err
 }
 
 const getRecipient = `-- name: GetRecipient :one
-SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at FROM recipients.recipients WHERE id = $1 AND merchant_id = $2 AND livemode = $3
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
 
 type GetRecipientParams struct {
@@ -145,12 +147,13 @@ func (q *Queries) GetRecipient(ctx context.Context, arg GetRecipientParams) (Rec
 		&i.AutoAnticipationDelay,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutsHeld,
 	)
 	return i, err
 }
 
 const getRecipientByID = `-- name: GetRecipientByID :one
-SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at FROM recipients.recipients WHERE id = $1
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients WHERE id = $1
 `
 
 func (q *Queries) GetRecipientByID(ctx context.Context, id string) (RecipientsRecipient, error) {
@@ -175,6 +178,7 @@ func (q *Queries) GetRecipientByID(ctx context.Context, id string) (RecipientsRe
 		&i.AutoAnticipationDelay,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutsHeld,
 	)
 	return i, err
 }
@@ -232,7 +236,7 @@ func (q *Queries) InsertRecipient(ctx context.Context, arg InsertRecipientParams
 }
 
 const listRecipients = `-- name: ListRecipients :many
-SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at FROM recipients.recipients
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients
 WHERE merchant_id = $1 AND livemode = $2
   AND ($3::text = '' OR id < $3)
   AND ($4::text = '' OR id > $4)
@@ -282,6 +286,7 @@ func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) 
 			&i.AutoAnticipationDelay,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PayoutsHeld,
 		); err != nil {
 			return nil, err
 		}
@@ -294,7 +299,7 @@ func (q *Queries) ListRecipients(ctx context.Context, arg ListRecipientsParams) 
 }
 
 const lockRecipient = `-- name: LockRecipient :one
-SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at FROM recipients.recipients WHERE id = $1 AND merchant_id = $2 AND livemode = $3 FOR UPDATE
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients WHERE id = $1 AND merchant_id = $2 AND livemode = $3 FOR UPDATE
 `
 
 type LockRecipientParams struct {
@@ -325,12 +330,13 @@ func (q *Queries) LockRecipient(ctx context.Context, arg LockRecipientParams) (R
 		&i.AutoAnticipationDelay,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutsHeld,
 	)
 	return i, err
 }
 
 const recipientsOf = `-- name: RecipientsOf :many
-SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at FROM recipients.recipients WHERE merchant_id = $1 AND livemode = $2 AND id = ANY($3::text[])
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients WHERE merchant_id = $1 AND livemode = $2 AND id = ANY($3::text[])
 `
 
 type RecipientsOfParams struct {
@@ -367,6 +373,7 @@ func (q *Queries) RecipientsOf(ctx context.Context, arg RecipientsOfParams) ([]R
 			&i.AutoAnticipationDelay,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PayoutsHeld,
 		); err != nil {
 			return nil, err
 		}
@@ -420,4 +427,71 @@ func (q *Queries) SaveRecipient(ctx context.Context, arg SaveRecipientParams) er
 		arg.ID,
 	)
 	return err
+}
+
+const setPayoutsHeld = `-- name: SetPayoutsHeld :exec
+UPDATE recipients.recipients SET payouts_held = $1, updated_at = $2 WHERE id = $3
+`
+
+type SetPayoutsHeldParams struct {
+	Held bool
+	Now  pgtype.Timestamptz
+	ID   string
+}
+
+func (q *Queries) SetPayoutsHeld(ctx context.Context, arg SetPayoutsHeldParams) error {
+	_, err := q.db.Exec(ctx, setPayoutsHeld, arg.Held, arg.Now, arg.ID)
+	return err
+}
+
+const transferringRecipients = `-- name: TransferringRecipients :many
+SELECT id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key, bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay, created_at, updated_at, payouts_held FROM recipients.recipients
+WHERE livemode = $1 AND transfer_interval <> 'manual' AND status = 'verified' AND id > $2
+ORDER BY id LIMIT 200
+`
+
+type TransferringRecipientsParams struct {
+	Livemode bool
+	After    string
+}
+
+// A page of the verified recipients of a mode whose payouts are scheduled.
+func (q *Queries) TransferringRecipients(ctx context.Context, arg TransferringRecipientsParams) ([]RecipientsRecipient, error) {
+	rows, err := q.db.Query(ctx, transferringRecipients, arg.Livemode, arg.After)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecipientsRecipient{}
+	for rows.Next() {
+		var i RecipientsRecipient
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.Livemode,
+			&i.Name,
+			&i.TaxID,
+			&i.IsDefault,
+			&i.Status,
+			&i.PayoutMethod,
+			&i.PixKey,
+			&i.BankIspb,
+			&i.BankBranch,
+			&i.BankAccount,
+			&i.TransferInterval,
+			&i.TransferDay,
+			&i.AutoAnticipation,
+			&i.AutoAnticipationDelay,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PayoutsHeld,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

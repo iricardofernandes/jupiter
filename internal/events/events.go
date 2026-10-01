@@ -53,6 +53,7 @@ const (
 	TypePayoutCreated               = "payout.created"
 	TypePayoutPaid                  = "payout.paid"
 	TypePayoutFailed                = "payout.failed"
+	TypePayoutReturned              = "payout.returned"
 	TypeSubscriptionCreated         = "subscription.created"
 	TypeSubscriptionUpdated         = "subscription.updated"
 	TypeRecipientCreated            = "recipient.created"
@@ -67,7 +68,7 @@ var Types = []string{
 	TypePaymentIntentCreated, TypePaymentIntentProcessing, TypePaymentIntentRequiresAction,
 	TypePaymentIntentCapturable, TypePaymentIntentSucceeded, TypePaymentIntentPaymentFailed,
 	TypePaymentIntentCanceled, TypeRefundCreated, TypeRefundUpdated,
-	TypePayoutCreated, TypePayoutPaid, TypePayoutFailed,
+	TypePayoutCreated, TypePayoutPaid, TypePayoutFailed, TypePayoutReturned,
 	TypeSubscriptionCreated, TypeSubscriptionUpdated,
 	TypeRecipientCreated, TypeRecipientUpdated, TypeAnticipationCreated,
 }

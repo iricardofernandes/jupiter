@@ -264,3 +264,61 @@ SELECT * FROM receivables.anticipation_units WHERE anticipation_id = @anticipati
 SELECT u.id, u.anticipated, coalesce(sum(au.amount), 0)::bigint AS bought
 FROM receivables.units u LEFT JOIN receivables.anticipation_units au ON au.unit_id = u.id
 GROUP BY u.id, u.anticipated;
+
+-- name: ReduceInstallmentFee :exec
+UPDATE receivables.installments SET fee_reduced = fee_reduced + @amount
+WHERE attempt_id = @attempt_id AND recipient_id = @recipient_id AND number = @number;
+
+-- name: UnitsDue :many
+-- A page of the units of a mode due by a day and not settled.
+SELECT id FROM receivables.units
+WHERE livemode = @livemode AND settlement_date <= @day AND settled_on IS NULL AND id > @after
+ORDER BY id LIMIT 500;
+
+-- name: UnitsToGrade :many
+-- The units of a mode settled by a day that no grade carries, locked: those of an
+-- earlier day whose grade was never built go in this one.
+SELECT * FROM receivables.units
+WHERE livemode = @livemode AND settled_on <= @day AND grade_date IS NULL
+ORDER BY id
+FOR UPDATE;
+
+-- name: UnitFees :many
+-- What the network still pays Jupiter in fees on each of some units, and what their
+-- installments hold net.
+SELECT unit_id, sum(fee - fee_reduced)::bigint AS fee, sum(net - reduced)::bigint AS net
+FROM receivables.installments
+WHERE unit_id = ANY(@units::text[])
+GROUP BY unit_id;
+
+-- name: MarkGraded :exec
+UPDATE receivables.units SET grade_date = @day WHERE id = ANY(@units::text[]);
+
+-- name: InsertGrade :exec
+INSERT INTO receivables.grades (livemode, date, entries, total, credited, status, created_at, updated_at)
+VALUES (@livemode, @date, @entries, @total, @credited, 'built', @now, @now);
+
+-- name: GetGrade :one
+SELECT * FROM receivables.grades WHERE livemode = @livemode AND date = @date;
+
+-- name: OpenGrades :many
+SELECT * FROM receivables.grades WHERE livemode = @livemode AND status IN ('built', 'submitted') ORDER BY date;
+
+-- name: LockGrade :one
+SELECT * FROM receivables.grades WHERE livemode = @livemode AND date = @date FOR UPDATE;
+
+-- name: SetGradeStatus :execrows
+-- Moves a grade on from the status it was read in; none moves when another pass did.
+UPDATE receivables.grades SET status = @status, error = @error, ledger_txn = @ledger_txn, updated_at = @now
+WHERE livemode = @livemode AND date = @date AND status = @from_status;
+
+-- name: AnticipationsToReport :many
+SELECT au.anticipation_id, au.unit_id, au.amount, a.created_at
+FROM receivables.anticipation_units au JOIN receivables.anticipations a ON a.id = au.anticipation_id
+WHERE a.livemode = @livemode AND au.reported_at IS NULL
+ORDER BY a.created_at, au.anticipation_id, au.unit_id
+LIMIT 500;
+
+-- name: MarkReported :exec
+UPDATE receivables.anticipation_units SET reported_at = @now
+WHERE anticipation_id = @anticipation_id AND unit_id = @unit_id;

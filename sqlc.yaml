@@ -108,3 +108,12 @@ sql:
         out: internal/recipients/db
         sql_package: pgx/v5
         emit_empty_slices: true
+  - engine: postgresql
+    schema: internal/bank/migrations
+    queries: internal/bank/queries.sql
+    gen:
+      go:
+        package: db
+        out: internal/bank/db
+        sql_package: pgx/v5
+        emit_empty_slices: true

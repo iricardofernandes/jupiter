@@ -24,6 +24,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/recipients/db"
 	"github.com/iricardofernandes/jupiter/internal/recipients/migrations"
+	"github.com/iricardofernandes/jupiter/pkg/bizday"
 	"github.com/iricardofernandes/jupiter/pkg/taxid"
 )
 
@@ -89,7 +90,9 @@ type Recipient struct {
 	Destination      Destination
 	Transfers        Transfers
 	AutoAnticipation AutoAnticipation
-	CreatedAt        time.Time
+	// PayoutsHeld says an operator holds its payouts.
+	PayoutsHeld bool
+	CreatedAt   time.Time
 }
 
 type Params struct {
@@ -258,12 +261,23 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, recipientI
 	if err := apply(&row, p); err != nil {
 		return Recipient{}, err
 	}
+	moved := row.PayoutMethod != before.PayoutMethod || row.PixKey != before.PixKey ||
+		row.BankIspb != before.BankIspb || row.BankBranch != before.BankBranch || row.BankAccount != before.BankAccount
 	// Who it is, and where it is paid, are what was verified: a change is verified anew.
-	if !row.IsDefault && (row.Name != before.Name || row.PayoutMethod != before.PayoutMethod || row.PixKey != before.PixKey ||
-		row.BankIspb != before.BankIspb || row.BankBranch != before.BankBranch || row.BankAccount != before.BankAccount) {
+	if !row.IsDefault && (row.Name != before.Name || moved) {
 		row.Status = string(Pending)
 	}
-	return s.save(ctx, tx, owner, row)
+	rec, err := s.save(ctx, tx, owner, row)
+	if err != nil || !row.IsDefault || !moved || before.PayoutMethod == "" {
+		return rec, err
+	}
+	// The merchant's own recipient is the merchant, verified with it; a new destination for
+	// its money, which a stolen key could set, waits for an operator before payouts go.
+	if err := s.HoldPayouts(ctx, tx, row.ID, true); err != nil {
+		return Recipient{}, err
+	}
+	rec.PayoutsHeld = true
+	return rec, nil
 }
 
 // Verify records the outcome of a recipient's verification.
@@ -428,6 +442,7 @@ func fromRow(row db.RecipientsRecipient) (Recipient, error) {
 		Destination:      Destination{Method: row.PayoutMethod, PixKey: row.PixKey, ISPB: row.BankIspb, Branch: row.BankBranch, Account: row.BankAccount},
 		Transfers:        Transfers{Interval: Interval(row.TransferInterval), Day: int(row.TransferDay)},
 		AutoAnticipation: AutoAnticipation{Enabled: row.AutoAnticipation, DelayDays: int(row.AutoAnticipationDelay)},
+		PayoutsHeld:      row.PayoutsHeld,
 		CreatedAt:        row.CreatedAt.Time,
 	}, nil
 }
@@ -458,4 +473,49 @@ func (s *Service) CheckSplit(ctx context.Context, tx pgx.Tx, owner payments.Owne
 		}
 	}
 	return nil
+}
+
+// HoldPayouts holds, or lifts the hold on, a recipient's payouts: an operator's decision.
+func (s *Service) HoldPayouts(ctx context.Context, tx pgx.Tx, recipientID string, held bool) error {
+	return db.New(tx).SetPayoutsHeld(ctx, db.SetPayoutsHeldParams{ID: recipientID, Held: held, Now: ts(s.cfg.Now().UTC())})
+}
+
+// Transferring lists a page of the verified recipients of a mode whose payouts are
+// scheduled, after the one named.
+func (s *Service) Transferring(ctx context.Context, q db.DBTX, livemode bool, after string) ([]Recipient, error) {
+	rows, err := db.New(q).TransferringRecipients(ctx, db.TransferringRecipientsParams{Livemode: livemode, After: after})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Recipient, 0, len(rows))
+	for _, row := range rows {
+		rec, err := fromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rec)
+	}
+	return out, nil
+}
+
+// TransferDue reports whether a recipient's scheduled payout falls on day: every business
+// day; or on its weekday, or day of the month, or the first business day after when that
+// is not one.
+func (t Transfers) Due(day time.Time) bool {
+	if !bizday.IsBusinessDay(day) {
+		return false
+	}
+	var target time.Time
+	switch t.Interval {
+	case Daily:
+		return true
+	case Weekly:
+		monday := day.AddDate(0, 0, -((int(day.Weekday()) + 6) % 7))
+		target = monday.AddDate(0, 0, t.Day-1)
+	case Monthly:
+		target = time.Date(day.Year(), day.Month(), t.Day, 0, 0, 0, 0, day.Location())
+	default:
+		return false
+	}
+	return bizday.Next(target).Equal(day)
 }

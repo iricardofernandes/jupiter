@@ -204,11 +204,18 @@ func (s *Service) syncOptIn(ctx context.Context, pool *pgxpool.Pool, reg Registr
 }
 
 // Advance is the worker's pass: units to the registry, opt-ins, the reconciliations that
-// are due, and automatic anticipations.
+// are due, automatic anticipations and their reports, the day's settlement, and the
+// recipients' scheduled payouts.
 func (s *Service) Advance(ctx context.Context, pool *pgxpool.Pool) error {
 	_, err1 := s.Register(ctx, pool)
 	_, err2 := s.SyncOptIns(ctx, pool)
 	_, err3 := s.Reconcile(ctx, pool)
 	_, err4 := s.AnticipateAutomatically(ctx, pool)
-	return errors.Join(err1, err2, err3, err4)
+	_, err5 := s.ReportAnticipations(ctx, pool)
+	var err6, err7 error
+	if s.cfg.Payments != nil {
+		err6 = s.SettleDay(ctx, pool)
+		_, err7 = s.SchedulePayouts(ctx, pool)
+	}
+	return errors.Join(err1, err2, err3, err4, err5, err6, err7)
 }

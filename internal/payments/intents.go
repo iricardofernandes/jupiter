@@ -48,6 +48,8 @@ type CreateParams struct {
 	Pix *PixOptions
 	// Split divides a card payment among recipients; empty, it is all the merchant's.
 	Split []SplitRule
+	// Boleto says how a boleto is issued, for the payment method boleto.
+	Boleto *BoletoOptions
 }
 
 type UpdateParams struct {
@@ -59,6 +61,7 @@ type UpdateParams struct {
 	RequestThreeDSecure *string
 	Pix                 *PixOptions
 	Split               *[]SplitRule
+	Boleto              *BoletoOptions
 }
 
 // ConfirmParams says how to authorize: OffSession for a merchant-initiated payment,
@@ -91,6 +94,9 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 	if err := s.checkSplit(ctx, tx, owner, p.Split, p.Amount, p.PaymentMethod); err != nil {
 		return Intent{}, err
 	}
+	if err := s.checkBoleto(p.PaymentMethod, p.Boleto, p.Amount, p.CaptureMethod, p.Installments, p.SetupFutureUsage); err != nil {
+		return Intent{}, err
+	}
 	status := RequiresPaymentMethod
 	if p.PaymentMethod != "" {
 		status = RequiresConfirmation
@@ -101,6 +107,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		Amount: p.Amount.Minor(), Currency: p.Amount.Currency().Code(), CaptureMethod: string(p.CaptureMethod),
 		Status: string(status), PaymentMethod: p.PaymentMethod, Description: p.Description, SetupFutureUsage: p.SetupFutureUsage,
 		RequestThreeDSecure: p.RequestThreeDSecure, PixOptions: pixOptionsColumn(p.Pix), Split: splitColumn(p.Split),
+		BoletoOptions: boletoColumn(p.Boleto),
 	}
 	row.Installments, row.InstallmentsFinancedBy = installmentColumns(p.Installments)
 	q := db.New(tx)
@@ -109,7 +116,7 @@ func (s *Service) Create(ctx context.Context, tx pgx.Tx, owner Owner, p CreatePa
 		CaptureMethod: row.CaptureMethod, Status: row.Status, PaymentMethod: row.PaymentMethod,
 		Description: row.Description, Installments: row.Installments, InstallmentsFinancedBy: row.InstallmentsFinancedBy,
 		SetupFutureUsage: row.SetupFutureUsage, RequestThreeDSecure: row.RequestThreeDSecure, PixOptions: row.PixOptions,
-		Split: row.Split, CreatedAt: ts(now),
+		Split: row.Split, BoletoOptions: row.BoletoOptions, CreatedAt: ts(now),
 	}); err != nil {
 		return Intent{}, fmt.Errorf("creating payment intent: %w", err)
 	}
@@ -169,23 +176,9 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 		amount = *p.Amount
 	}
 	applyUpdate(&row, p)
-	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description, installmentsOf(row), row.SetupFutureUsage, row.RequestThreeDSecure); err != nil {
-		return Intent{}, err
-	}
 	row.Amount = amount.Minor()
-	if err := s.checkPixRow(row); err != nil {
+	if err := s.checkUpdated(ctx, tx, owner, row, p, amount); err != nil {
 		return Intent{}, err
-	}
-	if p.Split != nil || p.Amount != nil || p.PaymentMethod != nil {
-		row.Amount = amount.Minor()
-		if err := s.recheckSplit(ctx, tx, owner, row); err != nil {
-			return Intent{}, err
-		}
-	}
-	if p.PaymentMethod != nil {
-		if err := s.checkPaymentMethod(ctx, tx, owner, row.PaymentMethod); err != nil {
-			return Intent{}, err
-		}
 	}
 	next := RequiresPaymentMethod
 	if row.PaymentMethod != "" {
@@ -197,6 +190,28 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, intentID i
 		}
 	}
 	return s.save(ctx, q, row)
+}
+
+// checkUpdated checks an intent as an update left it.
+func (s *Service) checkUpdated(ctx context.Context, tx pgx.Tx, owner Owner, row db.PaymentsIntent, p UpdateParams, amount money.Amount) error {
+	if err := validateIntent(amount, CaptureMethod(row.CaptureMethod), row.Description, installmentsOf(row), row.SetupFutureUsage, row.RequestThreeDSecure); err != nil {
+		return err
+	}
+	if err := s.checkPixRow(row); err != nil {
+		return err
+	}
+	if err := s.checkBoletoRow(row); err != nil {
+		return err
+	}
+	if p.Split != nil || p.Amount != nil || p.PaymentMethod != nil {
+		if err := s.recheckSplit(ctx, tx, owner, row); err != nil {
+			return err
+		}
+	}
+	if p.PaymentMethod != nil {
+		return s.checkPaymentMethod(ctx, tx, owner, row.PaymentMethod)
+	}
+	return nil
 }
 
 // applyUpdate sets the fields an update names; they are checked after.
@@ -224,6 +239,12 @@ func applyUpdate(row *db.PaymentsIntent, p UpdateParams) {
 	}
 	if p.Split != nil {
 		row.Split = splitColumn(*p.Split)
+	}
+	if p.PaymentMethod != nil && *p.PaymentMethod != PaymentMethodBoleto && p.Boleto == nil {
+		row.BoletoOptions = nil
+	}
+	if p.Boleto != nil {
+		row.BoletoOptions = boletoColumn(p.Boleto)
 	}
 }
 
@@ -288,9 +309,9 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 		return Intent{}, StepDone, err
 	}
 	// The risk engine and 3-D Secure are for cards: a Pix is pushed by the payer, from
-	// their own bank, which authenticates them.
+	// their own bank, which authenticates them, and a boleto is paid the same way.
 	step := StepConfirm
-	if row.PaymentMethod != PaymentMethodPix {
+	if row.PaymentMethod != PaymentMethodPix && row.PaymentMethod != PaymentMethodBoleto {
 		if step, err = s.decide(ctx, tx, owner, &row, &attempt, p.OffSession); err != nil {
 			return Intent{}, StepDone, err
 		}
@@ -306,6 +327,9 @@ func (s *Service) StartConfirm(ctx context.Context, tx pgx.Tx, owner Owner, inte
 // confirmable checks an intent can be confirmed as it is now, with p.
 func (s *Service) confirmable(ctx context.Context, tx pgx.Tx, owner Owner, row db.PaymentsIntent, p ConfirmParams) error {
 	if err := s.checkPixRow(row); err != nil {
+		return err
+	}
+	if err := s.checkBoletoRow(row); err != nil {
 		return err
 	}
 	// A recipient may have been rejected since the split was set.
@@ -375,6 +399,9 @@ func (s *Service) authorizeOnRail(ctx context.Context, q db.DBTX, owner Owner, i
 	if isPix(attempt.PaymentMethod) {
 		return s.chargePix(ctx, intent, attempt)
 	}
+	if attempt.PaymentMethod == PaymentMethodBoleto {
+		return s.chargeBoleto(ctx, intent, attempt)
+	}
 	rail, err := s.rail(intent.Livemode)
 	if err != nil {
 		return Result{}, err
@@ -433,13 +460,7 @@ func (s *Service) FinishAuthorization(ctx context.Context, tx pgx.Tx, owner Owne
 			err = s.recordOutcome(ctx, tx, attempt.ID, false)
 		}
 	case ActionRequired:
-		if res.Pix != nil {
-			err = s.awaitPix(ctx, tx, &row, &attempt, *res.Pix)
-			break
-		}
-		attempt.Status, attempt.RailReference = string(attemptRequiresAction), res.Reference
-		row.NextAction = "use_test_authentication"
-		err = s.setStatus(ctx, tx, &row, RequiresAction)
+		err = s.actionRequired(ctx, tx, &row, &attempt, res)
 	default:
 		attempt.Status = string(attemptAuthorizationUnknown)
 		if !attempt.UnknownSince.Valid {
@@ -455,6 +476,20 @@ func (s *Service) FinishAuthorization(ctx context.Context, tx pgx.Tx, owner Owne
 	}
 	it, err := s.save(ctx, q, row)
 	return it, step, err
+}
+
+// actionRequired waits on the payer: to pay the Pix charge or the boleto, or to
+// authenticate.
+func (s *Service) actionRequired(ctx context.Context, tx pgx.Tx, row *db.PaymentsIntent, attempt *db.PaymentsAttempt, res Result) error {
+	switch {
+	case res.Pix != nil:
+		return s.awaitPix(ctx, tx, row, attempt, *res.Pix)
+	case res.Boleto != nil:
+		return s.awaitBoleto(ctx, tx, row, attempt, *res.Boleto)
+	}
+	attempt.Status, attempt.RailReference = string(attemptRequiresAction), res.Reference
+	row.NextAction = "use_test_authentication"
+	return s.setStatus(ctx, tx, row, RequiresAction)
 }
 
 // authorized places the hold on the ledger that mirrors the authorization.
@@ -522,8 +557,8 @@ func (s *Service) CompleteAction(ctx context.Context, tx pgx.Tx, owner Owner, in
 	if Status(row.Status) != RequiresAction || !inStatus(attempt, attemptRequiresAction) {
 		return Intent{}, StepDone, fmt.Errorf("%w: the payment intent is not waiting for an action", ErrInvalidState)
 	}
-	if isPix(attempt.PaymentMethod) {
-		return Intent{}, StepDone, fmt.Errorf("%w: a Pix payment completes when its Pix arrives, not with the test helper", ErrInvalidState)
+	if isPix(attempt.PaymentMethod) || attempt.PaymentMethod == PaymentMethodBoleto {
+		return Intent{}, StepDone, fmt.Errorf("%w: a Pix or boleto payment completes when it is paid, not with the test helper", ErrInvalidState)
 	}
 	row.NextAction = ""
 	step := StepDone
@@ -564,6 +599,13 @@ func (s *Service) checkPixRow(row db.PaymentsIntent) error {
 
 // checkRail checks the mode has the rail the payment method needs.
 func (s *Service) checkRail(owner Owner, pm string, offSession bool) error {
+	if pm == PaymentMethodBoleto {
+		if offSession {
+			return fmt.Errorf("%w: a boleto is paid by the customer; off_session does not apply", ErrInvalid)
+		}
+		_, err := s.boletoRail(owner.Livemode)
+		return err
+	}
 	if pm != PaymentMethodPix {
 		_, err := s.rail(owner.Livemode)
 		return err

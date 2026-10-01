@@ -9,6 +9,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/authentication"
+	"github.com/iricardofernandes/jupiter/internal/bank"
 	"github.com/iricardofernandes/jupiter/internal/events"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
@@ -18,12 +19,14 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/registry"
 	"github.com/iricardofernandes/jupiter/internal/risk"
+	"github.com/iricardofernandes/jupiter/internal/slc"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
 // rails are the counterparties payments reach, each nil when it is not configured: the
-// card network, 3-D Secure, and the Pix bank in each mode.
+// card network, 3-D Secure, and in each mode the Pix bank, the registry, the bank for
+// boletos and transfers, and the settlement system.
 type rails struct {
 	network       *acquirer.Connector
 	authenticator *authentication.Server
@@ -31,6 +34,10 @@ type rails struct {
 	testPix       *pix.Connector
 	liveRegistry  *registry.Connector
 	testRegistry  *registry.Connector
+	liveBank      *bank.Connector
+	testBank      *bank.Connector
+	liveSLC       *slc.Connector
+	testSLC       *slc.Connector
 }
 
 func connectRails(ctx context.Context, pool *pgxpool.Pool, cards *vault.Client, logger *slog.Logger) (rails, error) {
@@ -48,6 +55,14 @@ func connectRails(ctx context.Context, pool *pgxpool.Pool, cards *vault.Client, 
 		return rails{}, err
 	}
 	if r.liveRegistry, r.testRegistry, err = registry.Registries(os.Getenv); err != nil {
+		r.close()
+		return rails{}, err
+	}
+	if r.liveBank, r.testBank, err = bank.Banks(os.Getenv, pool, logger); err != nil {
+		r.close()
+		return rails{}, err
+	}
+	if r.liveSLC, r.testSLC, err = slc.Connectors(os.Getenv); err != nil {
 		r.close()
 		return rails{}, err
 	}
@@ -71,6 +86,7 @@ func (r rails) services(pool *pgxpool.Pool, l *ledger.Ledger, e *events.Service,
 	s.receivables = r.receivables(pool, l, s.merchants, s.recipients, e, logger)
 	cfg.Receivables, cfg.Balances, cfg.Recipients = s.receivables, s.receivables, s.recipients
 	s.payments = payments.New(cfg)
+	s.receivables.UsePayments(s.payments)
 	s.subscriptions = r.subscriptions(pool, s.payments, e, logger)
 	return s
 }
@@ -82,6 +98,7 @@ func (r rails) receivables(pool *pgxpool.Pool, l *ledger.Ledger, merchants *merc
 		Domicile: registry.Domicile(os.Getenv), Logger: logger,
 	}
 	registry.Configure(&cfg, r.liveRegistry, r.testRegistry)
+	slc.Configure(&cfg, r.liveSLC, r.testSLC)
 	return receivables.New(cfg)
 }
 
@@ -106,6 +123,7 @@ func (r rails) configure(cfg *payments.Config) {
 		cfg.Authenticator = r.authenticator
 	}
 	pix.Configure(cfg, r.livePix, r.testPix)
+	bank.Configure(cfg, r.liveBank, r.testBank)
 }
 
 func (r rails) close() {

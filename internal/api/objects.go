@@ -1,7 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"strings"
+
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/iricardofernandes/jupiter/internal/api/openapi"
 	"github.com/iricardofernandes/jupiter/internal/events"
@@ -48,13 +51,17 @@ func paymentIntentJSON(it payments.Intent) openapi.PaymentIntent {
 				Url string `json:"url"` //nolint:revive // the generated type's name
 			}{Url: it.NextActionURL}
 		}
-		if it.NextActionData != "" {
+		switch {
+		case it.NextAction == "boleto_display_details":
+			out.NextAction.BoletoDisplayDetails = boletoDetails(it.NextActionData)
+		case it.NextActionData != "":
 			qr := allocate(&out.NextAction.PixDisplayQrCode)
 			qr.Data, qr.ExpiresAt = it.NextActionData, it.NextActionExpiresAt.Unix()
 		}
 	}
 	out.Pix = pixOptionsJSON(it.Pix)
 	out.Split = splitJSON(it.Split)
+	out.Boleto = boletoJSON(it.Boleto)
 	if it.Pix != nil && it.Pix.Recurring != nil {
 		out.Pix = nil
 		out.Subscription = optional(it.Pix.Recurring.Subscription)
@@ -89,7 +96,7 @@ func payoutJSON(p payments.Payout) openapi.Payout {
 	out := openapi.Payout{
 		Id: p.ID.String(), Object: "payout", Livemode: p.Owner.Livemode, Amount: p.Amount.Minor(),
 		Currency: strings.ToLower(p.Amount.Currency().Code()), Description: p.Description, Status: openapi.PayoutStatus(p.Status),
-		Destination: openapi.PayoutDestination{Type: "pix", PixKey: p.PixKey, RecipientName: optional(p.RecipientName)},
+		Destination: payoutDestinationJSON(p),
 		FailureCode: optional(p.FailureCode), FailureMessage: optional(p.FailureMessage), EndToEndId: optional(p.EndToEndID),
 		Created: p.CreatedAt.Unix(),
 	}
@@ -98,7 +105,22 @@ func payoutJSON(p payments.Payout) openapi.Payout {
 		out.ArrivalDate = &arrived
 	}
 	out.Recipient = optional(p.Recipient)
+	if !p.ReturnedAt.IsZero() {
+		returned := p.ReturnedAt.Unix()
+		out.ReturnedAt = &returned
+	}
+	if p.ScheduledOn != "" {
+		_ = allocate(&out.ScheduledOn).UnmarshalText([]byte(p.ScheduledOn))
+	}
 	return out
+}
+
+func payoutDestinationJSON(p payments.Payout) openapi.PayoutDestination {
+	d := p.Destination
+	if d.Method == payments.PayoutBankTransfer {
+		return openapi.PayoutDestination{Type: "bank_account", Ispb: optional(d.ISPB), Branch: optional(d.Branch), Account: optional(d.Account)}
+	}
+	return openapi.PayoutDestination{Type: "pix", PixKey: optional(d.PixKey), RecipientName: optional(p.RecipientName)}
 }
 
 func splitParam(rules *[]openapi.SplitRule) []payments.SplitRule {
@@ -170,4 +192,45 @@ func valueOf[T any](p *T) T {
 		return zero
 	}
 	return *p
+}
+
+func boletoParam(o *openapi.BoletoOptions) *payments.BoletoOptions {
+	if o == nil {
+		return nil
+	}
+	return &payments.BoletoOptions{
+		DueDate: o.DueDate.String(), DaysAfterDue: valueOf(o.DaysAfterDue), Pix: o.Pix,
+		Payer: payments.BoletoPayer{Name: o.Payer.Name, TaxID: o.Payer.TaxId},
+	}
+}
+
+func boletoJSON(o *payments.BoletoOptions) *openapi.BoletoOptions {
+	if o == nil {
+		return nil
+	}
+	out := &openapi.BoletoOptions{DaysAfterDue: &o.DaysAfterDue, Pix: o.Pix}
+	_ = out.DueDate.UnmarshalText([]byte(o.DueDate))
+	out.Payer.Name, out.Payer.TaxId = o.Payer.Name, o.Payer.TaxID
+	return out
+}
+
+// boletoDetails is the boleto a payment waits on, from what payments keeps of it.
+func boletoDetails(data string) *struct {
+	Barcode string             `json:"barcode"`
+	DueDate openapi_types.Date `json:"due_date"`
+	Line    string             `json:"line"`
+	PixCode *string            `json:"pix_code"`
+} {
+	var title payments.BoletoTitle
+	if json.Unmarshal([]byte(data), &title) != nil {
+		return nil
+	}
+	out := &struct {
+		Barcode string             `json:"barcode"`
+		DueDate openapi_types.Date `json:"due_date"`
+		Line    string             `json:"line"`
+		PixCode *string            `json:"pix_code"`
+	}{Barcode: title.Barcode, Line: title.Line, PixCode: optional(title.PixCode)}
+	_ = out.DueDate.UnmarshalText([]byte(title.DueDate))
+	return out
 }

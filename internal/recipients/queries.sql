@@ -43,5 +43,14 @@ SELECT * FROM recipients.recipients
 WHERE livemode = @livemode AND auto_anticipation AND status = 'verified' AND id > @after
 ORDER BY id LIMIT 200;
 
+-- name: TransferringRecipients :many
+-- A page of the verified recipients of a mode whose payouts are scheduled.
+SELECT * FROM recipients.recipients
+WHERE livemode = @livemode AND transfer_interval <> 'manual' AND status = 'verified' AND id > @after
+ORDER BY id LIMIT 200;
+
+-- name: SetPayoutsHeld :exec
+UPDATE recipients.recipients SET payouts_held = @held, updated_at = @now WHERE id = @id;
+
 -- name: CountRecipients :one
 SELECT count(*) FROM recipients.recipients WHERE merchant_id = @merchant_id AND livemode = @livemode;

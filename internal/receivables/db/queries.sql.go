@@ -130,7 +130,7 @@ func (q *Queries) AllLedgerAccounts(ctx context.Context) ([]ReceivablesLedgerAcc
 }
 
 const anticipableUnits = `-- name: AnticipableUnits :many
-SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated FROM receivables.units
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units
 WHERE recipient_id = $1 AND livemode = $2 AND settled_on IS NULL AND settlement_date > $3
   AND value > anticipated AND registered_version = version
   AND (cardinality($4::text[]) = 0 OR id = ANY($4::text[]))
@@ -187,6 +187,7 @@ func (q *Queries) AnticipableUnits(ctx context.Context, arg AnticipableUnitsPara
 			&i.UpdatedAt,
 			&i.RecipientID,
 			&i.Anticipated,
+			&i.GradeDate,
 		); err != nil {
 			return nil, err
 		}
@@ -232,7 +233,7 @@ func (q *Queries) AnticipationTotals(ctx context.Context) ([]AnticipationTotalsR
 }
 
 const anticipationUnits = `-- name: AnticipationUnits :many
-SELECT anticipation_id, unit_id, amount, price, days, contract FROM receivables.anticipation_units WHERE anticipation_id = $1 ORDER BY unit_id
+SELECT anticipation_id, unit_id, amount, price, days, contract, reported_at FROM receivables.anticipation_units WHERE anticipation_id = $1 ORDER BY unit_id
 `
 
 func (q *Queries) AnticipationUnits(ctx context.Context, anticipationID string) ([]ReceivablesAnticipationUnit, error) {
@@ -251,6 +252,47 @@ func (q *Queries) AnticipationUnits(ctx context.Context, anticipationID string) 
 			&i.Price,
 			&i.Days,
 			&i.Contract,
+			&i.ReportedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const anticipationsToReport = `-- name: AnticipationsToReport :many
+SELECT au.anticipation_id, au.unit_id, au.amount, a.created_at
+FROM receivables.anticipation_units au JOIN receivables.anticipations a ON a.id = au.anticipation_id
+WHERE a.livemode = $1 AND au.reported_at IS NULL
+ORDER BY a.created_at, au.anticipation_id, au.unit_id
+LIMIT 500
+`
+
+type AnticipationsToReportRow struct {
+	AnticipationID string
+	UnitID         string
+	Amount         int64
+	CreatedAt      pgtype.Timestamptz
+}
+
+func (q *Queries) AnticipationsToReport(ctx context.Context, livemode bool) ([]AnticipationsToReportRow, error) {
+	rows, err := q.db.Query(ctx, anticipationsToReport, livemode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AnticipationsToReportRow{}
+	for rows.Next() {
+		var i AnticipationsToReportRow
+		if err := rows.Scan(
+			&i.AnticipationID,
+			&i.UnitID,
+			&i.Amount,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -336,8 +378,35 @@ func (q *Queries) GetAnticipation(ctx context.Context, arg GetAnticipationParams
 	return i, err
 }
 
+const getGrade = `-- name: GetGrade :one
+SELECT livemode, date, entries, total, credited, status, error, ledger_txn, created_at, updated_at FROM receivables.grades WHERE livemode = $1 AND date = $2
+`
+
+type GetGradeParams struct {
+	Livemode bool
+	Date     pgtype.Date
+}
+
+func (q *Queries) GetGrade(ctx context.Context, arg GetGradeParams) (ReceivablesGrade, error) {
+	row := q.db.QueryRow(ctx, getGrade, arg.Livemode, arg.Date)
+	var i ReceivablesGrade
+	err := row.Scan(
+		&i.Livemode,
+		&i.Date,
+		&i.Entries,
+		&i.Total,
+		&i.Credited,
+		&i.Status,
+		&i.Error,
+		&i.LedgerTxn,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUnit = `-- name: GetUnit :one
-SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated FROM receivables.units WHERE id = $1
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units WHERE id = $1
 `
 
 func (q *Queries) GetUnit(ctx context.Context, id string) (ReceivablesUnit, error) {
@@ -365,6 +434,7 @@ func (q *Queries) GetUnit(ctx context.Context, id string) (ReceivablesUnit, erro
 		&i.UpdatedAt,
 		&i.RecipientID,
 		&i.Anticipated,
+		&i.GradeDate,
 	)
 	return i, err
 }
@@ -427,6 +497,32 @@ func (q *Queries) InsertAnticipationUnit(ctx context.Context, arg InsertAnticipa
 		arg.Price,
 		arg.Days,
 		arg.Contract,
+	)
+	return err
+}
+
+const insertGrade = `-- name: InsertGrade :exec
+INSERT INTO receivables.grades (livemode, date, entries, total, credited, status, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, 'built', $6, $6)
+`
+
+type InsertGradeParams struct {
+	Livemode bool
+	Date     pgtype.Date
+	Entries  []byte
+	Total    int64
+	Credited int64
+	Now      pgtype.Timestamptz
+}
+
+func (q *Queries) InsertGrade(ctx context.Context, arg InsertGradeParams) error {
+	_, err := q.db.Exec(ctx, insertGrade,
+		arg.Livemode,
+		arg.Date,
+		arg.Entries,
+		arg.Total,
+		arg.Credited,
+		arg.Now,
 	)
 	return err
 }
@@ -707,7 +803,7 @@ func (q *Queries) InstallmentTotals(ctx context.Context) ([]InstallmentTotalsRow
 }
 
 const installmentsOfIntent = `-- name: InstallmentsOfIntent :many
-SELECT i.attempt_id, i.number, i.payment_intent, i.unit_id, i.gross, i.fee, i.net, i.reduced, i.recipient_id, (u.settled_on IS NOT NULL)::boolean AS unit_settled
+SELECT i.attempt_id, i.number, i.payment_intent, i.unit_id, i.gross, i.fee, i.net, i.reduced, i.recipient_id, i.fee_reduced, (u.settled_on IS NOT NULL)::boolean AS unit_settled
 FROM receivables.installments i JOIN receivables.units u ON u.id = i.unit_id
 WHERE i.payment_intent = $1
 ORDER BY i.recipient_id, i.number
@@ -724,6 +820,7 @@ type InstallmentsOfIntentRow struct {
 	Net           int64
 	Reduced       int64
 	RecipientID   string
+	FeeReduced    int64
 	UnitSettled   bool
 }
 
@@ -746,6 +843,7 @@ func (q *Queries) InstallmentsOfIntent(ctx context.Context, paymentIntent string
 			&i.Net,
 			&i.Reduced,
 			&i.RecipientID,
+			&i.FeeReduced,
 			&i.UnitSettled,
 		); err != nil {
 			return nil, err
@@ -870,6 +968,33 @@ func (q *Queries) LockAccountCreation(ctx context.Context, scope string) error {
 	return err
 }
 
+const lockGrade = `-- name: LockGrade :one
+SELECT livemode, date, entries, total, credited, status, error, ledger_txn, created_at, updated_at FROM receivables.grades WHERE livemode = $1 AND date = $2 FOR UPDATE
+`
+
+type LockGradeParams struct {
+	Livemode bool
+	Date     pgtype.Date
+}
+
+func (q *Queries) LockGrade(ctx context.Context, arg LockGradeParams) (ReceivablesGrade, error) {
+	row := q.db.QueryRow(ctx, lockGrade, arg.Livemode, arg.Date)
+	var i ReceivablesGrade
+	err := row.Scan(
+		&i.Livemode,
+		&i.Date,
+		&i.Entries,
+		&i.Total,
+		&i.Credited,
+		&i.Status,
+		&i.Error,
+		&i.LedgerTxn,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const lockQuote = `-- name: LockQuote :one
 SELECT id, merchant_id, livemode, recipient_id, monthly_rate, units, amount, price, expires_at, anticipation, created_at FROM receivables.anticipation_quotes WHERE id = $1 AND merchant_id = $2 AND livemode = $3 FOR UPDATE
 `
@@ -900,7 +1025,7 @@ func (q *Queries) LockQuote(ctx context.Context, arg LockQuoteParams) (Receivabl
 }
 
 const lockUnit = `-- name: LockUnit :one
-SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated FROM receivables.units
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units
 WHERE recipient_id = $1 AND livemode = $2 AND arrangement = $3 AND settlement_date = $4
 FOR UPDATE
 `
@@ -942,12 +1067,13 @@ func (q *Queries) LockUnit(ctx context.Context, arg LockUnitParams) (Receivables
 		&i.UpdatedAt,
 		&i.RecipientID,
 		&i.Anticipated,
+		&i.GradeDate,
 	)
 	return i, err
 }
 
 const lockUnitByID = `-- name: LockUnitByID :one
-SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated FROM receivables.units WHERE id = $1 FOR UPDATE
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockUnitByID(ctx context.Context, id string) (ReceivablesUnit, error) {
@@ -975,8 +1101,23 @@ func (q *Queries) LockUnitByID(ctx context.Context, id string) (ReceivablesUnit,
 		&i.UpdatedAt,
 		&i.RecipientID,
 		&i.Anticipated,
+		&i.GradeDate,
 	)
 	return i, err
+}
+
+const markGraded = `-- name: MarkGraded :exec
+UPDATE receivables.units SET grade_date = $1 WHERE id = ANY($2::text[])
+`
+
+type MarkGradedParams struct {
+	Day   pgtype.Date
+	Units []string
+}
+
+func (q *Queries) MarkGraded(ctx context.Context, arg MarkGradedParams) error {
+	_, err := q.db.Exec(ctx, markGraded, arg.Day, arg.Units)
+	return err
 }
 
 const markOptInError = `-- name: MarkOptInError :exec
@@ -1054,6 +1195,22 @@ type MarkRegisteredParams struct {
 
 func (q *Queries) MarkRegistered(ctx context.Context, arg MarkRegisteredParams) error {
 	_, err := q.db.Exec(ctx, markRegistered, arg.Version, arg.Now, arg.ID)
+	return err
+}
+
+const markReported = `-- name: MarkReported :exec
+UPDATE receivables.anticipation_units SET reported_at = $1
+WHERE anticipation_id = $2 AND unit_id = $3
+`
+
+type MarkReportedParams struct {
+	Now            pgtype.Timestamptz
+	AnticipationID string
+	UnitID         string
+}
+
+func (q *Queries) MarkReported(ctx context.Context, arg MarkReportedParams) error {
+	_, err := q.db.Exec(ctx, markReported, arg.Now, arg.AnticipationID, arg.UnitID)
 	return err
 }
 
@@ -1178,6 +1335,41 @@ func (q *Queries) OpenDivergences(ctx context.Context) ([]ReceivablesDivergence,
 	return items, nil
 }
 
+const openGrades = `-- name: OpenGrades :many
+SELECT livemode, date, entries, total, credited, status, error, ledger_txn, created_at, updated_at FROM receivables.grades WHERE livemode = $1 AND status IN ('built', 'submitted') ORDER BY date
+`
+
+func (q *Queries) OpenGrades(ctx context.Context, livemode bool) ([]ReceivablesGrade, error) {
+	rows, err := q.db.Query(ctx, openGrades, livemode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceivablesGrade{}
+	for rows.Next() {
+		var i ReceivablesGrade
+		if err := rows.Scan(
+			&i.Livemode,
+			&i.Date,
+			&i.Entries,
+			&i.Total,
+			&i.Credited,
+			&i.Status,
+			&i.Error,
+			&i.LedgerTxn,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const optInsOf = `-- name: OptInsOf :many
 SELECT merchant_id, livemode, financier, active, synced, sync_error, retry_at, updated_at FROM receivables.opt_ins WHERE merchant_id = $1 AND livemode = $2 ORDER BY financier
 `
@@ -1257,7 +1449,7 @@ func (q *Queries) OptInsToSync(ctx context.Context, arg OptInsToSyncParams) ([]R
 }
 
 const peekAnticipableUnits = `-- name: PeekAnticipableUnits :many
-SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated FROM receivables.units
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units
 WHERE recipient_id = $1 AND livemode = $2 AND settled_on IS NULL AND settlement_date > $3
   AND value > anticipated AND registered_version = version
   AND (cardinality($4::text[]) = 0 OR id = ANY($4::text[]))
@@ -1314,6 +1506,7 @@ func (q *Queries) PeekAnticipableUnits(ctx context.Context, arg PeekAnticipableU
 			&i.UpdatedAt,
 			&i.RecipientID,
 			&i.Anticipated,
+			&i.GradeDate,
 		); err != nil {
 			return nil, err
 		}
@@ -1425,6 +1618,28 @@ func (q *Queries) ReduceInstallment(ctx context.Context, arg ReduceInstallmentPa
 	return err
 }
 
+const reduceInstallmentFee = `-- name: ReduceInstallmentFee :exec
+UPDATE receivables.installments SET fee_reduced = fee_reduced + $1
+WHERE attempt_id = $2 AND recipient_id = $3 AND number = $4
+`
+
+type ReduceInstallmentFeeParams struct {
+	Amount      int64
+	AttemptID   string
+	RecipientID string
+	Number      int32
+}
+
+func (q *Queries) ReduceInstallmentFee(ctx context.Context, arg ReduceInstallmentFeeParams) error {
+	_, err := q.db.Exec(ctx, reduceInstallmentFee,
+		arg.Amount,
+		arg.AttemptID,
+		arg.RecipientID,
+		arg.Number,
+	)
+	return err
+}
+
 const reregister = `-- name: Reregister :exec
 UPDATE receivables.units
 SET registered_version = 0, register_retry_at = NULL, constituted_on = greatest(constituted_on, $1)
@@ -1464,6 +1679,38 @@ func (q *Queries) ResolveDivergences(ctx context.Context, arg ResolveDivergences
 		arg.Still,
 	)
 	return err
+}
+
+const setGradeStatus = `-- name: SetGradeStatus :execrows
+UPDATE receivables.grades SET status = $1, error = $2, ledger_txn = $3, updated_at = $4
+WHERE livemode = $5 AND date = $6 AND status = $7
+`
+
+type SetGradeStatusParams struct {
+	Status     string
+	Error      string
+	LedgerTxn  string
+	Now        pgtype.Timestamptz
+	Livemode   bool
+	Date       pgtype.Date
+	FromStatus string
+}
+
+// Moves a grade on from the status it was read in; none moves when another pass did.
+func (q *Queries) SetGradeStatus(ctx context.Context, arg SetGradeStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setGradeStatus,
+		arg.Status,
+		arg.Error,
+		arg.LedgerTxn,
+		arg.Now,
+		arg.Livemode,
+		arg.Date,
+		arg.FromStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setOptIn = `-- name: SetOptIn :exec
@@ -1524,8 +1771,133 @@ func (q *Queries) SplitLinesOfIntent(ctx context.Context, paymentIntent string) 
 	return items, nil
 }
 
+const unitFees = `-- name: UnitFees :many
+SELECT unit_id, sum(fee - fee_reduced)::bigint AS fee, sum(net - reduced)::bigint AS net
+FROM receivables.installments
+WHERE unit_id = ANY($1::text[])
+GROUP BY unit_id
+`
+
+type UnitFeesRow struct {
+	UnitID string
+	Fee    int64
+	Net    int64
+}
+
+// What the network still pays Jupiter in fees on each of some units, and what their
+// installments hold net.
+func (q *Queries) UnitFees(ctx context.Context, units []string) ([]UnitFeesRow, error) {
+	rows, err := q.db.Query(ctx, unitFees, units)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UnitFeesRow{}
+	for rows.Next() {
+		var i UnitFeesRow
+		if err := rows.Scan(&i.UnitID, &i.Fee, &i.Net); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unitsDue = `-- name: UnitsDue :many
+SELECT id FROM receivables.units
+WHERE livemode = $1 AND settlement_date <= $2 AND settled_on IS NULL AND id > $3
+ORDER BY id LIMIT 500
+`
+
+type UnitsDueParams struct {
+	Livemode bool
+	Day      pgtype.Date
+	After    string
+}
+
+// A page of the units of a mode due by a day and not settled.
+func (q *Queries) UnitsDue(ctx context.Context, arg UnitsDueParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, unitsDue, arg.Livemode, arg.Day, arg.After)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unitsToGrade = `-- name: UnitsToGrade :many
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units
+WHERE livemode = $1 AND settled_on <= $2 AND grade_date IS NULL
+ORDER BY id
+FOR UPDATE
+`
+
+type UnitsToGradeParams struct {
+	Livemode bool
+	Day      pgtype.Date
+}
+
+// The units of a mode settled by a day that no grade carries, locked: those of an
+// earlier day whose grade was never built go in this one.
+func (q *Queries) UnitsToGrade(ctx context.Context, arg UnitsToGradeParams) ([]ReceivablesUnit, error) {
+	rows, err := q.db.Query(ctx, unitsToGrade, arg.Livemode, arg.Day)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceivablesUnit{}
+	for rows.Next() {
+		var i ReceivablesUnit
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.Livemode,
+			&i.Arrangement,
+			&i.SettlementDate,
+			&i.Value,
+			&i.Blocked,
+			&i.Currency,
+			&i.ConstitutedOn,
+			&i.Version,
+			&i.RegisteredVersion,
+			&i.RegisteredAt,
+			&i.RegisterError,
+			&i.RegisterRetryAt,
+			&i.SettledOn,
+			&i.SettledAmount,
+			&i.Payments,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RecipientID,
+			&i.Anticipated,
+			&i.GradeDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unitsToReconcile = `-- name: UnitsToReconcile :many
-SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated FROM receivables.units
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units
 WHERE livemode = $1 AND (settled_on IS NULL OR settlement_date >= $2)
 ORDER BY settlement_date, id
 `
@@ -1567,6 +1939,7 @@ func (q *Queries) UnitsToReconcile(ctx context.Context, arg UnitsToReconcilePara
 			&i.UpdatedAt,
 			&i.RecipientID,
 			&i.Anticipated,
+			&i.GradeDate,
 		); err != nil {
 			return nil, err
 		}
@@ -1579,7 +1952,7 @@ func (q *Queries) UnitsToReconcile(ctx context.Context, arg UnitsToReconcilePara
 }
 
 const unitsToRegister = `-- name: UnitsToRegister :many
-SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated FROM receivables.units
+SELECT id, merchant_id, livemode, arrangement, settlement_date, value, blocked, currency, constituted_on, version, registered_version, registered_at, register_error, register_retry_at, settled_on, settled_amount, payments, created_at, updated_at, recipient_id, anticipated, grade_date FROM receivables.units
 WHERE livemode = $1 AND version > registered_version AND (register_retry_at IS NULL OR register_retry_at <= $2)
 ORDER BY updated_at, id
 LIMIT $3::integer
@@ -1622,6 +1995,7 @@ func (q *Queries) UnitsToRegister(ctx context.Context, arg UnitsToRegisterParams
 			&i.UpdatedAt,
 			&i.RecipientID,
 			&i.Anticipated,
+			&i.GradeDate,
 		); err != nil {
 			return nil, err
 		}

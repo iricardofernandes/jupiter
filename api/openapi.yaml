@@ -1104,6 +1104,9 @@ components:
         split:
           type: array
           items: { $ref: "#/components/schemas/SplitRule" }
+        boleto:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/BoletoOptions" }]
         created: { type: integer, format: int64 }
     SplitRule:
       type: object
@@ -1439,6 +1442,7 @@ components:
             use_test_authentication: in test mode, complete it with the test helper.
             pix_display_qr_code: show the customer pix_display_qr_code.data, as a QR code and as text to copy and paste.
             awaiting_payer_authorization: the customer's bank is showing them a subscription to accept.
+            boleto_display_details: show the customer the boleto in boleto_display_details.
         redirect_to_url:
           type: object
           required: [url]
@@ -1450,6 +1454,37 @@ components:
           properties:
             data: { type: string, description: "The BR Code (Pix Copia e Cola)." }
             expires_at: { type: integer, format: int64, description: "When it can no longer be paid, Unix time." }
+        boleto_display_details:
+          type: object
+          required: [line, barcode, due_date, pix_code]
+          properties:
+            line: { type: string, description: "The 47-digit typed line (linha digitável)." }
+            barcode: { type: string, description: The 44-digit barcode. }
+            due_date: { type: string, format: date }
+            pix_code:
+              type: string
+              nullable: true
+              description: "A hybrid boleto's Pix QR code (Pix Copia e Cola), once the bank registered it."
+    BoletoOptions:
+      type: object
+      additionalProperties: false
+      required: [due_date, payer]
+      description: |
+        A boleto's terms, for the payment method boleto: its due date, the days after it the
+        bank still takes it before writing it off (0 to 60), who pays it, and whether it
+        carries a Pix QR code (hybrid, unless pix is false). Boletos are paid in full and
+        cannot be refunded through Jupiter.
+      properties:
+        due_date: { type: string, format: date }
+        days_after_due: { type: integer, minimum: 0, maximum: 60 }
+        payer:
+          type: object
+          additionalProperties: false
+          required: [name, tax_id]
+          properties:
+            name: { type: string, maxLength: 40 }
+            tax_id: { type: string }
+        pix: { type: boolean }
     PaymentIntentList:
       allOf:
         - $ref: "#/components/schemas/ListMeta"
@@ -1467,7 +1502,7 @@ components:
         amount: { type: integer, format: int64, minimum: 1 }
         currency: { type: string }
         capture_method: { type: string, enum: [automatic, manual] }
-        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, or pix." }
+        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, pix or boleto." }
         description: { type: string, maxLength: 1000 }
         confirm: { type: boolean }
         installments: { $ref: "#/components/schemas/Installments" }
@@ -1485,6 +1520,7 @@ components:
         customer_ip: { type: string, maxLength: 45, description: "The customer's IP address, for the risk engine." }
         return_url: { type: string, maxLength: 2048, description: "Where to send the customer after a 3-D Secure challenge: an absolute https URL." }
         pix: { $ref: "#/components/schemas/PixOptions" }
+        boleto: { $ref: "#/components/schemas/BoletoOptions" }
         split:
           type: array
           maxItems: 20
@@ -1495,12 +1531,13 @@ components:
       additionalProperties: false
       properties:
         amount: { type: integer, format: int64, minimum: 1 }
-        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, or pix." }
+        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, pix or boleto." }
         description: { type: string, maxLength: 1000 }
         installments: { $ref: "#/components/schemas/Installments" }
         setup_future_usage: { type: string, enum: [off_session] }
         request_three_d_secure: { type: string, enum: [automatic, any] }
         pix: { $ref: "#/components/schemas/PixOptions" }
+        boleto: { $ref: "#/components/schemas/BoletoOptions" }
         split:
           type: array
           maxItems: 20
@@ -1509,7 +1546,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, or pix." }
+        payment_method: { type: string, description: "A saved payment method (pm_...), a test one, pix or boleto." }
         off_session: { type: boolean }
         customer_ip: { type: string, maxLength: 45 }
         return_url: { type: string, maxLength: 2048, description: "Where to send the customer after a 3-D Secure challenge: an absolute https URL." }
@@ -1565,19 +1602,27 @@ components:
         currency: { type: string }
         destination: { $ref: "#/components/schemas/PayoutDestination" }
         description: { type: string }
-        status: { type: string, enum: [pending, paid, failed] }
+        status:
+          type: string
+          enum: [pending, held, paid, failed, returned]
+          description: "held waits for Jupiter to release it; returned was paid, and sent back by the receiving bank: its amount is the balance's again."
         failure_code: { type: string, nullable: true }
         failure_message: { type: string, nullable: true }
         end_to_end_id: { type: string, nullable: true, description: "The Pix's endToEndId, once paid." }
         arrival_date: { type: integer, format: int64, nullable: true, description: "When it was paid, Unix time." }
         recipient: { type: string, nullable: true, description: "The recipient whose balance paid it; null for the merchant's." }
+        returned_at: { type: integer, format: int64, nullable: true }
+        scheduled_on: { type: string, format: date, nullable: true, description: "The day the recipient's transfer settings made it." }
         created: { type: integer, format: int64 }
     PayoutDestination:
       type: object
-      required: [type, pix_key]
+      required: [type]
       properties:
-        type: { type: string, enum: [pix] }
+        type: { type: string, enum: [pix, bank_account] }
         pix_key: { type: string, description: "A CPF, a CNPJ, an e-mail, a phone number (+5511...) or a random key." }
+        ispb: { type: string }
+        branch: { type: string }
+        account: { type: string }
         recipient_name: { type: string, nullable: true, description: "Who the key belongs to, as DICT names them, once paid." }
     PayoutList:
       allOf:

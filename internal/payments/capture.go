@@ -152,7 +152,7 @@ func (s *Service) StartCancel(ctx context.Context, tx pgx.Tx, owner Owner, inten
 		err = s.setStatus(ctx, tx, &row, Processing)
 		step = StepVoid
 	case RequiresAction:
-		if attempt.PaymentMethod == PaymentMethodPix {
+		if attempt.PaymentMethod == PaymentMethodPix || attempt.PaymentMethod == PaymentMethodBoleto {
 			// The charge must be removed at the bank first: until it is, the customer may
 			// still pay it.
 			attempt.Status = string(attemptVoiding)
@@ -195,6 +195,9 @@ func (s *Service) Void(ctx context.Context, q db.DBTX, owner Owner, intentID id.
 func (s *Service) voidOnRail(ctx context.Context, intent db.PaymentsIntent, attempt db.PaymentsAttempt) (Result, error) {
 	if attempt.PaymentMethod == PaymentMethodPix {
 		return s.removePixCharge(ctx, intent, attempt)
+	}
+	if attempt.PaymentMethod == PaymentMethodBoleto {
+		return s.writeOffBoleto(ctx, intent, attempt)
 	}
 	rail, err := s.rail(intent.Livemode)
 	if err != nil {

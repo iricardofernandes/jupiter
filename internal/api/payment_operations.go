@@ -66,7 +66,7 @@ func (a *API) createPaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	}
 	params := payments.CreateParams{
 		Amount: amount, PaymentMethod: deref(body.PaymentMethod), Description: deref(body.Description),
-		Installments: installmentsParam(body.Installments), Split: splitParam(body.Split),
+		Installments: installmentsParam(body.Installments), Split: splitParam(body.Split), Boleto: boletoParam(body.Boleto),
 	}
 	if params.Pix, err = pixOptionsParam(body.Pix); err != nil {
 		return outcome{}, err
@@ -132,6 +132,7 @@ func (a *API) updatePaymentIntent(ctx context.Context, tx pgx.Tx, r *request) (o
 	}
 	params := payments.UpdateParams{
 		PaymentMethod: body.PaymentMethod, Description: body.Description, Installments: installmentsParam(body.Installments),
+		Boleto: boletoParam(body.Boleto),
 	}
 	if body.Split != nil {
 		rules := splitParam(body.Split)

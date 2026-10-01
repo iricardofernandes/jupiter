@@ -9,6 +9,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/acquirer"
 	"github.com/iricardofernandes/jupiter/internal/api"
+	"github.com/iricardofernandes/jupiter/internal/bank"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/pix"
@@ -185,5 +186,25 @@ func advanceReceivables(r *receivables.Service, pool *pgxpool.Pool, logger *slog
 			logger.ErrorContext(ctx, "receivables invariant violated", "subject", v.Subject, "detail", v.Detail)
 		}
 		return errors.Join(err, checkErr)
+	}
+}
+
+// collect sends each bank the boletos it has not had, and reads its return files.
+func collect(p *payments.Service, pool *pgxpool.Pool, logger *slog.Logger, banks ...*bank.Connector) func(context.Context) error {
+	return func(ctx context.Context) error {
+		var errs []error
+		for _, b := range banks {
+			if b == nil {
+				continue
+			}
+			sent, err := b.Remit(ctx, p)
+			errs = append(errs, err)
+			read, err := b.ImportReturns(ctx, pool, p)
+			errs = append(errs, err)
+			if sent > 0 || read > 0 {
+				logger.InfoContext(ctx, "exchanged files with the bank", "remittances", sent, "returns", read)
+			}
+		}
+		return errors.Join(errs...)
 	}
 }

@@ -17,10 +17,12 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
 	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/receivables/migrations"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
+	"github.com/iricardofernandes/jupiter/pkg/slcapi"
 )
 
 var UnitPrefix = id.MustPrefix("ur")
@@ -31,7 +33,18 @@ var (
 	ErrNoRegistry       = errors.New("receivables: no registry in this mode")
 	ErrRegistryRefused  = errors.New("receivables: the registry refused")
 	ErrRegistryNotFound = errors.New("receivables: the registry has no such unit")
+	// ErrSettlementRefused is the settlement system's refusal of a grade or a report.
+	ErrSettlementRefused = errors.New("receivables: the settlement system refused")
 )
+
+// Settlement is the centralized settlement system Jupiter takes part in: it settles each
+// day's grade and takes notice of anticipations.
+type Settlement interface {
+	// Submit sends a day's grade; the same grade again answers the same.
+	Submit(ctx context.Context, g slcapi.Grade) (slcapi.Grade, error)
+	Grade(ctx context.Context, date string) (slcapi.Grade, error)
+	Report(ctx context.Context, reports []slcapi.Report) error
+}
 
 // Registry is the receivables registry Jupiter registers its units with, as an
 // accreditor.
@@ -65,8 +78,12 @@ type Config struct {
 	// Domicile is where the units of every merchant settle: the merchants' payment
 	// accounts at Jupiter, which pays them out.
 	Domicile registryapi.Domicile
-	Now      func() time.Time
-	Logger   *slog.Logger
+	// Settlement systems serve each mode; Payments holds the accounts their cash moves.
+	LiveSettlement Settlement
+	TestSettlement Settlement
+	Payments       *payments.Service
+	Now            func() time.Time
+	Logger         *slog.Logger
 }
 
 type Service struct {
@@ -82,6 +99,9 @@ func New(cfg Config) *Service {
 	}
 	return &Service{cfg: cfg}
 }
+
+// UsePayments gives the service the payments it settles for, which are built after it.
+func (s *Service) UsePayments(p *payments.Service) { s.cfg.Payments = p }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	return postgres.Migrate(ctx, pool, "receivables", migrations.FS)
