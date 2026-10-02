@@ -10,9 +10,13 @@ import (
 // the code after authorization; not storing it at all is simpler. A vault restart loses
 // the codes it held, and with several vault instances a code lives only on the one that
 // tokenized the card: the authorization then goes without it.
+//
+// Codes from web pages, which anyone can send, may fill at most half the store, so that
+// a flood of them cannot leave the merchants' servers' cards without theirs.
 type cvcs struct {
 	mu      sync.Mutex
 	entries map[string]cvcEntry
+	public  int
 	ttl     time.Duration
 	max     int
 	now     func() time.Time
@@ -21,26 +25,39 @@ type cvcs struct {
 type cvcEntry struct {
 	code    []byte
 	expires time.Time
+	public  bool
 }
 
 func newCVCs(ttl time.Duration, maxEntries int, now func() time.Time) *cvcs {
 	return &cvcs{entries: map[string]cvcEntry{}, ttl: ttl, max: maxEntries, now: now}
 }
 
-func (c *cvcs) put(token, code string) {
+// put holds a code, and answers false when the store is full and it could not.
+func (c *cvcs) put(token, code string, public bool) bool {
 	if code == "" {
-		return
+		return true
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	old, ok := c.entries[token]
-	if ok {
-		clear(old.code)
-	} else if len(c.entries) >= c.max {
-		// Full: the card is kept without its code, and its authorization goes without.
-		return
+	if old, ok := c.entries[token]; ok {
+		c.forget(token, old)
 	}
-	c.entries[token] = cvcEntry{code: []byte(code), expires: c.now().Add(c.ttl)}
+	if len(c.entries) >= c.max || (public && c.public >= c.max/2) {
+		return false
+	}
+	c.entries[token] = cvcEntry{code: []byte(code), expires: c.now().Add(c.ttl), public: public}
+	if public {
+		c.public++
+	}
+	return true
+}
+
+func (c *cvcs) forget(token string, e cvcEntry) {
+	clear(e.code)
+	delete(c.entries, token)
+	if e.public {
+		c.public--
+	}
 }
 
 // take returns the code once and forgets it.
@@ -51,12 +68,12 @@ func (c *cvcs) take(token string) string {
 	if !ok {
 		return ""
 	}
-	delete(c.entries, token)
-	defer clear(e.code)
+	code := string(e.code)
+	c.forget(token, e)
 	if !c.now().Before(e.expires) {
 		return ""
 	}
-	return string(e.code)
+	return code
 }
 
 // sweep forgets expired codes and returns how many it forgot.
@@ -67,8 +84,7 @@ func (c *cvcs) sweep() int {
 	n := 0
 	for token, e := range c.entries {
 		if !now.Before(e.expires) {
-			clear(e.code)
-			delete(c.entries, token)
+			c.forget(token, e)
 			n++
 		}
 	}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
+	"github.com/iricardofernandes/jupiter/internal/platform/ratelimit"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/kms"
 	"github.com/iricardofernandes/jupiter/internal/vault/server"
@@ -36,9 +37,10 @@ type Vault struct {
 }
 
 type Options struct {
-	Now    func() time.Time
-	CVCTTL time.Duration
-	Logger *slog.Logger
+	Now     func() time.Time
+	CVCTTL  time.Duration
+	Logger  *slog.Logger
+	Clients ratelimit.Clients
 }
 
 // Start serves a vault on pool, which must hold the vault's schema, until t ends.
@@ -48,7 +50,7 @@ func Start(t testing.TB, pool *pgxpool.Pool, opts Options) *Vault {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := server.New(server.Config{Pool: pool, KMS: local, Now: opts.Now, CVCTTL: opts.CVCTTL, Logger: opts.Logger})
+	svc := server.New(server.Config{Pool: pool, KMS: local, Now: opts.Now, CVCTTL: opts.CVCTTL, Logger: opts.Logger, Clients: opts.Clients})
 	pki, err := mtls.NewPKI("vaulttest")
 	if err != nil {
 		t.Fatal(err)

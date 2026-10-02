@@ -18,7 +18,14 @@ func TestCardDataNeverPrintsTheNumber(t *testing.T) {
 	c := vault.CardData{Number: "4242424242424242", ExpMonth: 3, ExpYear: 2030, CVC: "737"}
 	w := vault.WireCardOf(c)
 	var logged bytes.Buffer
-	slog.New(slog.NewJSONHandler(&logged, nil)).Info("paying", "card", c, "wire", w)
+	// Without the time, whose nanoseconds could hold the code's digits by chance.
+	noTime := func(_ []string, a slog.Attr) slog.Attr {
+		if a.Key == slog.TimeKey {
+			return slog.Attr{}
+		}
+		return a
+	}
+	slog.New(slog.NewJSONHandler(&logged, &slog.HandlerOptions{ReplaceAttr: noTime})).Info("paying", "card", c, "wire", w)
 	printed := []string{
 		fmt.Sprintf("%v %+v %#v %s", w, w, w, w), fmt.Sprint(vault.TokenizeBody{Card: w}),
 		fmt.Sprint(c), fmt.Sprintf("%v %+v %#v %s %q", c, c, c, c, c), fmt.Sprint(&c),

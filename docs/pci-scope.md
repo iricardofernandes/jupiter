@@ -85,11 +85,14 @@ numbers, would assess against SAQ D for service providers or with a Report on Co
 ## Known gaps
 
 - **The public route checks a publishable key's shape only.** Anyone can create unclaimed
-  tokens, which are deleted after an hour; each address is rate-limited in process, and
-  a real deployment adds an edge with limits of its own.
+  tokens, which are deleted after an hour. Each address (an IPv6 one by its /64, behind
+  trusted proxies the browser's), each publishable key and the route as a whole are
+  rate-limited in process, and a real deployment adds an edge with limits of its own. The
+  route serves plain HTTP only on loopback or behind an edge that ends TLS.
 - **Security codes live in one vault instance's memory, best effort.** With several
   instances, an authorization reaching another instance goes without the code; a
-  restart loses them; at most 100,000 are held. All of these fail safe.
+  restart loses them; at most 100,000 are held, of which codes from web pages fill at
+  most half, and a code not kept is logged. All of these fail safe.
 - **Memory is not scrubbed beyond data keys.** Go strings cannot be cleared, so a number
   or code decrypted into one stays in memory until it is collected.
 - **Only the token binds a ciphertext to its row.** Someone who can write the vault's

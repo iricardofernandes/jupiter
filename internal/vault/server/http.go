@@ -109,13 +109,17 @@ func (s *Service) PublicHandler() http.Handler {
 	})
 	mux.HandleFunc("POST "+vault.PublicTokensPath, func(w http.ResponseWriter, r *http.Request) {
 		allowCORS(w)
-		if !s.limiter.allow(r) {
+		if !s.byAddress.Allow(s.cfg.Clients.Of(r)) {
 			s.writeError(w, r, vault.WireError{Code: vault.CodeRateLimited, Message: "Too many cards from this address. Slow down."})
 			return
 		}
 		key, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !publishableKey.MatchString(key) {
 			s.writeError(w, r, vault.WireError{Code: vault.CodeUnauthorized, Message: "A publishable key is required as a bearer token."})
+			return
+		}
+		if !s.byKey.Allow(key) || !s.route.Allow("") {
+			s.writeError(w, r, vault.WireError{Code: vault.CodeRateLimited, Message: "Too many cards right now. Slow down."})
 			return
 		}
 		var body vault.WireCard

@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/platform/ratelimit"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/card"
@@ -33,6 +34,10 @@ const (
 	defaultClaimWindow = time.Hour
 	defaultPublicRate  = 2
 	defaultPublicBurst = 20
+	// A publishable key, and the public route as a whole, may make tokens this fast: what
+	// bounds the rows and codes a flood from many addresses can leave behind.
+	publicKeyRate   = 20
+	publicRouteRate = 200
 	// fingerprintSize is how much of the HMAC the rest of Jupiter sees: 128 bits keep
 	// collisions out of reach and say no more than needed.
 	fingerprintSize = 16
@@ -53,15 +58,18 @@ type Config struct {
 	// server to claim it before it is deleted.
 	ClaimWindow time.Duration
 	// PublicRate and PublicBurst limit how fast one address can make tokens on the
-	// public route.
+	// public route; Clients says which address a request comes from behind proxies.
 	PublicRate  float64
 	PublicBurst int
+	Clients     ratelimit.Clients
 }
 
 type Service struct {
-	cfg     Config
-	cvcs    *cvcs
-	limiter *limiter
+	cfg  Config
+	cvcs *cvcs
+	// byAddress, byKey and route limit the public route per client address, per
+	// publishable key and as a whole.
+	byAddress, byKey, route *ratelimit.Buckets
 }
 
 func New(cfg Config) *Service {
@@ -88,7 +96,9 @@ func New(cfg Config) *Service {
 	}
 	return &Service{
 		cfg: cfg, cvcs: newCVCs(cfg.CVCTTL, cfg.MaxCVCs, cfg.Now),
-		limiter: newLimiter(cfg.PublicRate, cfg.PublicBurst, cfg.Now),
+		byAddress: ratelimit.New(ratelimit.Rate{PerSecond: cfg.PublicRate, Burst: cfg.PublicBurst}, cfg.Now),
+		byKey:     ratelimit.New(ratelimit.Rate{PerSecond: publicKeyRate, Burst: 5 * publicKeyRate}, cfg.Now),
+		route:     ratelimit.New(ratelimit.Rate{PerSecond: publicRouteRate, Burst: 2 * publicRouteRate}, cfg.Now),
 	}
 }
 
@@ -108,7 +118,7 @@ func (s *Service) Tokenize(ctx context.Context, r vault.TokenizeRequest) (vault.
 		if err != nil {
 			return vault.Card{}, err
 		}
-		s.cvcs.put(row.Token, r.Card.CVC)
+		s.keepCVC(ctx, row.Token, r.Card.CVC, false)
 		return cardOf(row), nil
 	}
 	row, err := s.store(ctx, r.Card, func(p *db.InsertCardParams) {
@@ -123,7 +133,7 @@ func (s *Service) Tokenize(ctx context.Context, r vault.TokenizeRequest) (vault.
 			return vault.Card{}, err
 		}
 	}
-	s.cvcs.put(row.Token, r.Card.CVC)
+	s.keepCVC(ctx, row.Token, r.Card.CVC, false)
 	return cardOf(row), nil
 }
 
@@ -163,8 +173,16 @@ func (s *Service) TokenizePublic(ctx context.Context, publishableKey string, c v
 	if err != nil {
 		return vault.Card{}, err
 	}
-	s.cvcs.put(row.Token, c.CVC)
+	s.keepCVC(ctx, row.Token, c.CVC, true)
 	return cardOf(row), nil
+}
+
+// keepCVC holds a card's security code for its authorization. A full store keeps the
+// card without it, and says so: its authorization then goes without the code.
+func (s *Service) keepCVC(ctx context.Context, token, code string, public bool) {
+	if !s.cvcs.put(token, code, public) {
+		s.cfg.Logger.WarnContext(ctx, "a security code was not kept: the store is full", "token", token, "public", public)
+	}
 }
 
 // store validates, encrypts and inserts a card. It returns a zero row when the owner's

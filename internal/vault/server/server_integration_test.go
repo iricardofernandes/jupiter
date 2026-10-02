@@ -21,6 +21,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
+	"github.com/iricardofernandes/jupiter/internal/platform/ratelimit"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/internal/vault/server"
 	"github.com/iricardofernandes/jupiter/internal/vault/vaulttest"
@@ -519,5 +520,43 @@ func TestThePublicRouteIsRateLimited(t *testing.T) {
 	}
 	if limited == 0 {
 		t.Fatal("thirty cards in a burst from one address were all accepted")
+	}
+}
+
+// Behind a trusted proxy, each browser has a bucket of its own, named by the proxy's
+// X-Forwarded-For; a client cannot name itself past the proxy.
+func TestThePublicRouteLimitsEachClientBehindAProxy(t *testing.T) {
+	trusted, err := ratelimit.ParseTrusted("127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &clock{now: time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)}
+	v := vaulttest.Start(t, srv.Pool(t), vaulttest.Options{Now: c.Now, Clients: ratelimit.Clients{Trusted: trusted}})
+	body := map[string]any{"number": visa, "exp_month": 12, "exp_year": 2030}
+	from := func(forwarded string) int {
+		raw, _ := json.Marshal(body)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, v.PublicURL+vault.PublicTokensPath, bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer "+pk)
+		req.Header.Set("X-Forwarded-For", forwarded)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+	for range 20 {
+		if status := from("203.0.113.1"); status != http.StatusOK {
+			t.Fatalf("within one browser's burst: %d", status)
+		}
+	}
+	if from("203.0.113.1") != http.StatusTooManyRequests {
+		t.Fatal("a browser past its burst was let through")
+	}
+	if from("198.51.100.7, 203.0.113.1") != http.StatusTooManyRequests {
+		t.Fatal("a browser named itself past the proxy")
+	}
+	if from("203.0.113.2") != http.StatusOK {
+		t.Fatal("another browser behind the same proxy was refused")
 	}
 }
