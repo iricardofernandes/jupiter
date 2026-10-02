@@ -100,7 +100,7 @@ func (h *harness) agree(sub map[string]any) {
 	}
 }
 
-// Phase 8 exit criterion: a year of monthly Pix Automático charges in accelerated time,
+// A year of monthly Pix Automático charges in accelerated time,
 // with a payer without funds who pays on a retry, one who never does, a cancellation by
 // the payer and one by the receiver, and the ledger and every status matching the
 // specification each day.

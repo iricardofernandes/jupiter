@@ -10,10 +10,27 @@ The registries' layouts were not available to the research. The wire format here
 with the fields of the Convenção entre Entidades Registradoras' minimum payload. Nothing
 in it is certified or connected to CERC, Núclea, B3 or TAG.
 
+| | |
+|---|---|
+| **Binary** | `sim-registry` (`go run ./cmd/sim-registry`) |
+| **Listens on** | `127.0.0.1:8588` |
+| **Speaks** | HTTP, in the simulator's format, with the Convenção's minimum payload |
+| **Jupiter's side** | [`internal/registry`](../../registry/) and [`internal/receivables`](../../receivables/) |
+
+<p align="center">
+  <img src="../../../docs/assets/simulators/registry.png" alt="The registry takes Jupiter's units, settlement notices and opt-ins, and answers with positions, the effects financiers placed, whom each unit settles to, and the reconciliations." width="100%">
+</p>
+
+---
+
+## Run it
+
 ```sh
 JUPITER_SIM_REGISTRY_PARTICIPANTS='<token>:11222333000181:accreditor,<token>:33000167000101:financier' \
   go run ./cmd/sim-registry   # 127.0.0.1:8588 (JUPITER_HTTP_ADDR)
 ```
+
+---
 
 ## What it does
 
@@ -39,6 +56,8 @@ Participants authenticate with bearer tokens; real registries use the RSFN and I
 certificates. The arrangement codes for credit (VCC, MCC, ECC, ACC, HCC) are as commonly
 published; the research saw only VCP and MCP in a primary text.
 
+---
+
 ## API
 
 | Route | Who | |
@@ -51,6 +70,8 @@ published; the research saw only VCP and MCP in a primary text.
 | `GET /v1/holders` | accreditor | Holders of its units with a live contract |
 | `GET /v1/compliance` | accreditor | Deadlines it missed |
 | `POST /v1/contracts`, `POST /v1/contracts/{id}/end` | financier | Places or ends a contract |
+
+---
 
 ## Tests
 

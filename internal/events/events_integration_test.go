@@ -292,7 +292,7 @@ func sortStrings(s []string) []string {
 	return s
 }
 
-// The exit criterion of phase 2: a receiver verifies signatures, rejects a replay
+// A receiver verifies signatures, rejects a replay
 // outside the tolerance and deduplicates by event id. Deliveries fail twice first, so
 // the retry path runs too.
 func TestDeliveryIsSignedRetriedAndDeduplicated(t *testing.T) {

@@ -108,7 +108,7 @@ func (tp *twoPhase) effects() map[string]int {
 	return out
 }
 
-// Phase 2 exit criterion: the process dies between atomic phases, and the completer
+// The process dies between atomic phases, and the completer
 // finishes the request correctly. The handler's goroutine exits right after the first
 // phase commits, leaving the database exactly as a killed process would: the key
 // locked, its recovery point advanced, no response stored.

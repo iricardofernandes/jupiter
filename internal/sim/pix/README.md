@@ -7,6 +7,25 @@ the way it would reach a real bank: HTTPS with mutual TLS and certificate-bound 
 tokens. It notifies Jupiter the same way. Nothing in it is certified. It is not a Pix
 participant, and it connects to no real SPI or DICT.
 
+The request and response types are generated from the official specification
+(`pkg/pixapi`, from `api/bacen-pix`, version 2.10.0). The BR Codes are
+[`pkg/brcode`](../../../pkg/brcode)'s.
+
+| | |
+|---|---|
+| **Binary** | `sim-pix` (`go run ./cmd/sim-pix`) |
+| **Listens on** | `https://127.0.0.1:8586` (API Pix) · `127.0.0.1:8587` (operator) |
+| **Speaks** | The Banco Central's API Pix 2.10.0, over mutual TLS with certificate-bound tokens |
+| **Jupiter's side** | [`internal/pix`](../../pix/) |
+
+<p align="center">
+  <img src="../../../docs/assets/simulators/pix.png" alt="The Pix bank takes Jupiter's charges, returns, transfers and recurrences, and answers with Pix received, signed payload locations, MED claims and a statement of every SPI movement." width="100%">
+</p>
+
+---
+
+## Run it
+
 ```sh
 make certs
 JUPITER_SIM_TLS_CERT=.certs/sim-pix.pem JUPITER_SIM_TLS_KEY=.certs/sim-pix-key.pem JUPITER_SIM_TLS_CA=.certs/ca.pem \
@@ -18,9 +37,7 @@ JUPITER_SIM_PIX_CLIENTS=jupiter-live:secret:7f6e5d4c-3b2a-4190-8f7e-6d5c4b3a2918
 curl -X POST http://127.0.0.1:8587/admin/pay -d '{"brcode": "00020101021226...", "payer_tax_id": "12345678909"}'
 ```
 
-The request and response types are generated from the official specification
-(`pkg/pixapi`, from `api/bacen-pix`, version 2.10.0). The BR Codes are
-[`pkg/brcode`](../../../pkg/brcode)'s.
+---
 
 ## What it does
 
@@ -41,8 +58,10 @@ The request and response types are generated from the official specification
 | Transfers out: `PUT /transferencias/{idEnvio}` with `valor` and `chave`, and `GET /transferencias/{idEnvio}`. The key is resolved in DICT and the transfer settled at once, `REALIZADO`, or refused, `NAO_REALIZADO`: unknown key, closed account, short balance | **The simulator's own**: the API Pix does not cover sending, and each bank has its own interface. This one follows the API's conventions: client-chosen ids, an idempotent PUT, and the same error format |
 | Errors as RFC 7807 problems typed `https://pix.bcb.gov.br/api/v2/error/<Type>` (`CobOperacaoInvalida`, `PixDevolucaoInvalida`, `AcessoNegado`, …) | Sourced: specification |
 
-Not simulated: lotecobv, Pix Saque and Pix Troco (refused), MED returns, key portability,
+Not simulated: lotecobv, Pix Saque and Pix Troco (refused), key portability,
 participants other than the bank itself as receivers, and time spent in the SPI.
+
+---
 
 ## Pix Automático
 
@@ -70,6 +89,8 @@ and the payer and their bank as the rest of the world.
 happen and attempts expire. The binary ticks every ten seconds. Tests call it after moving
 their clock, which is how a year runs in seconds.
 
+---
+
 ## MED
 
 MED claims reach the receiving bank's clients through the bank; the API Pix does not
@@ -85,6 +106,8 @@ DICT's names, since neither the DICT's interface nor a bank's could be read.
 | `POST /infracoes/{id}/analise` (scope `infracao.write`): `AGREED` with `refundId` and `valor` returns that much to the payer as a devolução of nature `MED_FRAUDE`, listed under the Pix; `DISAGREED` ends the block. Either closes the report, with the client's `fundsTrace` | The nature is the API Pix's; the rest the simulator's |
 | `POST /infracoes/{id}/contestacao`: the client contests a MED return within 80 days of it; the payer's bank decides at once, as `upheld` scripted, crediting the amount back when it upholds it | IN BCB 766/2026's 80 days, as reported (meutudo, Sep 2026). How the payer's bank decides is the simulator's |
 
+---
+
 ## Statement
 
 `GET /extrato?data=YYYY-MM-DD` (scope `pix.read`) lists every movement the SPI settled in
@@ -94,6 +117,8 @@ is what the client knows the movement by: a Pix received's endToEndId, a transfe
 idEnvio, a return's id. The API Pix has no statement; the format is the simulator's
 (`pkg/pixapi/statement.go`). A fault on an event of kind `statement` loses a line, writes
 it twice, or puts it on the next day.
+
+---
 
 ## Payers and operators
 
@@ -112,6 +137,8 @@ The admin handler takes no credentials and must listen on loopback only.
 | `POST /admin/payers/{tax_id}/funds` | Limits what a payer has for recurring debits (`{"balance": "10.00"}`); `{}` lifts the limit |
 | `POST /admin/tick` | Lets the bank's day move now |
 | `POST /admin/infraction-reports` | A payer contests a Pix: a MED claim against the client that received it |
+
+---
 
 ## Faults
 

@@ -45,7 +45,7 @@ func (h *harness) recover() int64 {
 	return n
 }
 
-// The exit criterion of phase 12: a seller sold R$ 600.00 in six installments, sold Jupiter
+// A seller sold R$ 600.00 in six installments, sold Jupiter
 // every unit and was paid out, so a chargeback finds nothing in her balance and nothing
 // of hers on her units. A bank then took a lien on her agenda. Her next sale's units go
 // first to the bank's lien, and the rest is free; the chargeback is recovered from them

@@ -8,10 +8,29 @@ Jupiter reaches it over HTTP.
 Núclea's layouts and its SLC message catalogue were not available to the research. The wire
 format ([`pkg/slcapi`](../../../pkg/slcapi/slcapi.go)) is the simulator's own.
 
+| | |
+|---|---|
+| **Binary** | `sim-slc` (`go run ./cmd/sim-slc`) |
+| **Listens on** | `127.0.0.1:8592` · `127.0.0.1:8593` (operator) |
+| **Speaks** | HTTP, in the simulator's format |
+| **Jupiter's side** | [`internal/slc`](../../slc/) and [`internal/receivables`](../../receivables/) |
+
+<p align="center">
+  <img src="../../../docs/assets/simulators/slc.png" alt="The SLC takes Jupiter's daily grades and anticipation reports, pays the grades at its settlement window into the participant's bank account, and lists what was reported late." width="100%">
+</p>
+
+---
+
+## Run it
+
 ```sh
 JUPITER_SIM_SLC_PARTICIPANTS='<token>:11222333000181:30000001' \
   go run ./cmd/sim-slc   # 127.0.0.1:8592 (JUPITER_HTTP_ADDR), admin on 127.0.0.1:8593
 ```
+
+---
+
+## What it does
 
 | Behaviour | Source |
 |---|---|
@@ -21,6 +40,8 @@ JUPITER_SIM_SLC_PARTICIPANTS='<token>:11222333000181:30000001' \
 | What is credited reaches the participant's account at its bank as a statement line, `SLC/<day>`: through `Config.Credit`, or, in the binary, sim-bank's `/admin/credits` at `JUPITER_SIM_SLC_CREDIT_URL` | The simulator's; Núclea pays through the STR |
 | Anticipations are reported per unit; one reported after the business day following it is listed as late | Sourced: the "informativo via antecipação", same day or D+1 (NDM Advogados, via the research) |
 | Not simulated: the network's side (what each acquirer pays in), the windows' times, rejections of single entries, netting between participants, JWS signatures and the RSFN | |
+
+---
 
 ## Operator controls
 

@@ -49,7 +49,7 @@ import (
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
 )
 
-// Since phase 14 the simulation covers every rail, in test mode, where each is a
+// The rails simulation covers every rail, in test mode, where each is a
 // simulator: card payments in installments whose receivables are registered and settled
 // through the SLC into Jupiter's bank account; Pix charges, refunds, payouts, payments
 // that match nothing and MED claims; boletos; chargebacks. The simulators run on clocks

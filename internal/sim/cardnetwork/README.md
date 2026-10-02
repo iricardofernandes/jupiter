@@ -5,6 +5,21 @@ acquirer connector reaches it the way it would reach a real one: ISO 8583 over T
 [docs/cardnet/iso8583.md](../../../docs/cardnet/iso8583.md) specifies, and clearing files
 over HTTP. Nothing in it is certified, and no scheme's proprietary behaviour is modelled.
 
+| | |
+|---|---|
+| **Binary** | `sim-card-network` (`go run ./cmd/sim-card-network`) |
+| **Listens on** | `127.0.0.1:8583` (ISO 8583) · `127.0.0.1:8584` (HTTP) |
+| **Speaks** | ISO 8583 over TCP; clearing files and disputes over HTTP |
+| **Jupiter's side** | [`internal/acquirer`](../../acquirer/), and [`internal/disputes`](../../disputes/) for chargebacks |
+
+<p align="center">
+  <img src="../../../docs/assets/simulators/cardnetwork.png" alt="The card network listens to Jupiter's authorizations, captures, voids, reversals and dispute answers, and answers with approvals and declines, daily clearing files, network tokens and chargebacks." width="100%">
+</p>
+
+---
+
+## Run it
+
 ```sh
 go run ./cmd/sim-card-network   # ISO 8583 on 127.0.0.1:8583 (JUPITER_CARDNET_ADDR), files on 127.0.0.1:8584 (JUPITER_HTTP_ADDR)
 curl -X POST -H 'Content-Type: application/json' 'http://127.0.0.1:8584/admin/close-day?date=2026-10-01'
@@ -13,6 +28,8 @@ curl http://127.0.0.1:8584/v1/acquirers/10000000001/clearing/2026-10-01
 
 The operator's controls (`/admin/`) answer only when addressed to this machine, and a POST
 only as JSON, so a web page cannot drive them.
+
+---
 
 ## What it does
 
@@ -28,6 +45,8 @@ only as JSON, so a web page cannot drive them.
 
 Each card has a credit limit of R$ 100,000.00. Expired cards (DE 14 in the past) are
 declined with 54, numbers failing the Luhn check with 14.
+
+---
 
 ## Test cards
 
@@ -45,6 +64,8 @@ Any other valid number is approved while its limit lasts.
 | 4000000000000143 | Half approved (10) when partial approval is offered, fully approved otherwise |
 | 4000000000000150 | The issuer is down: approved in stand-in up to R$ 500.00, 91 above |
 
+---
+
 ## 3-D Secure and network tokens
 
 With `AuthenticationKey` set (JUPITER_SIM_AUTHENTICATION_KEY, shared with sim-3ds), an
@@ -57,6 +78,8 @@ token requestor (JUPITER_CARDNET_EVENTS_URL, signed with JUPITER_CARDNET_EVENTS_
 when `POST /admin/cards/replace {pan, new_pan, exp_month, exp_year}` replaces a card or
 `POST /admin/tokens/{reference}/suspend` suspends a token. All of it is unverified
 against real token services.
+
+---
 
 ## Disputes
 
@@ -83,6 +106,8 @@ bearer token (`JUPITER_CARDNET_TOKEN`), at:
 - `POST /v1/acquirers/{acquirer}/disputes/{id}/actions`, to represent, escalate or
   accept;
 - `GET /v1/acquirers/{acquirer}/fraud-reports/{id}`, a fraud report.
+
+---
 
 ## Faults
 

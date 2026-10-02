@@ -55,7 +55,7 @@ func TestWhatTheIssuerAnswers(t *testing.T) {
 	h.consistent()
 }
 
-// Phase 6 exit criterion: a payment completes a 3-D Secure challenge, the customer's
+// A payment completes a 3-D Secure challenge, the customer's
 // browser going to the issuer and back, and is then authorized over ISO 8583.
 func TestAChallengeCompletes(t *testing.T) {
 	h := newHarness(t)

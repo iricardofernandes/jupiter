@@ -97,7 +97,7 @@ func TestALostAnswerIsReversed(t *testing.T) {
 	h.consistent()
 }
 
-// Phase 5 exit criterion: a late 0110 that arrives after the reversal was sent changes
+// A late 0110 that arrives after the reversal was sent changes
 // nothing: the payment stays declined and the issuer holds nothing.
 func TestALateApprovalAfterTheReversal(t *testing.T) {
 	h := newHarness(t)

@@ -8,10 +8,27 @@ Its collection files are FEBRABAN's CNAB 240 v10.11, through
 [`pkg/cnab240`](../../../pkg/cnab240). Its bank code, `999`, is no real bank's, and nothing
 in it is connected to Núclea's boleto base.
 
+| | |
+|---|---|
+| **Binary** | `sim-bank` (`go run ./cmd/sim-bank`) |
+| **Listens on** | `127.0.0.1:8590` · `127.0.0.1:8591` (operator) |
+| **Speaks** | FEBRABAN CNAB 240 v10.11 files, and a statement API |
+| **Jupiter's side** | [`internal/bank`](../../bank/) |
+
+<p align="center">
+  <img src="../../../docs/assets/simulators/bank.png" alt="The bank takes Jupiter's CNAB 240 remittances and transfers, and answers with return files, paid boletos, transfers made or returned, and a statement of the account." width="100%">
+</p>
+
+---
+
+## Run it
+
 ```sh
 JUPITER_SIM_BANK_CLIENTS='<token>:11222333000181:CONVENIO-0001:00001-0:000000123456-7' \
   go run ./cmd/sim-bank   # 127.0.0.1:8590 (JUPITER_HTTP_ADDR), admin on 127.0.0.1:8591
 ```
+
+---
 
 ## Collection
 
@@ -26,6 +43,8 @@ JUPITER_SIM_BANK_CLIENTS='<token>:11222333000181:CONVENIO-0001:00001-0:000000123
 | Each day's close writes one return file of what happened since the last | The simulator's; banks differ in how often they return files |
 | Not simulated: protests, discounts, interest and fines, partial payments, changes of amount or due date, Núclea's registration checks | |
 
+---
+
 ## Transfers and statements
 
 | Behaviour | Source |
@@ -35,12 +54,16 @@ JUPITER_SIM_BANK_CLIENTS='<token>:11222333000181:CONVENIO-0001:00001-0:000000123
 | A day's statement (`GET /v1/statements?date=`) lists the account's credits and debits, each line with an id of its own | The simulator's format |
 | What another institution pays in, such as the SLC's settlement, is credited by `POST /admin/credits {tax_id, date, amount, reference, description}`: sim-slc calls it | The simulator's |
 
+---
+
 ## Faults
 
 `Config.Faults` is asked before each statement line (kind `statement`) and each return
 record (kind `return`) is written, by its reference: a nosso número, a transfer's id, a
 settlement's `SLC/<day>`. It can lose the record, write it twice, or delay it: a line to
 the next business day, a return record by two files. Reconciliation's tests use these.
+
+---
 
 ## Operator controls
 

@@ -50,7 +50,7 @@ var goodCards = []loadgen.Card{
 	{Number: "6062825624254001", ExpMonth: 6, ExpYear: 2030},
 }
 
-// Phase 6 exit criterion: a card-testing burst from the load generator is detected and
+// A card-testing burst from the load generator is detected and
 // throttled, a legitimate merchant paying at the same time is not, and the decision log
 // explains every block.
 func TestACardTestingBurstIsThrottled(t *testing.T) {

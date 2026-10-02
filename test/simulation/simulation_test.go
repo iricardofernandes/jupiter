@@ -65,11 +65,10 @@ func TestMain(m *testing.M) {
 	}))
 }
 
-// Phase 3 exit criterion: SIM_PAYMENTS seeded payments (10,000 in CI) with injected
-// faults end with zero invariant violations. Since phase 4 some payments use cards saved
-// in the vault, which fails now and then too; since phase 5 some are live, over ISO 8583
-// to the card network simulator, which loses requests and answers, answers late and
-// answers twice. SIM_SEEDS chooses the seeds (see seeds); SIM_SEED replays one.
+// SIM_PAYMENTS seeded card payments (10,000 in CI) with injected faults end with zero
+// invariant violations. Some use cards saved in the vault, which fails now and then too;
+// some are live, over ISO 8583 to the card network simulator, which loses requests and
+// answers, answers late and answers twice. SIM_SEEDS chooses the seeds (see seeds); SIM_SEED replays one.
 func TestSimulation(t *testing.T) {
 	payments := int(min(envUint("SIM_PAYMENTS", 300), 1_000_000))
 	for _, seed := range seeds(t) {

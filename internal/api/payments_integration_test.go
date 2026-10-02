@@ -108,7 +108,7 @@ func wantStatus(t *testing.T, it openapi.PaymentIntent, want openapi.PaymentInte
 	}
 }
 
-// Phase 3 exit criterion: every transition of the state machine is exercised through
+// Every transition of the state machine is exercised through
 // the API, and every transition not in it is refused.
 func TestEveryAllowedTransitionThroughTheAPI(t *testing.T) {
 	h := newHarness(t, api.CurrentVersion)

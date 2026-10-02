@@ -6,10 +6,27 @@ JSON messages of [`pkg/threeds`](../../../pkg/threeds); a cardholder's browser r
 challenge pages. It is not EMVCo-certified. The EMVCo specification was not read, so most
 of the protocol below is unverified, as marked.
 
+| | |
+|---|---|
+| **Binary** | `sim-3ds` (`go run ./cmd/sim-3ds`) |
+| **Listens on** | `127.0.0.1:8585` |
+| **Speaks** | EMV 3-D Secure 2.2.0 messages, as JSON over HTTP |
+| **Jupiter's side** | [`internal/authentication`](../../authentication/) |
+
+<p align="center">
+  <img src="../../../docs/assets/simulators/3ds.png" alt="The 3-D Secure directory takes Jupiter's authentication requests and the cardholder's challenge pages, and answers frictionless or with a challenge, with signed results and an authentication value the network checks." width="100%">
+</p>
+
+---
+
+## Run it
+
 ```sh
 JUPITER_SIM_AUTHENTICATION_KEY=$(openssl rand -base64 32) JUPITER_3DS_RESULTS_SECRET=... \
   go run ./cmd/sim-3ds    # HTTP on 127.0.0.1:8585
 ```
+
+---
 
 ## Protocol
 
@@ -25,6 +42,8 @@ JUPITER_SIM_AUTHENTICATION_KEY=$(openssl rand -base64 32) JUPITER_3DS_RESULTS_SE
 | CReq and CRes | base64url JSON in the creq and cres form fields; threeDSSessionData passed through | Unverified |
 | RReq authentication | signed with HMAC-SHA256 in `Threeds-Signature` | The simulator's; real directory servers use mutual TLS |
 | 3DS Method, app channel, decoupled authentication | Not simulated | |
+
+---
 
 ## Test cards
 

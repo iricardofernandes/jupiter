@@ -117,7 +117,7 @@ func TestInvalidRequestsNameTheirParameter(t *testing.T) {
 	h.expect(call{method: "GET", path: "/v1/webhook_endpoints?limit=500"}, http.StatusBadRequest)
 }
 
-// Phase 2 exit criterion: the same idempotent request sent concurrently has exactly one
+// The same idempotent request sent concurrently has exactly one
 // effect, and every caller gets the identical response.
 func TestConcurrentIdempotentRequestsHaveOneEffectAndOneResponse(t *testing.T) {
 	h := newHarness(t, api.CurrentVersion)
@@ -200,7 +200,7 @@ func TestAClientErrorIsStoredAndReplayed(t *testing.T) {
 	}
 }
 
-// Phase 2 exit criterion: a response under an older pinned version keeps its old shape.
+// A response under an older pinned version keeps its old shape.
 func TestAnOlderPinnedVersionKeepsItsShape(t *testing.T) {
 	h := newHarness(t, "2026-09-01")
 	created := h.do(call{

@@ -232,7 +232,7 @@ func (e *env) notification() pixapi.Pix {
 
 const txid = "pa01m3sw7skseyk9y97z426m10e6"
 
-// Phase 7 exit criterion: a token is good only with the certificate it was issued to.
+// A token is good only with the certificate it was issued to.
 func TestATokenIsBoundToItsCertificate(t *testing.T) {
 	e := newEnv(t)
 	if code := e.call(http.MethodGet, "/cob/"+txid, nil, nil); code != http.StatusNotFound {

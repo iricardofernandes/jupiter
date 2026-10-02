@@ -6,6 +6,10 @@ payment service provider, so this is Jupiter's, in full. The code is in
 [`internal/reconciliation`](../internal/reconciliation), and the decision in
 [ADR 0039](adr/0039-three-way-reconciliation.md).
 
+<p align="center">
+  <img src="assets/readme/reconciliation.png" alt="Three-way reconciliation: Jupiter's ledger, the rail's record (clearing files, SLC grades, CNAB returns) and the account's statement (the bank's, the Pix bank's SPI) are matched by key, amount and direction; what does not match becomes a break: missing at the counterparty, missing at Jupiter, duplicate, amount mismatch or probable match" width="100%">
+</p>
+
 ## The three ways
 
 A movement of money is recorded three times:
@@ -153,7 +157,7 @@ no merchant sees it.
   `network_receivable`, and the network nets them from later settlements. No simulated
   file reports that netting, so it is not reconciled.
 - **The API Pix's own records.** Pix received are read from the bank every five minutes
-  and applied (phase 7). Here, the SPI statement stands for the Pix bank.
+  and applied. Here, the SPI statement stands for the Pix bank.
 - **Closing books.** No accounting close or financial statements; that is an ERP's job.
 
 ## How it is tested

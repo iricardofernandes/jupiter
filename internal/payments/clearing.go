@@ -14,7 +14,7 @@ import (
 )
 
 // ErrClearingMismatch says the network cleared something Jupiter did not capture, or not
-// for that amount. Reconciliation (phase 13) works these out; clearing only records them.
+// for that amount. Reconciliation works these out; clearing only records them.
 var ErrClearingMismatch = errors.New("payments: clearing does not match the capture")
 
 // MarkCleared records that the network cleared an attempt's capture on day. Clearing the

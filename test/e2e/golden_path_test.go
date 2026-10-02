@@ -72,7 +72,7 @@ func TestMain(m *testing.M) {
 	}))
 }
 
-// The golden path, as far as phase 11 reaches: a marketplace onboards a seller; a
+// The golden path: a marketplace onboards a seller; a
 // customer's card goes from their browser to the vault; the customer pays R$ 600.00 in
 // six installments, split between the seller and the marketplace, passes the risk engine,
 // is authenticated with 3-D Secure without a challenge, and is authorized by the issuer
