@@ -20,7 +20,9 @@ import (
 
 const (
 	pointAnticipating = "anticipating"
+	pointQuoting      = "quoting"
 	stateAnticipation = "anticipation"
+	stateRecipient    = "recipient"
 )
 
 func (a *API) recipientOperations() []operation {
@@ -30,7 +32,9 @@ func (a *API) recipientOperations() []operation {
 		{name: "create_recipient", scope: write, phases: []phase{{point: pointStarted, atomic: a.createRecipient}}},
 		{name: "update_recipient", scope: write, phases: []phase{{point: pointStarted, atomic: a.updateRecipient}}},
 		{name: "verify_recipient", scope: write, phases: []phase{{point: pointStarted, atomic: a.verifyRecipient}}},
-		{name: "simulate_anticipation", scope: merchant.ScopeReceivablesWrite, phases: []phase{{point: pointStarted, atomic: a.simulateAnticipation}}},
+		{name: "simulate_anticipation", scope: merchant.ScopeReceivablesWrite, phases: []phase{
+			{point: pointStarted, atomic: a.startQuote}, {point: pointQuoting, foreign: a.readRegistry, atomic: a.quote},
+		}},
 		{name: "create_anticipation", scope: merchant.ScopeReceivablesWrite, phases: []phase{{point: pointStarted, atomic: a.startAnticipation}, anticipate}},
 	}
 }
@@ -209,7 +213,8 @@ func (a *API) SimulateAnticipation(w http.ResponseWriter, r *http.Request) {
 	a.serve(w, r, "simulate_anticipation", "")
 }
 
-func (a *API) simulateAnticipation(ctx context.Context, tx pgx.Tx, r *request) (outcome, error) {
+// startQuote names the recipient to quote, made if it is the merchant's own and was not.
+func (a *API) startQuote(ctx context.Context, tx pgx.Tx, r *request) (outcome, error) {
 	var body openapi.SimulateAnticipationRequest
 	if err := decode(r.body, &body, true); err != nil {
 		return outcome{}, err
@@ -218,7 +223,32 @@ func (a *API) simulateAnticipation(ctx context.Context, tx pgx.Tx, r *request) (
 	if err != nil {
 		return outcome{}, err
 	}
-	q, err := a.deps.Receivables.Simulate(ctx, tx, paymentsOwner(r.principal), recipientID, valueOf(body.Units))
+	if recipientID == "" {
+		rec, err := a.deps.Recipients.Default(ctx, tx, owner(r.principal))
+		if err != nil {
+			return outcome{}, recipientsError(err, me)
+		}
+		recipientID = rec.ID.String()
+	}
+	r.state[stateRecipient] = recipientID
+	return proceed(pointQuoting)
+}
+
+// readRegistry asks the registry what it holds free on the recipient's units, outside
+// any transaction: a slow registry must not hold the database's connections.
+func (a *API) readRegistry(ctx context.Context, r *request) error {
+	free, err := a.deps.Receivables.FreeAtRegistry(ctx, a.deps.Pool, paymentsOwner(r.principal), r.state[stateRecipient])
+	r.scratch = free
+	return receivablesError(err)
+}
+
+func (a *API) quote(ctx context.Context, tx pgx.Tx, r *request) (outcome, error) {
+	var body openapi.SimulateAnticipationRequest
+	if err := decode(r.body, &body, true); err != nil {
+		return outcome{}, err
+	}
+	free, _ := r.scratch.(receivables.RegistryFree)
+	q, err := a.deps.Receivables.Simulate(ctx, tx, paymentsOwner(r.principal), r.state[stateRecipient], valueOf(body.Units), free)
 	if err != nil {
 		return outcome{}, receivablesError(err)
 	}

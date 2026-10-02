@@ -83,15 +83,40 @@ func price(amount int64, monthlyRate string, days int) (int64, error) {
 	return new(big.Int).Quo(p.Num(), p.Denom()).Int64(), nil
 }
 
+// RegistryFree is what the registry holds free on a holder's unsettled units.
+type RegistryFree map[key]int64
+
+// FreeAtRegistry asks the registry what it holds free on a verified recipient's units. It
+// is read outside any transaction, so that a slow registry holds no connection.
+func (s *Service) FreeAtRegistry(ctx context.Context, q db.DBTX, owner payments.Owner, recipientID string) (RegistryFree, error) {
+	rid, err := recipients.Prefix.Parse(recipientID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: no recipient %s", ErrNotFound, recipientID)
+	}
+	rec, err := s.cfg.Recipients.Get(ctx, q, recipients.Owner{Merchant: owner.Merchant, Livemode: owner.Livemode}, rid)
+	if err != nil {
+		return nil, fmt.Errorf("%w: no recipient %s", ErrNotFound, recipientID)
+	}
+	if rec.Status != recipients.Verified {
+		return nil, fmt.Errorf("%w: recipient %s is %s, not verified", ErrInvalid, rec.ID, rec.Status)
+	}
+	reg, err := s.registry(owner.Livemode)
+	if err != nil {
+		return nil, err
+	}
+	return s.registryFree(ctx, reg, rec.TaxID, "")
+}
+
 // Simulate prices anticipating a verified recipient's units: those named, or all it has
 // that can be. A unit can be anticipated for what of it the recipient still has pending
-// and the registry holds free, and only once registered as it is and before it settles.
-func (s *Service) Simulate(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string, unitIDs []string) (Quote, error) {
-	rec, reg, err := s.anticipator(ctx, tx, owner, recipientID)
+// and the registry holds free, as FreeAtRegistry read it, and only once registered as it
+// is and before it settles.
+func (s *Service) Simulate(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string, unitIDs []string, free RegistryFree) (Quote, error) {
+	rec, _, err := s.anticipator(ctx, tx, owner, recipientID)
 	if err != nil {
 		return Quote{}, err
 	}
-	items, currency, err := s.anticipable(ctx, tx, reg, owner, rec, unitIDs, s.cfg.Now(), false, "")
+	items, currency, err := s.anticipable(ctx, tx, free, owner, rec, unitIDs, s.cfg.Now(), false)
 	if err != nil {
 		return Quote{}, err
 	}
@@ -127,9 +152,7 @@ func (s *Service) anticipator(ctx context.Context, tx pgx.Tx, owner payments.Own
 // anticipable reads the recipient's units that can be anticipated, constituted by
 // before, locked when they are to be bought, with what of each can be: its pending
 // amount, up to what the registry holds free.
-// Contracts of Jupiter's named under own (a quote that was begun, its answer lost) count
-// as free: carrying the quote out again places them again, the same.
-func (s *Service) anticipable(ctx context.Context, tx pgx.Tx, reg Registry, owner payments.Owner, rec recipients.Recipient, unitIDs []string, before time.Time, lock bool, own string) ([]Anticipated, money.Currency, error) {
+func (s *Service) anticipable(ctx context.Context, tx pgx.Tx, free RegistryFree, owner payments.Owner, rec recipients.Recipient, unitIDs []string, before time.Time, lock bool) ([]Anticipated, money.Currency, error) {
 	if unitIDs == nil {
 		unitIDs = []string{}
 	}
@@ -148,10 +171,6 @@ func (s *Service) anticipable(ctx context.Context, tx pgx.Tx, reg Registry, owne
 	}
 	if len(units) == 0 || (len(unitIDs) > 0 && len(units) != len(unitIDs)) {
 		return nil, money.Currency{}, fmt.Errorf("%w: no units, or some named, that can be anticipated: registered, unsettled, not yet bought", ErrInvalid)
-	}
-	free, err := s.registryFree(ctx, reg, rec.TaxID, own)
-	if err != nil {
-		return nil, money.Currency{}, err
 	}
 	currency, err := money.CurrencyByCode(units[0].Currency)
 	if err != nil {
@@ -176,15 +195,16 @@ func (s *Service) anticipable(ctx context.Context, tx pgx.Tx, reg Registry, owne
 	return out, currency, nil
 }
 
-// registryFree is what the registry holds free on each of a holder's unsettled units,
-// counting Jupiter's contracts named under own as free.
-func (s *Service) registryFree(ctx context.Context, reg Registry, holder, own string) (map[key]int64, error) {
+// registryFree is what the registry holds free on each of a holder's unsettled units.
+// Contracts of Jupiter's named under own (a quote that was begun, its answer lost) count
+// as free: carrying the quote out again places them again, the same.
+func (s *Service) registryFree(ctx context.Context, reg Registry, holder, own string) (RegistryFree, error) {
 	unsettled := false
 	positions, err := reg.Units(ctx, &unsettled, holder, "", "")
 	if err != nil {
 		return nil, err
 	}
-	free := map[key]int64{}
+	free := RegistryFree{}
 	for _, p := range positions {
 		k := key{p.Holder, p.Arrangement, p.SettlementDate}
 		free[k] = p.Free
@@ -262,7 +282,11 @@ func (s *Service) stillGood(ctx context.Context, tx pgx.Tx, owner payments.Owner
 	for _, it := range items {
 		ids = append(ids, it.Unit)
 	}
-	now, _, err := s.anticipable(ctx, tx, reg, owner, rec, ids, s.cfg.Now(), true, quote.ID)
+	free, err := s.registryFree(ctx, reg, rec.TaxID, quote.ID)
+	if err != nil {
+		return rec, nil, nil, err
+	}
+	now, _, err := s.anticipable(ctx, tx, free, owner, rec, ids, s.cfg.Now(), true)
 	if err != nil {
 		return rec, nil, nil, err
 	}
@@ -436,7 +460,11 @@ func (s *Service) anticipateAll(ctx context.Context, pool *pgxpool.Pool, rec rec
 		if err != nil {
 			return err
 		}
-		items, _, err := s.anticipable(ctx, tx, reg, owner, rec, nil, before, true, "")
+		free, err := s.registryFree(ctx, reg, rec.TaxID, "")
+		if err != nil {
+			return err
+		}
+		items, _, err := s.anticipable(ctx, tx, free, owner, rec, nil, before, true)
 		if errors.Is(err, ErrInvalid) {
 			return nil // nothing to anticipate yet
 		}
