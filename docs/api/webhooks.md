@@ -4,6 +4,8 @@ Jupiter sends an event to each webhook endpoint subscribed to its type, as an HT
 with a JSON body: the same event object `GET /v1/events/{id}` returns, rendered in the
 endpoint's API version.
 
+An account has at most 16 endpoints in each mode.
+
 ## Verify every request
 
 Each request carries a signature header:
@@ -40,6 +42,11 @@ inline with `include[]=related_object`, to act on its current state.
 Answer 2xx within ten seconds and do the work afterwards. Any other answer, a timeout
 or a refused connection is retried with exponential backoff, twelve attempts over about
 17 hours. Redirects are not followed.
+
+An endpoint that has taken no delivery for three days is disabled when an event's last
+attempt to it fails. Fix it, then enable it again with `POST /v1/webhook_endpoints/{id}`
+`{"status": "enabled"}`; events since can be sent again with `POST
+/v1/events/{id}/resend`.
 
 ## Rotating the secret
 

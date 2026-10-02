@@ -96,7 +96,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	eventService := events.New(events.Config{
 		Box: box, Jobs: inserter, Render: api.RenderEvent,
 		// Only for local development, where webhook receivers run on this machine.
-		AllowPrivateNetworks: os.Getenv("JUPITER_WEBHOOK_ALLOW_PRIVATE") == "true",
+		AllowPrivateNetworks: os.Getenv("JUPITER_WEBHOOK_ALLOW_PRIVATE") == "true", Logger: logger,
 	})
 	workers := river.NewWorkers()
 	eventService.RegisterWorkers(workers, pool)

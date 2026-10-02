@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -120,6 +121,10 @@ type Config struct {
 	// RetryBase is the delay before the first retry of a failed delivery; each later
 	// retry doubles it.
 	RetryBase time.Duration
+	// MaxAttempts bounds the attempts to deliver an event to an endpoint; zero keeps the
+	// default of twelve.
+	MaxAttempts int
+	Logger      *slog.Logger
 }
 
 type Service struct {
@@ -135,6 +140,12 @@ func New(cfg Config) *Service {
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = deliveryClient(cfg.AllowPrivateNetworks)
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.New(slog.DiscardHandler)
+	}
+	if cfg.MaxAttempts == 0 {
+		cfg.MaxAttempts = maxDeliveryAttempts
 	}
 	return &Service{cfg: cfg}
 }
@@ -167,7 +178,9 @@ func (s *Service) Publish(ctx context.Context, tx pgx.Tx, owner Owner, eventType
 }
 
 func (s *Service) enqueue(ctx context.Context, tx pgx.Tx, eventID, endpointID string) error {
-	if _, err := s.cfg.Jobs.InsertTx(ctx, tx, DeliveryArgs{EventID: eventID, EndpointID: endpointID}, nil); err != nil {
+	opts := DeliveryArgs{}.InsertOpts()
+	opts.MaxAttempts = s.cfg.MaxAttempts
+	if _, err := s.cfg.Jobs.InsertTx(ctx, tx, DeliveryArgs{EventID: eventID, EndpointID: endpointID}, &opts); err != nil {
 		return fmt.Errorf("enqueuing delivery of %s to %s: %w", eventID, endpointID, err)
 	}
 	return nil

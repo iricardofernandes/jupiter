@@ -50,7 +50,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		pool.Close()
 		return service.App{}, err
 	}
-	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent})
+	eventService := events.New(events.Config{Box: box, Jobs: inserter, Render: api.RenderEvent, Logger: logger})
 	riskEngine := risk.New(risk.Config{})
 	r, err := connectRails(ctx, pool, cards, logger)
 	if err != nil {

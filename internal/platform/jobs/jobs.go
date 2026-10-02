@@ -40,6 +40,9 @@ func NewInserter(pool *pgxpool.Pool, logger *slog.Logger) (*Client, error) {
 	return client, nil
 }
 
+// QueueWebhooks holds webhook deliveries, apart from the rest of the background.
+const QueueWebhooks = "webhooks"
+
 type WorkerConfig struct {
 	Workers           *river.Workers
 	Concurrency       int
@@ -55,10 +58,12 @@ func NewWorker(pool *pgxpool.Pool, cfg WorkerConfig) (*Client, error) {
 		cfg.FetchPollInterval = river.FetchPollIntervalDefault
 	}
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
-		Schema:            schema,
-		Logger:            cfg.Logger,
-		Workers:           cfg.Workers,
-		Queues:            map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: cfg.Concurrency}},
+		Schema:  schema,
+		Logger:  cfg.Logger,
+		Workers: cfg.Workers,
+		Queues: map[string]river.QueueConfig{
+			river.QueueDefault: {MaxWorkers: cfg.Concurrency}, QueueWebhooks: {MaxWorkers: cfg.Concurrency},
+		},
 		FetchPollInterval: cfg.FetchPollInterval,
 		FetchCooldown:     min(cfg.FetchPollInterval, river.FetchCooldownDefault),
 	})

@@ -18,6 +18,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/iricardofernandes/jupiter/internal/events/db"
+	"github.com/iricardofernandes/jupiter/internal/platform/jobs"
 	"github.com/iricardofernandes/jupiter/pkg/webhook"
 )
 
@@ -37,8 +38,10 @@ type DeliveryArgs struct {
 
 func (DeliveryArgs) Kind() string { return "webhook_delivery" }
 
+// InsertOpts puts deliveries in a queue of their own, so that slow endpoints wait on
+// each other and not on the rest of the background.
 func (DeliveryArgs) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{MaxAttempts: maxDeliveryAttempts}
+	return river.InsertOpts{MaxAttempts: maxDeliveryAttempts, Queue: jobs.QueueWebhooks}
 }
 
 // RegisterWorkers adds the webhook delivery worker to workers.
@@ -93,7 +96,7 @@ func (w *deliveryWorker) Work(ctx context.Context, job *river.Job[DeliveryArgs])
 	status, sendErr := s.send(ctx, endpointRow.Url, body, webhook.Sign(body, began, secrets...))
 	record := db.InsertDeliveryParams{
 		ID: deliveryPrefix.New().String(), EventID: eventRow.ID, EndpointID: endpointRow.ID,
-		Attempt: int32(job.Attempt), Succeeded: sendErr == nil, //nolint:gosec // attempts are capped at maxDeliveryAttempts
+		Attempt: int32(job.Attempt), Succeeded: sendErr == nil, //nolint:gosec // attempts are capped
 		DurationMs:  int32(s.cfg.Now().Sub(began).Milliseconds()), //nolint:gosec // bounded by the delivery timeout
 		AttemptedAt: pgtype.Timestamptz{Time: began.UTC(), Valid: true},
 	}
@@ -106,7 +109,30 @@ func (w *deliveryWorker) Work(ctx context.Context, job *river.Job[DeliveryArgs])
 	if err := q.InsertDelivery(ctx, record); err != nil {
 		return fmt.Errorf("recording delivery: %w", err)
 	}
+	if sendErr != nil && job.Attempt >= job.MaxAttempts {
+		s.disableIfFailing(ctx, q, endpointRow.ID)
+	}
 	return sendErr
+}
+
+// failingFor is how long an endpoint may take no delivery before it is disabled.
+const failingFor = 3 * 24 * time.Hour
+
+// disableIfFailing disables an endpoint that has taken no delivery for failingFor, when
+// an event's last attempt to it fails: its deliveries would only keep the queue busy.
+// The merchant enables it again once it answers.
+func (s *Service) disableIfFailing(ctx context.Context, q *db.Queries, endpointID string) {
+	since := pgtype.Timestamptz{Time: s.cfg.Now().Add(-failingFor).UTC(), Valid: true}
+	delivered, err := q.DeliveredSince(ctx, db.DeliveredSinceParams{EndpointID: endpointID, Since: since})
+	if err == nil && !delivered {
+		var n int64
+		if n, err = q.DisableFailingEndpoint(ctx, db.DisableFailingEndpointParams{ID: endpointID, Since: since}); n > 0 {
+			s.cfg.Logger.WarnContext(ctx, "a webhook endpoint that took no delivery for three days was disabled", "endpoint", endpointID)
+		}
+	}
+	if err != nil {
+		s.cfg.Logger.ErrorContext(ctx, "checking a failing webhook endpoint", "endpoint", endpointID, "error", err)
+	}
 }
 
 func (s *Service) send(ctx context.Context, url string, body []byte, signature string) (int, error) {

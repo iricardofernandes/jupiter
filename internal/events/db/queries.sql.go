@@ -47,6 +47,22 @@ func (q *Queries) ActiveSecrets(ctx context.Context, arg ActiveSecretsParams) ([
 	return items, nil
 }
 
+const countEndpoints = `-- name: CountEndpoints :one
+SELECT count(*) FROM events.endpoints WHERE merchant_id = $1 AND livemode = $2 AND deleted_at IS NULL
+`
+
+type CountEndpointsParams struct {
+	MerchantID string
+	Livemode   bool
+}
+
+func (q *Queries) CountEndpoints(ctx context.Context, arg CountEndpointsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEndpoints, arg.MerchantID, arg.Livemode)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteEndpoint = `-- name: DeleteEndpoint :one
 UPDATE events.endpoints SET deleted_at = $1::timestamptz
 WHERE id = $2 AND merchant_id = $3 AND livemode = $4 AND deleted_at IS NULL
@@ -81,6 +97,41 @@ func (q *Queries) DeleteEndpoint(ctx context.Context, arg DeleteEndpointParams) 
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const deliveredSince = `-- name: DeliveredSince :one
+SELECT EXISTS (SELECT 1 FROM events.deliveries WHERE endpoint_id = $1 AND succeeded AND attempted_at >= $2)
+`
+
+type DeliveredSinceParams struct {
+	EndpointID string
+	Since      pgtype.Timestamptz
+}
+
+// Whether an endpoint took any delivery since a time.
+func (q *Queries) DeliveredSince(ctx context.Context, arg DeliveredSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, deliveredSince, arg.EndpointID, arg.Since)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const disableFailingEndpoint = `-- name: DisableFailingEndpoint :execrows
+UPDATE events.endpoints SET status = 'disabled'
+WHERE id = $1 AND status = 'enabled' AND deleted_at IS NULL AND created_at < $2
+`
+
+type DisableFailingEndpointParams struct {
+	ID    string
+	Since pgtype.Timestamptz
+}
+
+func (q *Queries) DisableFailingEndpoint(ctx context.Context, arg DisableFailingEndpointParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disableFailingEndpoint, arg.ID, arg.Since)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const expireSecrets = `-- name: ExpireSecrets :exec
@@ -497,6 +548,16 @@ func (q *Queries) LockEndpoint(ctx context.Context, arg LockEndpointParams) (Eve
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const lockEndpoints = `-- name: LockEndpoints :exec
+SELECT pg_advisory_xact_lock(hashtext('events.endpoints/' || $1::text))
+`
+
+// Serializes creating a merchant's endpoints in a mode, so that two cannot pass the cap.
+func (q *Queries) LockEndpoints(ctx context.Context, scope string) error {
+	_, err := q.db.Exec(ctx, lockEndpoints, scope)
+	return err
 }
 
 const subscribedEndpoints = `-- name: SubscribedEndpoints :many

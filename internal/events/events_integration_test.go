@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -66,7 +67,7 @@ func render(e events.Event, apiVersion string) ([]byte, error) {
 	return json.Marshal(map[string]any{"id": e.ID.String(), "type": e.Type, "api_version": apiVersion})
 }
 
-func newHarness(t *testing.T, allowPrivate bool) *harness {
+func newHarness(t *testing.T, allowPrivate bool, configure ...func(*events.Config)) *harness {
 	t.Helper()
 	pool := server.Pool(t)
 	key := make([]byte, 32)
@@ -82,10 +83,14 @@ func newHarness(t *testing.T, allowPrivate bool) *harness {
 		t.Fatal(err)
 	}
 	c := &clock{}
-	svc := events.New(events.Config{
+	cfg := events.Config{
 		Box: box, Jobs: inserter, Render: render, Now: c.Now,
 		AllowPrivateNetworks: allowPrivate, RetryBase: 20 * time.Millisecond,
-	})
+	}
+	for _, f := range configure {
+		f(&cfg)
+	}
+	svc := events.New(cfg)
 	return &harness{t: t, pool: pool, svc: svc, clock: c, owner: events.Owner{Merchant: merchantPrefix.New()}}
 }
 
@@ -431,4 +436,68 @@ func TestSecretsAreStoredSealed(t *testing.T) {
 	if strings.Contains(string(sealed), secret) || strings.Contains(string(sealed), strings.TrimPrefix(secret, "whsec_")) {
 		t.Fatal("the stored secret is readable")
 	}
+}
+
+// A merchant has so many endpoints in a mode, each a delivery of every event; deleting
+// one makes room.
+func TestEndpointsAreCapped(t *testing.T) {
+	h := newHarness(t, true)
+	var first events.Endpoint
+	for i := range events.MaxEndpoints {
+		e, _ := h.endpoint(fmt.Sprintf("https://example.com/hooks/%d", i), "*")
+		if i == 0 {
+			first = e
+		}
+	}
+	create := func() error {
+		return postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {
+			_, _, err := h.svc.CreateEndpoint(t.Context(), tx, h.owner, events.EndpointSpec{URL: "https://example.com/one-more", EnabledEvents: []string{"*"}}, "2026-09-30")
+			return err
+		})
+	}
+	if err := create(); !errors.Is(err, events.ErrInvalid) {
+		t.Fatalf("one endpoint past the cap: %v", err)
+	}
+	h.inTx(func(tx pgx.Tx) error {
+		return h.svc.DeleteEndpoint(t.Context(), tx, h.owner, first.ID)
+	})
+	if err := create(); err != nil {
+		t.Fatalf("after deleting one: %v", err)
+	}
+}
+
+// An endpoint that has taken no delivery for three days is disabled when an event's last
+// attempt to it fails; one that answered recently is not.
+func TestAnEndpointFailingForDaysIsDisabled(t *testing.T) {
+	h := newHarness(t, true, func(c *events.Config) { c.MaxAttempts = 1 })
+	recv, srv := newReceiver(time.Now)
+	defer srv.Close()
+	failing, _ := h.endpoint(srv.URL, events.TypeAPIKeyCreated)
+	recv.failFirst = 1000
+	h.startWorker()
+
+	e := h.publish()
+	h.waitForDeliveries(e.ID.String(), func(ds []events.Delivery) bool { return len(ds) == 1 })
+	if got := h.status(failing.ID); got != events.Enabled {
+		t.Fatalf("a new endpoint failing an event: %s", got)
+	}
+	h.clock.Advance(4 * 24 * time.Hour)
+	e = h.publish()
+	h.waitForDeliveries(e.ID.String(), func(ds []events.Delivery) bool { return len(ds) == 1 })
+	deadline := time.Now().Add(5 * time.Second)
+	for h.status(failing.ID) != events.Disabled {
+		if time.Now().After(deadline) {
+			t.Fatal("an endpoint that took nothing for four days stayed enabled")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func (h *harness) status(endpointID id.ID) events.Status {
+	h.t.Helper()
+	e, err := h.svc.Endpoint(h.t.Context(), h.pool, h.owner, endpointID)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return e.Status
 }

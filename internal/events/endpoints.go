@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -52,6 +53,9 @@ type EndpointUpdate struct {
 	Status        *Status
 }
 
+// MaxEndpoints bounds a merchant's endpoints in a mode: each event is a delivery to each.
+const MaxEndpoints = 16
+
 // CreateEndpoint returns the endpoint and its signing secret, which is shown only here.
 func (s *Service) CreateEndpoint(ctx context.Context, tx pgx.Tx, owner Owner, spec EndpointSpec, apiVersion string) (Endpoint, string, error) {
 	e := Endpoint{
@@ -62,6 +66,16 @@ func (s *Service) CreateEndpoint(ctx context.Context, tx pgx.Tx, owner Owner, sp
 		return Endpoint{}, "", err
 	}
 	q := db.New(tx)
+	if err := q.LockEndpoints(ctx, owner.Merchant.String()+"/"+strconv.FormatBool(owner.Livemode)); err != nil {
+		return Endpoint{}, "", err
+	}
+	n, err := q.CountEndpoints(ctx, db.CountEndpointsParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
+	if err != nil {
+		return Endpoint{}, "", err
+	}
+	if n >= MaxEndpoints {
+		return Endpoint{}, "", fmt.Errorf("%w: a merchant has at most %d webhook endpoints in each mode", ErrInvalid, MaxEndpoints)
+	}
 	if err := q.InsertEndpoint(ctx, db.InsertEndpointParams{
 		ID: e.ID.String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, Url: e.URL,
 		Description: e.Description, EnabledEvents: e.EnabledEvents, Status: string(e.Status),

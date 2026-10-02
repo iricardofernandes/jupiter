@@ -82,3 +82,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: ListDeliveries :many
 SELECT * FROM events.deliveries WHERE event_id = $1 ORDER BY attempted_at, id;
+
+-- name: LockEndpoints :exec
+-- Serializes creating a merchant's endpoints in a mode, so that two cannot pass the cap.
+SELECT pg_advisory_xact_lock(hashtext('events.endpoints/' || @scope::text));
+
+-- name: CountEndpoints :one
+SELECT count(*) FROM events.endpoints WHERE merchant_id = @merchant_id AND livemode = @livemode AND deleted_at IS NULL;
+
+-- name: DeliveredSince :one
+-- Whether an endpoint took any delivery since a time.
+SELECT EXISTS (SELECT 1 FROM events.deliveries WHERE endpoint_id = @endpoint_id AND succeeded AND attempted_at >= @since);
+
+-- name: DisableFailingEndpoint :execrows
+UPDATE events.endpoints SET status = 'disabled'
+WHERE id = @id AND status = 'enabled' AND deleted_at IS NULL AND created_at < @since;
