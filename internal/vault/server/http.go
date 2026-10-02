@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iricardofernandes/jupiter/internal/platform/ratelimit"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 )
 
@@ -109,7 +110,8 @@ func (s *Service) PublicHandler() http.Handler {
 	})
 	mux.HandleFunc("POST "+vault.PublicTokensPath, func(w http.ResponseWriter, r *http.Request) {
 		allowCORS(w)
-		if !s.byAddress.Allow(s.cfg.Clients.Of(r)) {
+		client := s.cfg.Clients.Address(r)
+		if !s.byAddress.Allow(ratelimit.Key(client)) {
 			s.writeError(w, r, vault.WireError{Code: vault.CodeRateLimited, Message: "Too many cards from this address. Slow down."})
 			return
 		}
@@ -126,7 +128,7 @@ func (s *Service) PublicHandler() http.Handler {
 		if !s.decode(w, r, &body) {
 			return
 		}
-		c, err := s.TokenizePublic(r.Context(), key, body.Data())
+		c, err := s.TokenizePublic(r.Context(), key, client.String(), body.Data())
 		s.answer(w, r, vault.PublicToken{
 			ID: c.Token, Object: "token", Brand: c.Brand, Last4: c.Last4, ExpMonth: c.ExpMonth, ExpYear: c.ExpYear,
 		}, err)

@@ -646,7 +646,7 @@ func (q *Queries) GetLedgerAccounts(ctx context.Context, arg GetLedgerAccountsPa
 }
 
 const getPaymentMethod = `-- name: GetPaymentMethod :one
-SELECT id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at, network_transaction_id, network_token_reference, network_token_status, network_token_since, network_token_event_at FROM payments.payment_methods WHERE id = $1 AND merchant_id = $2 AND livemode = $3
+SELECT id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at, network_transaction_id, network_token_reference, network_token_status, network_token_since, network_token_event_at, client_ip FROM payments.payment_methods WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `
 
 type GetPaymentMethodParams struct {
@@ -676,12 +676,13 @@ func (q *Queries) GetPaymentMethod(ctx context.Context, arg GetPaymentMethodPara
 		&i.NetworkTokenStatus,
 		&i.NetworkTokenSince,
 		&i.NetworkTokenEventAt,
+		&i.ClientIp,
 	)
 	return i, err
 }
 
 const getPaymentMethodByToken = `-- name: GetPaymentMethodByToken :one
-SELECT id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at, network_transaction_id, network_token_reference, network_token_status, network_token_since, network_token_event_at FROM payments.payment_methods WHERE vault_token = $1
+SELECT id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at, network_transaction_id, network_token_reference, network_token_status, network_token_since, network_token_event_at, client_ip FROM payments.payment_methods WHERE vault_token = $1
 `
 
 func (q *Queries) GetPaymentMethodByToken(ctx context.Context, vaultToken string) (PaymentsPaymentMethod, error) {
@@ -705,6 +706,7 @@ func (q *Queries) GetPaymentMethodByToken(ctx context.Context, vaultToken string
 		&i.NetworkTokenStatus,
 		&i.NetworkTokenSince,
 		&i.NetworkTokenEventAt,
+		&i.ClientIp,
 	)
 	return i, err
 }
@@ -1167,11 +1169,11 @@ func (q *Queries) InsertLedgerAccount(ctx context.Context, arg InsertLedgerAccou
 
 const insertPaymentMethod = `-- name: InsertPaymentMethod :one
 INSERT INTO payments.payment_methods (id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month,
-                                      exp_year, vault_fingerprint, created_at)
+                                      exp_year, vault_fingerprint, client_ip, created_at)
 VALUES ($1, $2, $3, 'card', $4, $5, $6, $7, $8, $9,
-        $10, $11)
+        $10, $11, $12)
 ON CONFLICT (vault_token) DO NOTHING
-RETURNING id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at, network_transaction_id, network_token_reference, network_token_status, network_token_since, network_token_event_at
+RETURNING id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month, exp_year, vault_fingerprint, created_at, network_transaction_id, network_token_reference, network_token_status, network_token_since, network_token_event_at, client_ip
 `
 
 type InsertPaymentMethodParams struct {
@@ -1185,6 +1187,7 @@ type InsertPaymentMethodParams struct {
 	ExpMonth         int32
 	ExpYear          int32
 	VaultFingerprint string
+	ClientIp         string
 	CreatedAt        pgtype.Timestamptz
 }
 
@@ -1200,6 +1203,7 @@ func (q *Queries) InsertPaymentMethod(ctx context.Context, arg InsertPaymentMeth
 		arg.ExpMonth,
 		arg.ExpYear,
 		arg.VaultFingerprint,
+		arg.ClientIp,
 		arg.CreatedAt,
 	)
 	var i PaymentsPaymentMethod
@@ -1221,6 +1225,7 @@ func (q *Queries) InsertPaymentMethod(ctx context.Context, arg InsertPaymentMeth
 		&i.NetworkTokenStatus,
 		&i.NetworkTokenSince,
 		&i.NetworkTokenEventAt,
+		&i.ClientIp,
 	)
 	return i, err
 }

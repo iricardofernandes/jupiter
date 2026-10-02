@@ -28,4 +28,5 @@ type VaultCard struct {
 	NetworkTokenMonth     pgtype.Int4
 	NetworkTokenYear      pgtype.Int4
 	NetworkTokenReference string
+	ClientIp              string
 }

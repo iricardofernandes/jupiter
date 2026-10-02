@@ -3,10 +3,10 @@
 -- card the first request stored.
 INSERT INTO vault.cards (
     token, owner, request_key, publishable_key, claim_expires_at, fingerprint, brand, bin, last4,
-    exp_month, exp_year, encrypted_number, wrapped_key, key_id, created_at
+    exp_month, exp_year, encrypted_number, wrapped_key, key_id, client_ip, created_at
 ) VALUES (
     @token, sqlc.narg('owner'), sqlc.narg('request_key'), sqlc.narg('publishable_key'), sqlc.narg('claim_expires_at'),
-    @fingerprint, @brand, @bin, @last4, @exp_month, @exp_year, @encrypted_number, @wrapped_key, @key_id, @created_at
+    @fingerprint, @brand, @bin, @last4, @exp_month, @exp_year, @encrypted_number, @wrapped_key, @key_id, @client_ip, @created_at
 )
 ON CONFLICT (owner, request_key) DO NOTHING
 RETURNING *;

@@ -9,7 +9,7 @@
     "id": "ip_many_cards",
     "action": "block",
     "description": "Five or more different cards were tried from this address in the last day.",
-    "expression": "ip != '' && ip_cards_24h >= 5"
+    "expression": "ip_cards_24h >= 5"
   },
   {
     "id": "card_declines",

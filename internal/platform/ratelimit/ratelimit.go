@@ -146,13 +146,31 @@ func ParseTrusted(list string) ([]netip.Prefix, error) {
 
 // Of is the key of the client a request comes from.
 func (c Clients) Of(r *http.Request) string {
+	return Key(c.Address(r))
+}
+
+// Key is the key an address counts under: itself, or for IPv6 its /64.
+func Key(addr netip.Addr) string {
+	if !addr.IsValid() {
+		return ""
+	}
+	if addr.Is6() {
+		prefix, _ := addr.Prefix(64)
+		return prefix.String()
+	}
+	return addr.String()
+}
+
+// Address is the address of the client a request comes from; the zero Addr when the
+// connection's own cannot be read.
+func (c Clients) Address(r *http.Request) netip.Addr {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
 	addr, err := netip.ParseAddr(host)
 	if err != nil {
-		return host
+		return netip.Addr{}
 	}
 	addr = addr.Unmap()
 	if c.trusted(addr) {
@@ -168,11 +186,7 @@ func (c Clients) Of(r *http.Request) string {
 			}
 		}
 	}
-	if addr.Is6() {
-		prefix, _ := addr.Prefix(64)
-		return prefix.String()
-	}
-	return addr.String()
+	return addr
 }
 
 func (c Clients) trusted(addr netip.Addr) bool {

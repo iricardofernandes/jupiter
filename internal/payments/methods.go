@@ -62,7 +62,7 @@ func (s *Service) CreatePaymentMethod(ctx context.Context, tx pgx.Tx, owner Owne
 		ID: PaymentMethodPrefix.New().String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 		VaultToken: c.Token, Brand: c.Brand, Bin: c.BIN, Last4: c.Last4,
 		ExpMonth: int32(c.ExpMonth), ExpYear: int32(c.ExpYear), //nolint:gosec // the vault bounds both
-		VaultFingerprint: c.Fingerprint, CreatedAt: ts(s.cfg.Now().UTC()),
+		VaultFingerprint: c.Fingerprint, ClientIp: canonicalIP(c.ClientIP), CreatedAt: ts(s.cfg.Now().UTC()),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		row, err = q.GetPaymentMethodByToken(ctx, c.Token)

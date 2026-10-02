@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strconv"
 	"time"
@@ -13,25 +14,52 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/iricardofernandes/jupiter/internal/platform/ratelimit"
 	"github.com/iricardofernandes/jupiter/internal/risk/db"
 )
 
 // Input describes a payment attempt about to reach a rail.
 type Input struct {
-	Owner        Owner
-	Attempt      string
-	Intent       string
-	Amount       int64
-	Currency     string
-	Brand        string
-	BIN          string
+	Owner    Owner
+	Attempt  string
+	Intent   string
+	Amount   int64
+	Currency string
+	Brand    string
+	BIN      string
+	// IP is the customer's address as the merchant reports it; CardIP, the one the vault
+	// saw when a web page sent it the card, which the merchant cannot choose.
 	IP           string
+	CardIP       string
 	OffSession   bool
 	Installments int
 	// CardFingerprint identifies the card across every merchant, for velocity;
 	// MerchantFingerprint is the one the merchant sees and lists.
 	CardFingerprint     string
 	MerchantFingerprint string
+}
+
+// address is what the attempt's address counts under for velocity: the one the vault saw
+// if there is one, else the one the merchant reports, an IPv6 one by its /64, which one
+// subscriber is given whole.
+func (in Input) address() string {
+	for _, ip := range []string{in.CardIP, in.IP} {
+		if addr, err := netip.ParseAddr(ip); err == nil {
+			return ratelimit.Key(addr.Unmap())
+		}
+	}
+	return ""
+}
+
+// addresses are those a list entry for an address matches.
+func (in Input) addresses() []string {
+	var out []string
+	for _, ip := range []string{in.IP, in.CardIP} {
+		if addr, err := netip.ParseAddr(ip); err == nil {
+			out = append(out, addr.Unmap().String())
+		}
+	}
+	return out
 }
 
 // Fired is a rule that matched, as the decision log shows it.
@@ -95,8 +123,8 @@ func (s *Service) serialized(ctx context.Context, q *db.Queries, in Input, now t
 	if err := q.LockMerchant(ctx, "card/"+in.CardFingerprint+mode); err != nil {
 		return Features{}, false, err
 	}
-	if in.IP != "" {
-		if err := q.LockMerchant(ctx, "ip/"+in.Owner.Merchant.String()+"/"+in.IP+mode); err != nil {
+	if address := in.address(); address != "" {
+		if err := q.LockMerchant(ctx, "ip/"+in.Owner.Merchant.String()+"/"+address+mode); err != nil {
 			return Features{}, false, err
 		}
 	}
@@ -131,7 +159,7 @@ func (s *Service) throttled(ctx context.Context, q *db.Queries, owner Owner, now
 
 func (s *Service) features(ctx context.Context, q *db.Queries, in Input, now time.Time) (Features, error) {
 	f := Features{
-		Amount: in.Amount, Currency: in.Currency, Brand: in.Brand, BIN: in.BIN, IP: in.IP,
+		Amount: in.Amount, Currency: in.Currency, Brand: in.Brand, BIN: in.BIN, IP: in.IP, CardIP: in.CardIP,
 		Installments: in.Installments, OffSession: in.OffSession, Livemode: in.Owner.Livemode,
 	}
 	card, err := q.Velocity(ctx, db.VelocityParams{Card: in.CardFingerprint, Livemode: in.Owner.Livemode, HourAgo: ts(now.Add(-time.Hour)), DayAgo: ts(now.Add(-24 * time.Hour))})
@@ -139,8 +167,8 @@ func (s *Service) features(ctx context.Context, q *db.Queries, in Input, now tim
 		return Features{}, fmt.Errorf("card velocity: %w", err)
 	}
 	f.CardAttempts1h, f.CardAttempts24h, f.CardDeclines24h = int(card.CardAttempts1h), int(card.CardAttempts24h), int(card.CardDeclines24h)
-	if in.IP != "" {
-		ip, err := q.IPVelocity(ctx, db.IPVelocityParams{Ip: in.IP, MerchantID: in.Owner.Merchant.String(), Livemode: in.Owner.Livemode, HourAgo: ts(now.Add(-time.Hour)), DayAgo: ts(now.Add(-24 * time.Hour))})
+	if address := in.address(); address != "" {
+		ip, err := q.IPVelocity(ctx, db.IPVelocityParams{Ip: address, MerchantID: in.Owner.Merchant.String(), Livemode: in.Owner.Livemode, HourAgo: ts(now.Add(-time.Hour)), DayAgo: ts(now.Add(-24 * time.Hour))})
 		if err != nil {
 			return Features{}, fmt.Errorf("address velocity: %w", err)
 		}
@@ -164,7 +192,7 @@ func (s *Service) features(ctx context.Context, q *db.Queries, in Input, now tim
 func (s *Service) lists(ctx context.Context, q *db.Queries, in Input) ([]Fired, error) {
 	items, err := q.MatchingListItems(ctx, db.MatchingListItemsParams{
 		MerchantID: in.Owner.Merchant.String(), Livemode: in.Owner.Livemode,
-		Card: in.MerchantFingerprint, Ip: in.IP, Bin: in.BIN,
+		Card: in.MerchantFingerprint, Ips: in.addresses(), Bin: in.BIN,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("matching lists: %w", err)
@@ -284,7 +312,7 @@ func (s *Service) record(ctx context.Context, q *db.Queries, in Input, d Decisio
 	}
 	if err := q.InsertAttempt(ctx, db.InsertAttemptParams{
 		AttemptID: in.Attempt, MerchantID: in.Owner.Merchant.String(), Livemode: in.Owner.Livemode,
-		CardFingerprint: in.CardFingerprint, Ip: in.IP, CreatedAt: ts(d.Created), Outcome: outcome,
+		CardFingerprint: in.CardFingerprint, Ip: in.address(), CreatedAt: ts(d.Created), Outcome: outcome,
 	}); err != nil {
 		return fmt.Errorf("recording attempt: %w", err)
 	}

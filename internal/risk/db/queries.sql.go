@@ -76,6 +76,22 @@ func (q *Queries) ActiveThrottle(ctx context.Context, arg ActiveThrottleParams) 
 	return i, err
 }
 
+const countListItems = `-- name: CountListItems :one
+SELECT count(*) FROM risk.list_items WHERE merchant_id = $1 AND livemode = $2
+`
+
+type CountListItemsParams struct {
+	MerchantID string
+	Livemode   bool
+}
+
+func (q *Queries) CountListItems(ctx context.Context, arg CountListItemsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countListItems, arg.MerchantID, arg.Livemode)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const decisionForAttempt = `-- name: DecisionForAttempt :one
 SELECT id, attempt_id, intent_id, merchant_id, livemode, action, rules, features, created_at FROM risk.decisions WHERE attempt_id = $1
 `
@@ -439,16 +455,30 @@ func (q *Queries) ListDecisions(ctx context.Context, arg ListDecisionsParams) ([
 }
 
 const listItems = `-- name: ListItems :many
-SELECT id, merchant_id, livemode, list, kind, value, created_at FROM risk.list_items WHERE merchant_id = $1 AND livemode = $2 ORDER BY id
+SELECT id, merchant_id, livemode, list, kind, value, created_at FROM risk.list_items
+WHERE merchant_id = $1 AND livemode = $2
+  AND ($3::text = '' OR id < $3)
+  AND ($4::text = '' OR id > $4)
+ORDER BY CASE WHEN $4 <> '' THEN id END ASC, id DESC
+LIMIT $5::integer
 `
 
 type ListItemsParams struct {
-	MerchantID string
-	Livemode   bool
+	MerchantID    string
+	Livemode      bool
+	StartingAfter string
+	EndingBefore  string
+	MaxCount      int32
 }
 
 func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]RiskListItem, error) {
-	rows, err := q.db.Query(ctx, listItems, arg.MerchantID, arg.Livemode)
+	rows, err := q.db.Query(ctx, listItems,
+		arg.MerchantID,
+		arg.Livemode,
+		arg.StartingAfter,
+		arg.EndingBefore,
+		arg.MaxCount,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -475,6 +505,16 @@ func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]RiskLis
 	return items, nil
 }
 
+const lockListItems = `-- name: LockListItems :exec
+SELECT pg_advisory_xact_lock(hashtext('risk.list_items/' || $1::text))
+`
+
+// Serializes adding a merchant's entries in a mode, so that two cannot pass the cap.
+func (q *Queries) LockListItems(ctx context.Context, scope string) error {
+	_, err := q.db.Exec(ctx, lockListItems, scope)
+	return err
+}
+
 const lockMerchant = `-- name: LockMerchant :exec
 SELECT pg_advisory_xact_lock(hashtextextended('risk/' || $1::text, 0))
 `
@@ -488,7 +528,7 @@ func (q *Queries) LockMerchant(ctx context.Context, key string) error {
 const matchingListItems = `-- name: MatchingListItems :many
 SELECT id, merchant_id, livemode, list, kind, value, created_at FROM risk.list_items
 WHERE merchant_id = $1 AND livemode = $2
-  AND ((kind = 'card_fingerprint' AND value = $3) OR (kind = 'ip' AND value = $4) OR (kind = 'bin' AND value = $5))
+  AND ((kind = 'card_fingerprint' AND value = $3) OR (kind = 'ip' AND value = ANY($4::text[])) OR (kind = 'bin' AND value = $5))
 ORDER BY list = 'allow' DESC, id
 `
 
@@ -496,7 +536,7 @@ type MatchingListItemsParams struct {
 	MerchantID string
 	Livemode   bool
 	Card       string
-	Ip         string
+	Ips        []string
 	Bin        string
 }
 
@@ -505,7 +545,7 @@ func (q *Queries) MatchingListItems(ctx context.Context, arg MatchingListItemsPa
 		arg.MerchantID,
 		arg.Livemode,
 		arg.Card,
-		arg.Ip,
+		arg.Ips,
 		arg.Bin,
 	)
 	if err != nil {

@@ -3,6 +3,8 @@
 package risk_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/id"
+	"github.com/iricardofernandes/jupiter/internal/platform/page"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/risk"
@@ -64,7 +67,7 @@ func (e *env) input(card, ip string, amount int64) risk.Input {
 	e.n++
 	return risk.Input{
 		Owner: e.owner, Attempt: fmt.Sprintf("pa_%d", e.n), Intent: fmt.Sprintf("pi_%d", e.n), Amount: amount, Currency: "BRL",
-		Brand: "visa", BIN: "42424242", IP: ip, CardFingerprint: card, MerchantFingerprint: "m" + card,
+		Brand: "visa", BIN: "42424242", IP: ip, CardFingerprint: card, MerchantFingerprint: merchantFingerprint(card),
 	}
 }
 
@@ -83,6 +86,12 @@ func (e *env) decide(in risk.Input, approved bool) risk.Decision {
 		e.t.Fatal(err)
 	}
 	return d
+}
+
+// merchantFingerprint stands for the fingerprint a merchant sees of a card.
+func merchantFingerprint(card string) string {
+	sum := sha256.Sum256([]byte(card))
+	return hex.EncodeToString(sum[:8])
 }
 
 func fired(d risk.Decision, ruleID string) bool {
@@ -138,7 +147,7 @@ func TestListsAndMerchantRules(t *testing.T) {
 		if _, err := e.svc.AddListItem(ctx, tx, e.owner, "block", "bin", "42424242"); err != nil {
 			return err
 		}
-		if _, err := e.svc.AddListItem(ctx, tx, e.owner, "allow", "card_fingerprint", "mcard-vip"); err != nil {
+		if _, err := e.svc.AddListItem(ctx, tx, e.owner, "allow", "card_fingerprint", merchantFingerprint("card-vip")); err != nil {
 			return err
 		}
 		_, err := e.svc.CreateRule(ctx, tx, e.owner, risk.Review, `amount > 50000 && brand == "visa"`, "Large Visa payments")
@@ -315,5 +324,72 @@ func TestTheDecisionLog(t *testing.T) {
 	}
 	if _, err := e.svc.Decision(t.Context(), e.pool, risk.Owner{Merchant: id.MustPrefix("mch").New()}, d.ID); !errors.Is(err, risk.ErrNotFound) {
 		t.Fatalf("another merchant read the decision: %v", err)
+	}
+}
+
+// An address counts one way however it is written, an IPv6 one by its /64; the address
+// the vault saw counts when the merchant reports none, or another; and list entries
+// match either.
+func TestAddressesCountByTheCustomer(t *testing.T) {
+	e := newEnv(t)
+	for i := range 5 {
+		in := e.input(fmt.Sprintf("v6-%d", i), fmt.Sprintf("2001:db8:1:2::%x", i+1), 1000)
+		e.decide(in, true)
+	}
+	if d := e.decide(e.input("v6-new", "2001:db8:1:2:ffff::1", 1000), true); !fired(d, "ip_many_cards") || d.Features.IPCards24h != 5 {
+		t.Fatalf("a sixth card from the same /64: %+v", d)
+	}
+	for i := range 5 {
+		in := e.input(fmt.Sprintf("seen-%d", i), "", 1000)
+		in.CardIP = "198.51.100.20"
+		e.decide(in, true)
+	}
+	hidden := e.input("seen-new", "203.0.113.200", 1000)
+	hidden.CardIP = "::ffff:198.51.100.20"
+	if d := e.decide(hidden, true); !fired(d, "ip_many_cards") || d.Features.CardIP != hidden.CardIP {
+		t.Fatalf("the address the vault saw, the merchant reporting another: %+v", d)
+	}
+
+	err := postgres.InTx(t.Context(), e.pool, func(tx pgx.Tx) error {
+		if _, err := e.svc.AddListItem(t.Context(), tx, e.owner, "block", "ip", "::ffff:192.0.2.77"); err != nil {
+			return err
+		}
+		for kind, value := range map[string]string{"ip": "192.0.2.300", "bin": "4242", "card_fingerprint": "not-hex"} {
+			if _, err := e.svc.AddListItem(t.Context(), tx, e.owner, "block", kind, value); !errors.Is(err, risk.ErrInvalid) {
+				return fmt.Errorf("%s %q: %w", kind, value, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := e.input("card-z", "", 1000)
+	listed.CardIP = "192.0.2.77"
+	if d := e.decide(listed, true); d.Action != risk.Block || !strings.Contains(d.Rules[0].Description, "ip 192.0.2.77 is on the block list") {
+		t.Fatalf("an entry for the address the vault saw: %+v", d)
+	}
+}
+
+func TestListEntriesArePaged(t *testing.T) {
+	e := newEnv(t)
+	err := postgres.InTx(t.Context(), e.pool, func(tx pgx.Tx) error {
+		for i := range 5 {
+			if _, err := e.svc.AddListItem(t.Context(), tx, e.owner, "block", "bin", fmt.Sprintf("4000000%d", i)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, more, err := e.svc.ListItems(t.Context(), e.pool, e.owner, page.Request{Limit: 3})
+	if err != nil || len(first) != 3 || !more || first[0].Value != "40000004" {
+		t.Fatalf("the first page: %+v, %t, %v", first, more, err)
+	}
+	rest, more, err := e.svc.ListItems(t.Context(), e.pool, e.owner, page.Request{Limit: 3, StartingAfter: first[2].ID})
+	if err != nil || len(rest) != 2 || more {
+		t.Fatalf("the second page: %+v, %t, %v", rest, more, err)
 	}
 }

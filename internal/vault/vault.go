@@ -51,15 +51,18 @@ type Card struct {
 	Token string `json:"token"`
 	// Owner is who may use the token; it is empty for a token made from a web page and
 	// not yet claimed, which then carries the publishable key it was made with.
-	Owner          string    `json:"owner,omitempty"`
-	PublishableKey string    `json:"publishable_key,omitempty"`
-	Brand          string    `json:"brand"`
-	BIN            string    `json:"bin"`
-	Last4          string    `json:"last4"`
-	ExpMonth       int       `json:"exp_month"`
-	ExpYear        int       `json:"exp_year"`
-	Fingerprint    string    `json:"fingerprint"`
-	CreatedAt      time.Time `json:"created_at"`
+	Owner          string `json:"owner,omitempty"`
+	PublishableKey string `json:"publishable_key,omitempty"`
+	Brand          string `json:"brand"`
+	BIN            string `json:"bin"`
+	Last4          string `json:"last4"`
+	ExpMonth       int    `json:"exp_month"`
+	ExpYear        int    `json:"exp_year"`
+	Fingerprint    string `json:"fingerprint"`
+	// ClientIP is the address a web page sent the card from, as the vault saw it; empty
+	// for a card the merchant's server sent.
+	ClientIP  string    `json:"client_ip,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // CardData is a card in the clear. It exists only in memory, on its way into the vault

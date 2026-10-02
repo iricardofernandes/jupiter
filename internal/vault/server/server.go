@@ -164,11 +164,12 @@ func (s *Service) repeated(ctx context.Context, r vault.TokenizeRequest) (db.Vau
 // TokenizePublic stores a card a web page sent with a merchant's publishable key. The
 // vault cannot check the key, which lives in Jupiter's database; the token stays
 // unclaimed, and Jupiter checks the key when the merchant's server claims it.
-func (s *Service) TokenizePublic(ctx context.Context, publishableKey string, c vault.CardData) (vault.Card, error) {
+func (s *Service) TokenizePublic(ctx context.Context, publishableKey, clientIP string, c vault.CardData) (vault.Card, error) {
 	expires := s.cfg.Now().UTC().Add(s.cfg.ClaimWindow)
 	row, err := s.store(ctx, c, func(p *db.InsertCardParams) {
 		p.PublishableKey = text(publishableKey)
 		p.ClaimExpiresAt = pgtype.Timestamptz{Time: expires, Valid: true}
+		p.ClientIp = clientIP
 	})
 	if err != nil {
 		return vault.Card{}, err
@@ -406,7 +407,7 @@ func cardOf(row db.VaultCard) vault.Card {
 	c := vault.Card{
 		Token: row.Token, Owner: row.Owner.String, Brand: row.Brand, BIN: row.Bin, Last4: row.Last4,
 		ExpMonth: int(row.ExpMonth), ExpYear: int(row.ExpYear),
-		Fingerprint: hex.EncodeToString(row.Fingerprint[:fingerprintSize]), CreatedAt: row.CreatedAt.Time,
+		Fingerprint: hex.EncodeToString(row.Fingerprint[:fingerprintSize]), ClientIP: row.ClientIp, CreatedAt: row.CreatedAt.Time,
 	}
 	if !row.Owner.Valid {
 		c.PublishableKey = row.PublishableKey.String

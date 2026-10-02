@@ -15,6 +15,16 @@ func validIP(s string) bool {
 	return err == nil && addr.Zone() == ""
 }
 
+// canonicalIP writes an address one way, so that one customer is one key: a mapped IPv4
+// address as IPv4, an IPv6 one compressed. Anything else is no address.
+func canonicalIP(s string) string {
+	addr, err := netip.ParseAddr(s)
+	if err != nil || addr.Zone() != "" {
+		return ""
+	}
+	return addr.Unmap().String()
+}
+
 // decide asks the risk engine about a new attempt and applies its decision. Block ends
 // the attempt before any rail. Request 3-D Secure, or 3-D Secure the merchant asked for,
 // sends a customer-initiated payment to authentication first. Review and allow go on to
@@ -85,7 +95,7 @@ func (s *Service) riskInput(ctx context.Context, q db.DBTX, owner Owner, row db.
 	if err != nil {
 		return risk.Input{}, err
 	}
-	in.Brand, in.BIN = pm.Brand, pm.Bin
+	in.Brand, in.BIN, in.CardIP = pm.Brand, pm.Bin, pm.ClientIp
 	in.CardFingerprint, in.MerchantFingerprint = pm.VaultFingerprint, merchantFingerprint(pm.VaultFingerprint, pm.MerchantID)
 	return in, nil
 }

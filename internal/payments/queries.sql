@@ -216,9 +216,9 @@ UPDATE payments.test_rail SET status = $2, detail = $3, calls = $4, queries = $5
 
 -- name: InsertPaymentMethod :one
 INSERT INTO payments.payment_methods (id, merchant_id, livemode, type, vault_token, brand, bin, last4, exp_month,
-                                      exp_year, vault_fingerprint, created_at)
+                                      exp_year, vault_fingerprint, client_ip, created_at)
 VALUES (@id, @merchant_id, @livemode, 'card', @vault_token, @brand, @bin, @last4, @exp_month, @exp_year,
-        @vault_fingerprint, @created_at)
+        @vault_fingerprint, @client_ip, @created_at)
 ON CONFLICT (vault_token) DO NOTHING
 RETURNING *;
 

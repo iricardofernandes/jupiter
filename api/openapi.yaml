@@ -860,9 +860,13 @@ paths:
     get:
       operationId: listRiskListItems
       tags: [Risk]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/StartingAfter"
+        - $ref: "#/components/parameters/EndingBefore"
       responses:
         "200":
-          description: The allow and block list entries.
+          description: A page of the allow and block list entries, newest first.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/RiskListItemPage" }
@@ -1608,9 +1612,11 @@ components:
         created: { type: integer, format: int64 }
     RiskListItemPage:
       type: object
-      required: [object, data]
+      required: [object, url, has_more, data]
       properties:
         object: { type: string, enum: [list] }
+        url: { type: string }
+        has_more: { type: boolean }
         data:
           type: array
           items: { $ref: "#/components/schemas/RiskListItem" }

@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,19 +94,58 @@ type ListItem struct {
 	Created time.Time
 }
 
-var listKinds = map[string]bool{"card_fingerprint": true, "ip": true, "bin": true}
+// maxListItems bounds a merchant's list entries in a mode.
+const maxListItems = 10_000
+
+var (
+	binPattern         = regexp.MustCompile(`^[0-9]{6,8}$`)
+	fingerprintPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
+)
+
+// listValue checks an entry's value against its kind, and writes an address the way
+// attempts are matched: a mapped IPv4 address as IPv4, an IPv6 one compressed.
+func listValue(kind, value string) (string, error) {
+	switch kind {
+	case "ip":
+		addr, err := netip.ParseAddr(value)
+		if err != nil {
+			return "", fmt.Errorf("%w: value must be an IPv4 or IPv6 address", ErrInvalid)
+		}
+		return addr.Unmap().String(), nil
+	case "bin":
+		if !binPattern.MatchString(value) {
+			return "", fmt.Errorf("%w: value must be a BIN of 6 to 8 digits", ErrInvalid)
+		}
+	case "card_fingerprint":
+		if value = strings.ToLower(value); !fingerprintPattern.MatchString(value) {
+			return "", fmt.Errorf("%w: value must be a card fingerprint, as payment methods show it", ErrInvalid)
+		}
+	default:
+		return "", fmt.Errorf("%w: kind must be card_fingerprint, ip or bin", ErrInvalid)
+	}
+	return value, nil
+}
 
 func (s *Service) AddListItem(ctx context.Context, tx pgx.Tx, owner Owner, list, kind, value string) (ListItem, error) {
-	value = strings.TrimSpace(value)
-	switch {
-	case list != "allow" && list != "block":
+	if list != "allow" && list != "block" {
 		return ListItem{}, fmt.Errorf("%w: list must be allow or block", ErrInvalid)
-	case !listKinds[kind]:
-		return ListItem{}, fmt.Errorf("%w: kind must be card_fingerprint, ip or bin", ErrInvalid)
-	case value == "" || len(value) > 100:
-		return ListItem{}, fmt.Errorf("%w: value must be 1 to 100 characters", ErrInvalid)
 	}
-	row, err := db.New(tx).InsertListItem(ctx, db.InsertListItemParams{
+	value, err := listValue(kind, strings.TrimSpace(value))
+	if err != nil {
+		return ListItem{}, err
+	}
+	q := db.New(tx)
+	if err := q.LockListItems(ctx, owner.Merchant.String()+"/"+strconv.FormatBool(owner.Livemode)); err != nil {
+		return ListItem{}, err
+	}
+	n, err := q.CountListItems(ctx, db.CountListItemsParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
+	if err != nil {
+		return ListItem{}, err
+	}
+	if n >= maxListItems {
+		return ListItem{}, fmt.Errorf("%w: a merchant has at most %d list entries in each mode", ErrInvalid, maxListItems)
+	}
+	row, err := q.InsertListItem(ctx, db.InsertListItemParams{
 		ID: ListItemPrefix.New().String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 		List: list, Kind: kind, Value: value, CreatedAt: ts(s.cfg.Now().UTC()),
 	})
@@ -113,16 +155,20 @@ func (s *Service) AddListItem(ctx context.Context, tx pgx.Tx, owner Owner, list,
 	return listItemOf(row), nil
 }
 
-func (s *Service) ListItems(ctx context.Context, q db.DBTX, owner Owner) ([]ListItem, error) {
-	rows, err := db.New(q).ListItems(ctx, db.ListItemsParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
+func (s *Service) ListItems(ctx context.Context, q db.DBTX, owner Owner, r page.Request) ([]ListItem, bool, error) {
+	rows, err := db.New(q).ListItems(ctx, db.ListItemsParams{
+		MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
+		StartingAfter: r.StartingAfter, EndingBefore: r.EndingBefore, MaxCount: r.Fetch(),
+	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	out := make([]ListItem, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, listItemOf(r))
+	for _, row := range rows {
+		out = append(out, listItemOf(row))
 	}
-	return out, nil
+	items, more := page.Trim(out, r)
+	return items, more, nil
 }
 
 func (s *Service) RemoveListItem(ctx context.Context, tx pgx.Tx, owner Owner, itemID string) error {

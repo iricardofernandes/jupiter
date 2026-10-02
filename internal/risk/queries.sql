@@ -74,12 +74,24 @@ RETURNING *;
 DELETE FROM risk.list_items WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode;
 
 -- name: ListItems :many
-SELECT * FROM risk.list_items WHERE merchant_id = @merchant_id AND livemode = @livemode ORDER BY id;
+SELECT * FROM risk.list_items
+WHERE merchant_id = @merchant_id AND livemode = @livemode
+  AND (@starting_after::text = '' OR id < @starting_after)
+  AND (@ending_before::text = '' OR id > @ending_before)
+ORDER BY CASE WHEN @ending_before <> '' THEN id END ASC, id DESC
+LIMIT @max_count::integer;
+
+-- name: LockListItems :exec
+-- Serializes adding a merchant's entries in a mode, so that two cannot pass the cap.
+SELECT pg_advisory_xact_lock(hashtext('risk.list_items/' || @scope::text));
+
+-- name: CountListItems :one
+SELECT count(*) FROM risk.list_items WHERE merchant_id = @merchant_id AND livemode = @livemode;
 
 -- name: MatchingListItems :many
 SELECT * FROM risk.list_items
 WHERE merchant_id = @merchant_id AND livemode = @livemode
-  AND ((kind = 'card_fingerprint' AND value = @card) OR (kind = 'ip' AND value = @ip) OR (kind = 'bin' AND value = @bin))
+  AND ((kind = 'card_fingerprint' AND value = @card) OR (kind = 'ip' AND value = ANY(@ips::text[])) OR (kind = 'bin' AND value = @bin))
 ORDER BY list = 'allow' DESC, id;
 
 -- name: ActiveThrottle :one

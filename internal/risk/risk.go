@@ -62,6 +62,7 @@ type Features struct {
 	Brand        string `expr:"brand" json:"brand"`
 	BIN          string `expr:"bin" json:"bin"`
 	IP           string `expr:"ip" json:"ip"`
+	CardIP       string `expr:"card_ip" json:"card_ip"`
 	Installments int    `expr:"installments" json:"installments"`
 	OffSession   bool   `expr:"off_session" json:"off_session"`
 	Livemode     bool   `expr:"livemode" json:"livemode"`

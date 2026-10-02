@@ -9,11 +9,15 @@ features they saw ([ADR 0022](../adr/0022-risk-engine-rules-velocity-card-testin
 
 ## How a decision is made
 
-1. **Lists.** If the card's fingerprint, the IP or the BIN is on the merchant's allow
-   list, the merchant's block list, its own rules and the platform's reviews and 3-D
-   Secure requests are set aside, but the platform's blocks and the card-testing
-   throttle still apply. Otherwise, on the block list, the payment is blocked. `POST /v1/risk/list_items` adds an entry:
-   `{"list": "block", "kind": "ip", "value": "203.0.113.9"}`.
+1. **Lists.** If the card's fingerprint, an address (`ip` or `card_ip`) or the BIN is on
+   the merchant's allow list, the merchant's block list, its own rules and the
+   platform's reviews and 3-D Secure requests are set aside, but the platform's blocks
+   and the card-testing throttle still apply. Otherwise, on the block list, the payment
+   is blocked. `POST /v1/risk/list_items` adds an entry:
+   `{"list": "block", "kind": "ip", "value": "203.0.113.9"}`. The value is an IP
+   address, a BIN of 6 to 8 digits, or a card fingerprint as payment methods show it. An
+   account has at most 10,000 entries in each mode, and `GET /v1/risk/list_items` pages
+   through them, newest first.
 2. **Rules.** The platform's rules, then the merchant's own, each an expression over the
    features below. The decision is the most severe action among those that fired.
 3. **Card testing.** A merchant with at least 20 attempts in ten minutes, 20% or more of
@@ -27,9 +31,10 @@ features they saw ([ADR 0022](../adr/0022-risk-engine-rules-velocity-card-testin
 | `amount`, `currency` | In minor units, and the ISO code |
 | `brand`, `bin` | visa, mastercard, amex, elo, hipercard; the first 6 or 8 digits |
 | `ip` | `customer_ip` from the payment (an IPv4 or IPv6 address), or empty |
+| `card_ip` | The address a web page sent the card from, as Jupiter's vault saw it, or empty for a card your server sent |
 | `installments`, `off_session`, `livemode` | |
 | `card_attempts_1h`, `card_attempts_24h`, `card_declines_24h` | This card's attempts and declines, at every merchant |
-| `ip_attempts_1h`, `ip_cards_24h` | Attempts, and different cards, from this address at your account |
+| `ip_attempts_1h`, `ip_cards_24h` | Attempts, and different cards, from this address at your account: `card_ip` when there is one, else `ip`, an IPv6 address counting by its /64 |
 | `merchant_attempts_1m`, `merchant_attempts_10m`, `merchant_decline_ratio_10m` | Yours |
 | `throttled` | Whether you are throttled for card testing |
 
@@ -38,7 +43,7 @@ features they saw ([ADR 0022](../adr/0022-risk-engine-rules-velocity-card-testin
 | Rule | Action | Expression |
 |---|---|---|
 | `card_velocity` | block | `card_attempts_1h >= 10` |
-| `ip_many_cards` | block | `ip != '' && ip_cards_24h >= 5` |
+| `ip_many_cards` | block | `ip_cards_24h >= 5` |
 | `card_declines` | request_3ds | `card_declines_24h >= 3 && !off_session` |
 | `large_amount` | review | `amount >= 1000000` |
 

@@ -374,7 +374,7 @@ func (s *Service) newAttempt(ctx context.Context, q *db.Queries, row db.Payments
 		ID: attemptID, IntentID: row.ID, Number: number, PaymentMethod: row.PaymentMethod,
 		Amount: row.Amount, Status: string(attemptAuthorizing), Initiator: initiator,
 		StoresCredential: row.SetupFutureUsage == SetupOffSession, Installments: row.Installments,
-		InstallmentsFinancedBy: row.InstallmentsFinancedBy, Ip: p.IP, CreatedAt: ts(s.cfg.Now().UTC()),
+		InstallmentsFinancedBy: row.InstallmentsFinancedBy, Ip: canonicalIP(p.IP), CreatedAt: ts(s.cfg.Now().UTC()),
 	}); err != nil {
 		return "", fmt.Errorf("recording attempt: %w", err)
 	}

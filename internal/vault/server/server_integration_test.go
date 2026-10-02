@@ -280,8 +280,8 @@ func TestWebPageTokensWaitForTheirMerchantToClaimThem(t *testing.T) {
 		t.Fatalf("an unclaimed token was detokenized: %v", err)
 	}
 	claimed, err := v.Client.Claim(ctx, token, owner)
-	if err != nil || claimed.Owner != owner || claimed.PublishableKey != "" {
-		t.Fatalf("Claim = %+v, %v", claimed, err)
+	if err != nil || claimed.Owner != owner || claimed.PublishableKey != "" || claimed.ClientIP != "127.0.0.1" {
+		t.Fatalf("Claim = %+v, %v; want the address the page sent it from", claimed, err)
 	}
 	if _, err := v.Client.Claim(ctx, token, owner); err != nil {
 		t.Fatalf("claiming again for the same owner: %v", err)

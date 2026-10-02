@@ -127,6 +127,7 @@ type PaymentsPaymentMethod struct {
 	NetworkTokenStatus    string
 	NetworkTokenSince     pgtype.Timestamptz
 	NetworkTokenEventAt   pgtype.Timestamptz
+	ClientIp              string
 }
 
 type PaymentsPayout struct {

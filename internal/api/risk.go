@@ -131,17 +131,22 @@ func (a *API) DeleteRiskRule(w http.ResponseWriter, r *http.Request, ruleID open
 	a.writeJSON(w, r, openapi.DeletedObject{Id: ruleID, Object: "risk_rule", Deleted: true})
 }
 
-func (a *API) ListRiskListItems(w http.ResponseWriter, r *http.Request) {
+func (a *API) ListRiskListItems(w http.ResponseWriter, r *http.Request, params openapi.ListRiskListItemsParams) {
 	p, ok := a.riskReady(w, r, merchant.ScopeRiskRead)
 	if !ok {
 		return
 	}
-	items, err := a.deps.Risk.ListItems(r.Context(), a.deps.Pool, riskOwner(p))
+	pr, err := pageRequest(params.Limit, params.StartingAfter, params.EndingBefore)
 	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
-	list := openapi.RiskListItemPage{Object: "list", Data: make([]openapi.RiskListItem, 0, len(items))}
+	items, more, err := a.deps.Risk.ListItems(r.Context(), a.deps.Pool, riskOwner(p), pr)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	list := openapi.RiskListItemPage{Object: "list", Url: "/v1/risk/list_items", HasMore: more, Data: make([]openapi.RiskListItem, 0, len(items))}
 	for _, item := range items {
 		list.Data = append(list.Data, listItemJSON(item))
 	}
