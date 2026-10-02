@@ -20,7 +20,8 @@ type Violation struct {
 // Check verifies, in one snapshot, that every intent agrees with its latest attempt,
 // that refunded amounts match succeeded refunds, and that each merchant's ledger balance
 // holds exactly what its payments say: posted, what was received less what was
-// refunded; pending, what open authorizations hold.
+// refunded; pending, what open authorizations hold. No merchant's balance may be below
+// zero by more than chargebacks took.
 func (s *Service) Check(ctx context.Context, pool *pgxpool.Pool) ([]Violation, error) {
 	var violations []Violation
 	snapshot := pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
@@ -79,6 +80,15 @@ func (s *Service) checkBalances(ctx context.Context, tx pgx.Tx, q *db.Queries) (
 			return nil, err
 		}
 		t := want[scope{a.MerchantID, a.Currency, a.Livemode}]
+		// A chargeback is taken whatever the balance has, and what it leaves below zero the
+		// merchant owes, recovered from what it receives next; nothing else may.
+		if available, err := balance.Available(); err == nil && -available.Minor() > t.Disputed {
+			violations = append(violations, Violation{
+				Subject: a.AccountID,
+				Detail: fmt.Sprintf("the merchant's balance is %d below zero, more than the %d disputes took: something was paid from it that it did not have",
+					-available.Minor(), t.Disputed),
+			})
+		}
 		if posted.Minor() != t.Posted || balance.PendingCredits.Minor() != t.Held || balance.PendingDebits.Minor() != t.PayingOut {
 			violations = append(violations, Violation{
 				Subject: a.AccountID,

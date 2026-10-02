@@ -147,7 +147,10 @@ type Config struct {
 	Recipients Recipients
 	// Balances, if set, are recipients' balances, which payouts can be paid from.
 	Balances RecipientBalances
-	Now      func() time.Time
+	// DailyPayoutLimit, if set, bounds what payouts asked for through the API take from one
+	// balance in a day (Brasília), in centavos: what a stolen key could send away.
+	DailyPayoutLimit int64
+	Now              func() time.Time
 	// ResolveAfter is how long an operation stays in flight before the resolver asks
 	// the rail what happened; GiveUpAfter is when an authorization still unknown is
 	// reversed and failed, so no attempt stays unknown for longer.

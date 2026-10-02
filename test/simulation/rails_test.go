@@ -261,7 +261,10 @@ func newRails(t *testing.T, seed uint64) *rails {
 				r.key = k.Value
 			}
 		}
-		return merchants.SetTaxID(t.Context(), tx, m.ID, railMerchantCNPJ)
+		if err := merchants.SetTaxID(t.Context(), tx, m.ID, railMerchantCNPJ); err != nil {
+			return err
+		}
+		return ownDestination(t.Context(), tx, recipientService, recipients.Owner{Merchant: m.ID}, railPayoutKey)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -458,4 +461,15 @@ func (r *rails) noteFault(counterparty, kind string, n int, what string) {
 	r.stats.faults++
 	r.mu.Unlock()
 	r.record("fault %s %s #%d: %s", counterparty, kind, n, what)
+}
+
+// ownDestination gives the merchant's own recipient, which its balance is paid out to, a
+// Pix key.
+func ownDestination(ctx context.Context, tx pgx.Tx, s *recipients.Service, owner recipients.Owner, key string) error {
+	me, err := s.Default(ctx, tx, owner)
+	if err != nil {
+		return err
+	}
+	_, err = s.Update(ctx, tx, owner, me.ID, recipients.Params{Destination: &recipients.Destination{Method: "pix", PixKey: key}})
+	return err
 }

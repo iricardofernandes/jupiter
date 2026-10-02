@@ -28,7 +28,10 @@ import (
 
 var PayoutPrefix = id.MustPrefix("po")
 
-var ErrInsufficientFunds = errors.New("payments: the balance does not cover the payout")
+var (
+	ErrInsufficientFunds = errors.New("payments: the balance does not cover it")
+	ErrPayoutLimit       = errors.New("payments: the payout limit is reached")
+)
 
 type PayoutStatus string
 
@@ -151,31 +154,25 @@ const (
 )
 
 // CreatePayout holds the amount on the merchant's balance, or the recipient's, and
-// records the payout, before the bank is asked. A recipient's payout goes to its own
-// destination, by Pix or bank transfer; one whose payouts an operator holds waits held.
+// records the payout, before the bank is asked. The money goes only where it was verified
+// to be paid, by Pix or bank transfer: a recipient's to its own destination, the
+// merchant's to its own recipient's. One whose payouts an operator holds waits held.
 func (s *Service) CreatePayout(ctx context.Context, tx pgx.Tx, owner Owner, p PayoutParams) (Payout, error) {
 	if !p.Amount.IsPositive() || p.Amount.Currency() != money.BRL {
 		return Payout{}, fmt.Errorf("%w: a payout is a positive amount in BRL", ErrInvalid)
 	}
-	src := PayoutSource{Destination: PayoutDestination{Method: PayoutPix, PixKey: p.PixKey}}
-	if p.Recipient != "" {
-		if s.cfg.Balances == nil {
-			return Payout{}, fmt.Errorf("%w: recipients are not available", ErrInvalid)
-		}
-		var err error
-		if src, err = s.cfg.Balances.PayoutSource(ctx, tx, owner, p.Recipient, p.Amount.Currency()); err != nil {
-			return Payout{}, err
-		}
-		// A recipient's money goes only where the recipient was verified to be paid.
-		if d := src.Destination; d.Method == "" || (p.PixKey != "" && (d.Method != PayoutPix || p.PixKey != d.PixKey)) {
-			return Payout{}, fmt.Errorf("%w: a recipient is paid out to its own payout_destination, and to no other", ErrInvalid)
-		}
+	src, err := s.payoutSource(ctx, tx, owner, p)
+	if err != nil {
+		return Payout{}, err
+	}
+	if d := src.Destination; p.PixKey != "" && (d.Method != PayoutPix || p.PixKey != d.PixKey) {
+		return Payout{}, fmt.Errorf("%w: a balance is paid out to its own payout_destination, and to no other", ErrInvalid)
 	}
 	if err := s.checkPayout(owner, p, src.Destination); err != nil {
 		return Payout{}, err
 	}
 	q := db.New(tx)
-	if err := q.LockPayouts(ctx, owner.Merchant.String()+"/"+strconv.FormatBool(owner.Livemode)+"/"+p.Amount.Currency().Code()+"/"+p.Recipient); err != nil {
+	if err := lockBalance(ctx, q, owner, p.Amount.Currency(), p.Recipient); err != nil {
 		return Payout{}, err
 	}
 	source, available, err := s.payoutFunds(ctx, tx, owner, p, src.Account)
@@ -185,10 +182,53 @@ func (s *Service) CreatePayout(ctx context.Context, tx pgx.Tx, owner Owner, p Pa
 	if available < p.Amount.Minor() {
 		return Payout{}, fmt.Errorf("%w: %d available, %d asked for", ErrInsufficientFunds, available, p.Amount.Minor())
 	}
+	if err := s.withinDailyLimit(ctx, q, owner, p); err != nil {
+		return Payout{}, err
+	}
 	if err := scheduledOnce(ctx, q, owner, p); err != nil {
 		return Payout{}, err
 	}
 	return s.insertPayout(ctx, tx, owner, p, src, source)
+}
+
+func (s *Service) payoutSource(ctx context.Context, tx pgx.Tx, owner Owner, p PayoutParams) (PayoutSource, error) {
+	switch {
+	case p.Recipient != "" && s.cfg.Balances == nil, p.Recipient == "" && s.cfg.Recipients == nil:
+		return PayoutSource{}, fmt.Errorf("%w: recipients are not available, and payouts go only to a recipient's destination", ErrInvalid)
+	case p.Recipient == "":
+		return s.cfg.Recipients.OwnPayoutDestination(ctx, tx, owner)
+	}
+	src, err := s.cfg.Balances.PayoutSource(ctx, tx, owner, p.Recipient, p.Amount.Currency())
+	if err == nil && src.Destination.Method == "" {
+		err = fmt.Errorf("%w: the recipient has no payout_destination", ErrInvalid)
+	}
+	return src, err
+}
+
+// withinDailyLimit refuses a payout asked for through the API that would take a balance's
+// payouts of the day past the limit. It runs under the balance's lock. Scheduled payouts,
+// which no key asks for, are not counted against it.
+func (s *Service) withinDailyLimit(ctx context.Context, q *db.Queries, owner Owner, p PayoutParams) error {
+	if s.cfg.DailyPayoutLimit == 0 || !p.ScheduledOn.IsZero() {
+		return nil
+	}
+	paid, err := q.PayoutsOfTheDay(ctx, db.PayoutsOfTheDayParams{
+		MerchantID: owner.Merchant.String(), Livemode: owner.Livemode, RecipientID: p.Recipient,
+		Currency: p.Amount.Currency().Code(), Since: ts(startOfDay(s.cfg.Now())),
+	})
+	if err != nil {
+		return err
+	}
+	if left := s.cfg.DailyPayoutLimit - paid; p.Amount.Minor() > left {
+		return fmt.Errorf("%w: payouts of a balance are limited to %d a day, and %d is left today", ErrPayoutLimit, s.cfg.DailyPayoutLimit, max(left, 0))
+	}
+	return nil
+}
+
+// startOfDay is when t's day began in Brasília.
+func startOfDay(t time.Time) time.Time {
+	y, m, d := t.In(brasilia).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, brasilia)
 }
 
 // scheduledOnce refuses a recipient's second scheduled payout of a day. It runs under the
@@ -278,13 +318,44 @@ func (s *Service) payoutSettlement(ctx context.Context, tx pgx.Tx, livemode bool
 	return pix.settlement, err
 }
 
-// ReleaseHeldPayouts lets a recipient's held payouts go: the worker sends them.
-func (s *Service) ReleaseHeldPayouts(ctx context.Context, tx pgx.Tx, recipientID string) (int, error) {
-	// Dated back past the resolver's wait, so that its next pass sends them.
-	released, err := db.New(tx).ReleaseHeldPayouts(ctx, db.ReleaseHeldPayoutsParams{
-		RecipientID: recipientID, Now: ts(s.cfg.Now().UTC().Add(-s.cfg.ResolveAfter)),
+// ReleaseHeldPayouts lets a recipient's held payouts go to its destination, the one an
+// operator confirmed: the worker sends them. One made for another destination, as before
+// the merchant set back one a stolen key had changed, fails instead, its amount back in
+// the balance. The merchant's own recipient's are also those of the merchant's own
+// balance. It answers how many went and how many failed.
+func (s *Service) ReleaseHeldPayouts(ctx context.Context, tx pgx.Tx, owner Owner, recipientID string, own bool, confirmed PayoutDestination) (released, failed int, err error) {
+	q := db.New(tx)
+	held, err := q.HeldPayouts(ctx, db.HeldPayoutsParams{
+		RecipientID: recipientID, Own: own, MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
 	})
-	return len(released), err
+	if err != nil {
+		return 0, 0, err
+	}
+	now := s.cfg.Now().UTC()
+	for _, row := range held {
+		if destinationOf(row) == confirmed {
+			// Dated back past the resolver's wait, so that its next pass sends it.
+			row.Status, row.UpdatedAt = "sending", ts(now.Add(-s.cfg.ResolveAfter))
+			released++
+		} else {
+			if err := s.payoutFailed(ctx, tx, owner, &row, PixTransfer{Reason: "The payout destination changed while it was held."}); err != nil {
+				return 0, 0, err
+			}
+			row.FailureCode, row.UpdatedAt = "destination_changed", ts(now)
+			failed++
+		}
+		if err := savePayout(ctx, q, row); err != nil {
+			return 0, 0, err
+		}
+	}
+	return released, failed, nil
+}
+
+// lockBalance serializes everything that spends or holds an owner's balance in a
+// currency (payouts, refunds, disputes), the merchant's own when recipient is empty, so
+// each sees what the one before left. It is taken after any intent's lock, never before.
+func lockBalance(ctx context.Context, q *db.Queries, owner Owner, currency money.Currency, recipient string) error {
+	return q.LockPayouts(ctx, owner.Merchant.String()+"/"+strconv.FormatBool(owner.Livemode)+"/"+currency.Code()+"/"+recipient)
 }
 
 // payoutFunds is the account a payout is paid from, the recipient's or else the
@@ -664,4 +735,21 @@ func ValidPixKey(s string) bool {
 		return true
 	}
 	return false
+}
+
+// defaultDailyPayoutLimit is R$ 200,000.00.
+const defaultDailyPayoutLimit = 200_000_00
+
+// DailyPayoutLimit reads JUPITER_PAYOUT_DAILY_LIMIT, in centavos: what payouts asked for
+// through the API take from one balance in a day. Unset, R$ 200,000.00; 0, no limit.
+func DailyPayoutLimit(getenv func(string) string) (int64, error) {
+	v := getenv("JUPITER_PAYOUT_DAILY_LIMIT")
+	if v == "" {
+		return defaultDailyPayoutLimit, nil
+	}
+	limit, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || limit < 0 {
+		return 0, fmt.Errorf("JUPITER_PAYOUT_DAILY_LIMIT must be a number of centavos, 0 for no limit: %q", v)
+	}
+	return limit, nil
 }

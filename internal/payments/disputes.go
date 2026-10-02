@@ -152,6 +152,9 @@ func (s *Service) WithdrawDisputed(ctx context.Context, tx pgx.Tx, reference str
 	if err != nil || left <= 0 || !most.IsPositive() {
 		return 0, err
 	}
+	if err := lockBalance(ctx, q, p.Owner, most.Currency(), ""); err != nil {
+		return 0, err
+	}
 	amount, _ := money.New(min(most.Minor(), left), most.Currency())
 	accts, err := s.ledgerAccounts(ctx, tx, p.Owner, amount.Currency())
 	if err != nil {
@@ -218,6 +221,9 @@ func (s *Service) HoldDisputed(ctx context.Context, tx pgx.Tx, reference string,
 	q := db.New(tx)
 	left, err := s.lockForDispute(ctx, q, p)
 	if err != nil || left <= 0 {
+		return 0, err
+	}
+	if err := lockBalance(ctx, q, p.Owner, amount.Currency(), ""); err != nil {
 		return 0, err
 	}
 	source, available, err := s.payoutFunds(ctx, tx, p.Owner, PayoutParams{Amount: amount}, id.ID{})

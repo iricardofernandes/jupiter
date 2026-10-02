@@ -36,6 +36,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/platform/secretbox"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	"github.com/iricardofernandes/jupiter/internal/reconciliation"
 	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
 	"github.com/iricardofernandes/jupiter/internal/subscriptions"
@@ -45,7 +46,7 @@ var server *postgrestest.Server
 
 func TestMain(m *testing.M) {
 	os.Exit(postgrestest.Templates(m, &server, map[string][]postgrestest.MigrateFunc{
-		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, subscriptions.Migrate, disputes.Migrate, reconciliation.Migrate},
+		postgrestest.DefaultTemplate: {ledger.Migrate, merchant.Migrate, events.Migrate, payments.Migrate, api.Migrate, jobs.Migrate, subscriptions.Migrate, disputes.Migrate, reconciliation.Migrate, recipients.Migrate},
 	}))
 }
 
@@ -85,15 +86,17 @@ type harness struct {
 	subs      *subscriptions.Service
 	disputes  *disputes.Service
 	recon     *reconciliation.Service
+	recips    *recipients.Service
 	ledger    *ledger.Ledger
 	api       *httptest.Server
 	liveKey   string
+	owner     recipients.Owner
 
 	mu     sync.Mutex
 	faults func(pixsim.Event) pixsim.Fault
 }
 
-func newHarness(t *testing.T) *harness {
+func newHarness(t *testing.T, configure ...func(*payments.Config)) *harness {
 	t.Helper()
 	h := &harness{t: t, pool: server.Pool(t), clock: &clock{}}
 	pki, err := mtls.NewPKI("pixrail")
@@ -154,10 +157,16 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.payments = payments.New(payments.Config{
+	merchants := merchant.New(h.clock.Now)
+	h.recips = recipients.New(recipients.Config{Merchants: merchants, Events: eventService, Now: h.clock.Now})
+	cfg := payments.Config{
 		Ledger: h.ledger, Events: eventService, Now: h.clock.Now, LivePix: h.connector,
-		TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil),
-	})
+		TestRail: payments.NewTestRail(h.pool, h.clock.Now, nil), Recipients: h.recips,
+	}
+	for _, c := range configure {
+		c(&cfg)
+	}
+	h.payments = payments.New(cfg)
 	h.subs = subscriptions.New(subscriptions.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveBank: h.connector, Now: h.clock.Now})
 	h.disputes = disputes.New(disputes.Config{Pool: h.pool, Payments: h.payments, Events: eventService, LiveBank: h.connector, Now: h.clock.Now})
 	h.recon = reconciliation.New(reconciliation.Config{Pool: h.pool, Now: h.clock.Now, Live: reconciliation.Mode{Streams: []reconciliation.Stream{{
@@ -170,20 +179,36 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 
-	merchants := merchant.New(h.clock.Now)
 	a := api.New(api.Deps{
-		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Subscriptions: h.subs, Disputes: h.disputes, Box: box, Now: h.clock.Now,
+		Pool: h.pool, Merchants: merchants, Events: eventService, Payments: h.payments, Subscriptions: h.subs, Disputes: h.disputes,
+		Recipients: h.recips, Box: box, Now: h.clock.Now,
 	})
 	h.api = httptest.NewServer(a.Handler())
 	t.Cleanup(h.api.Close)
 	err = postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {
-		_, keys, err := merchants.Create(t.Context(), tx, "Loja Pix", api.CurrentVersion)
+		m, keys, err := merchants.Create(t.Context(), tx, "Loja Pix", api.CurrentVersion)
+		if err != nil {
+			return err
+		}
 		for _, k := range keys {
 			if k.Livemode && k.Kind == merchant.Secret {
 				h.liveKey = k.Value
 			}
 		}
-		return err
+		if err := merchants.SetTaxID(t.Context(), tx, m.ID, "98765432100"); err != nil {
+			return err
+		}
+		// The merchant's balance is paid out to its own recipient's key.
+		h.owner = recipients.Owner{Merchant: m.ID, Livemode: true}
+		me, err := h.recips.Default(t.Context(), tx, h.owner)
+		if err != nil {
+			return err
+		}
+		if _, err = h.recips.Update(t.Context(), tx, h.owner, me.ID, recipients.Params{Destination: &recipients.Destination{Method: "pix", PixKey: sellerKey}}); err != nil {
+			return err
+		}
+		// An operator confirmed it with the merchant.
+		return h.recips.HoldPayouts(t.Context(), tx, me.ID.String(), false)
 	})
 	if err != nil {
 		t.Fatal(err)

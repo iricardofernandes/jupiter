@@ -1,16 +1,25 @@
 # Payouts
 
-A payout sends part of your balance to a Pix key:
+A payout sends part of your balance to your own recipient's `payout_destination`, and
+nowhere else, so a key that leaks cannot send your money to someone else's account. Set
+the destination once, a Pix key or a bank account:
 
 ```sh
+curl -X POST http://127.0.0.1:8080/v1/recipients/me -H "Authorization: Bearer $SK_LIVE" \
+  -d '{"payout_destination": {"type": "pix", "pix_key": "+5511987654321"}}'
+
 curl -X POST http://127.0.0.1:8080/v1/payouts -H "Authorization: Bearer $SK_LIVE" \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"amount": 60000, "currency": "brl", "destination": {"type": "pix", "pix_key": "+5511987654321"}}'
+  -H "Idempotency-Key: $(uuidgen)" -d '{"amount": 60000, "currency": "brl"}'
 ```
 
 The key is a CPF or CNPJ, an e-mail, a phone number in international format
-(`+5511…`), or a random key. The amount is taken from your balance at once, so it
-cannot be paid out twice.
+(`+5511…`), or a random key. A `destination` in the payout must be that same key. The
+amount is taken from your balance at once, so it cannot be paid out twice.
+
+In live mode, every destination you set, the first included, holds your payouts until
+Jupiter has confirmed it with you: they wait `held`, with their amount set aside, and go
+once the hold is lifted. A payout held for a destination you changed again before the
+confirmation fails, its amount back in the balance.
 
 A recipient's payout comes from its available balance and goes to its own
 `payout_destination`, by Pix or, for a bank account, by bank transfer:
@@ -32,7 +41,9 @@ A payout is at least R$ 1.00 by Pix and R$ 10.00 by bank transfer.
 
 You can pay out what the balance has available: for your own, what your payments received,
 less refunds and earlier payouts, including those still pending. Asking for more answers
-`balance_insufficient`.
+`balance_insufficient`. What you ask for in a day (Brasília) from one balance is limited,
+R$ 200,000.00 unless agreed otherwise; past it, `payout_limit_reached`. Scheduled payouts
+do not count against the limit.
 
 ## Scheduled payouts
 

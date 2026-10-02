@@ -146,7 +146,8 @@ WHERE role = 'merchant_balance' ORDER BY merchant_id, livemode, currency;
 -- was refunded, Jupiter's fees net of what refunds gave back, what was paid out, and what
 -- disputes took net of what recipients gave back for them; held for the merchant, what
 -- open card authorizations hold; held against the merchant, what payouts in flight and
--- MED claims under analysis hold.
+-- MED claims under analysis hold. Disputed is what disputes took, the most a chargeback
+-- can leave the balance below zero.
 WITH received AS (
     SELECT i.merchant_id, i.livemode, i.currency,
            sum(i.amount_received - i.amount_refunded
@@ -172,7 +173,8 @@ WITH received AS (
 SELECT r.merchant_id, r.livemode, r.currency,
        (r.posted - coalesce(p.paid, 0) - coalesce(d.withdrawn, 0))::bigint AS posted,
        coalesce(h.held, 0)::bigint AS held,
-       (coalesce(p.in_flight, 0) + coalesce(d.held, 0))::bigint AS paying_out
+       (coalesce(p.in_flight, 0) + coalesce(d.held, 0))::bigint AS paying_out,
+       coalesce(d.withdrawn, 0)::bigint AS disputed
 FROM received r
 LEFT JOIN held h ON h.merchant_id = r.merchant_id AND h.livemode = r.livemode AND h.currency = r.currency
 LEFT JOIN paid_out p ON p.merchant_id = r.merchant_id AND p.livemode = r.livemode AND p.currency = r.currency
@@ -357,10 +359,19 @@ SELECT EXISTS (SELECT 1 FROM payments.payouts WHERE merchant_id = @merchant_id A
 -- name: TouchPayout :exec
 UPDATE payments.payouts SET updated_at = @updated_at WHERE id = @id;
 
--- name: ReleaseHeldPayouts :many
-UPDATE payments.payouts SET status = 'sending', updated_at = @now
-WHERE recipient_id = @recipient_id AND status = 'held'
-RETURNING id;
+-- name: HeldPayouts :many
+SELECT * FROM payments.payouts
+WHERE status = 'held' AND (recipient_id = @recipient_id
+    OR (@own::boolean AND recipient_id = '' AND merchant_id = @merchant_id AND livemode = @livemode))
+ORDER BY id
+FOR UPDATE;
+
+-- name: PayoutsOfTheDay :one
+-- What a balance's payouts asked for since the day began took, but those that failed or
+-- came back; scheduled payouts are not counted.
+SELECT coalesce(sum(amount), 0)::bigint FROM payments.payouts
+WHERE merchant_id = @merchant_id AND livemode = @livemode AND recipient_id = @recipient_id AND currency = @currency
+  AND created_at >= @since AND scheduled_on IS NULL AND status NOT IN ('failed', 'returned');
 
 -- name: LockPayouts :exec
 -- Serializes payouts from one balance, so two cannot both spend what is available once.
@@ -486,11 +497,19 @@ ORDER BY f.withdrawn_at, f.reference;
 
 -- name: Health :one
 -- What has waited too long for the resolver: attempts, refunds and payouts whose outcome
--- is not final, and Pix received that paid nothing and are not returned.
+-- is not final, and Pix received that paid nothing and are not returned. Payouts held for
+-- an operator, and balances whose payouts today reached 80% of the daily limit.
 SELECT
     (SELECT count(*) FROM payments.attempts
      WHERE status IN ('authenticating', 'authorizing', 'authorization_unknown', 'capturing', 'capture_unknown', 'voiding', 'void_unknown')
        AND updated_at < @attempts_before::timestamptz)::bigint AS attempts_unresolved,
     (SELECT count(*) FROM payments.refunds WHERE status IN ('pending', 'refund_unknown') AND updated_at < @attempts_before::timestamptz)::bigint AS refunds_unresolved,
     (SELECT count(*) FROM payments.payouts WHERE status IN ('sending', 'unknown') AND updated_at < @payouts_before::timestamptz)::bigint AS payouts_unresolved,
-    (SELECT count(*) FROM payments.pix_received WHERE status IN ('unmatched', 'returning') AND updated_at < @payouts_before::timestamptz)::bigint AS pix_unreturned;
+    (SELECT count(*) FROM payments.pix_received WHERE status IN ('unmatched', 'returning') AND updated_at < @payouts_before::timestamptz)::bigint AS pix_unreturned,
+    (SELECT count(*) FROM payments.payouts WHERE status = 'held')::bigint AS payouts_held,
+    (SELECT count(*) FROM (
+        SELECT 1 FROM payments.payouts p
+        WHERE p.created_at >= @day_began::timestamptz AND p.scheduled_on IS NULL AND p.status NOT IN ('failed', 'returned')
+        GROUP BY p.merchant_id, p.livemode, p.recipient_id, p.currency
+        HAVING sum(p.amount) >= @near_daily_limit::bigint
+    ) near)::bigint AS balances_near_daily_limit;

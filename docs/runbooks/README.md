@@ -27,6 +27,8 @@ Each runbook says what to look at, with SQL against the database the services us
 | [JupiterAttemptsUnresolved](JupiterAttemptsUnresolved.md) | warning | Card operations with unknown outcomes |
 | [JupiterRefundsUnresolved](JupiterRefundsUnresolved.md) | warning | Refunds with unknown outcomes |
 | [JupiterPayoutsUnresolved](JupiterPayoutsUnresolved.md) | warning | Payouts with unknown outcomes |
+| [JupiterPayoutsHeld](JupiterPayoutsHeld.md) | warning | Payouts held for an operator, as after a new destination |
+| [JupiterPayoutVelocity](JupiterPayoutVelocity.md) | warning | A balance paid out 80% of its daily limit |
 | [JupiterPixUnreturned](JupiterPixUnreturned.md) | warning | Pix that paid nothing, not returned |
 | [JupiterNetworkForwardsPending](JupiterNetworkForwardsPending.md) | warning | Reversals and advices to the card network |
 | [JupiterClearingExceptions](JupiterClearingExceptions.md) | warning | Clearing records that match nothing |

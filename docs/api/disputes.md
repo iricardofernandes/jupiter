@@ -76,6 +76,10 @@ future receivable units, in the order the registries apply:
 - what is free on each unit first;
 - then other financiers' contracts, from the latest back.
 
+A balance a chargeback leaves below zero is what you owe: nothing can be paid out of it
+until what you receive next has brought it back above zero. Refunds and MED holds, which
+Jupiter can refuse, never take it below zero.
+
 If the dispute is won, the amount comes back to the recipient.
 
 A chargeback opened more than 180 days after the payment was authorized is the card

@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
@@ -220,7 +221,12 @@ func (h *harness) hold(recipient string, held bool) {
 		if err := h.recipients.HoldPayouts(h.t.Context(), tx, recipient, held); err != nil || held {
 			return err
 		}
-		_, err := h.payments.ReleaseHeldPayouts(h.t.Context(), tx, recipient)
+		rec, err := h.recipients.ByID(h.t.Context(), tx, recipient)
+		if err != nil {
+			return err
+		}
+		owner := payments.Owner{Merchant: rec.Owner.Merchant, Livemode: rec.Owner.Livemode}
+		_, _, err = h.payments.ReleaseHeldPayouts(h.t.Context(), tx, owner, recipient, rec.Default, rec.PayoutDestination())
 		return err
 	})
 	if err != nil {
@@ -278,27 +284,28 @@ func TestAPayoutReturnedBeforeItsAnswer(t *testing.T) {
 	h.consistent()
 }
 
-// A new destination for the merchant's own recipient holds its payouts until an operator
-// lets them go.
+// In live mode, every destination of the merchant's own recipient, the first included,
+// holds its payouts until an operator lets them go: a stolen key could have set it. Test
+// mode, whose money is not real, holds nothing.
 func TestTheMerchantsNewDestinationIsHeld(t *testing.T) {
 	h := newHarness(t)
-	owner := recipients.Owner{Merchant: h.owner.Merchant}
-	var me recipients.Recipient
-	err := postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {
-		var err error
-		me, err = h.recipients.Default(t.Context(), tx, owner)
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	h.ok(http.MethodPost, "/v1/recipients/"+me.ID.String(), map[string]any{"payout_destination": map[string]any{"type": "pix", "pix_key": "loja@example.com"}})
-	if me, err = h.recipients.DefaultOf(t.Context(), h.pool, owner); err != nil || me.PayoutsHeld {
-		t.Fatalf("its first destination: %+v, %v", me, err)
-	}
-	h.ok(http.MethodPost, "/v1/recipients/"+me.ID.String(), map[string]any{"payout_destination": map[string]any{"type": "pix", "pix_key": "outra@example.com"}})
-	me, err = h.recipients.DefaultOf(t.Context(), h.pool, owner)
-	if err != nil || !me.PayoutsHeld {
-		t.Fatalf("the merchant's recipient after a new destination: %+v, %v", me, err)
+	for _, live := range []bool{false, true} {
+		owner := recipients.Owner{Merchant: h.owner.Merchant, Livemode: live}
+		for _, key := range []string{"loja@example.com", "outra@example.com"} {
+			err := postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {
+				me, err := h.recipients.Default(t.Context(), tx, owner)
+				if err != nil {
+					return err
+				}
+				_, err = h.recipients.Update(t.Context(), tx, owner, me.ID, recipients.Params{Destination: &recipients.Destination{Method: "pix", PixKey: key}})
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if me, err := h.recipients.DefaultOf(t.Context(), h.pool, owner); err != nil || me.PayoutsHeld != live {
+				t.Fatalf("live=%t, after the destination %s: %+v, %v", live, key, me, err)
+			}
+		}
 	}
 }

@@ -42,7 +42,10 @@ merchant), so they cannot deadlock.
 **Merchant balances are batched.** `merchant_balance` is created batched, like the network
 receivable: its entries are still written in the posting's transaction, but its cached
 balance is updated by the applier. Nothing that guards money relied on that row lock:
-- payouts and refunds check funds under their own advisory locks;
+- whatever spends or holds a merchant's balance (payouts, refunds paid from it,
+  chargebacks and MED holds) takes one advisory lock per merchant, mode and currency,
+  after the payment's own, and checks funds under it;
+- the payments check reports any merchant balance below zero;
 - `Ledger.Balance` stays exact by adding the queued deltas when it reads.
 
 Accounts are append-only, so the flag applies to accounts created from now on.

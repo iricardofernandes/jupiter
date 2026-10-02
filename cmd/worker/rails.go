@@ -40,6 +40,7 @@ type rails struct {
 	testBank      *bank.Connector
 	liveSLC       *slc.Connector
 	testSLC       *slc.Connector
+	payoutLimit   int64
 }
 
 func connectRails(ctx context.Context, pool *pgxpool.Pool, cards *vault.Client, logger *slog.Logger) (rails, error) {
@@ -65,6 +66,10 @@ func connectRails(ctx context.Context, pool *pgxpool.Pool, cards *vault.Client, 
 		return rails{}, err
 	}
 	if r.liveSLC, r.testSLC, err = slc.Connectors(os.Getenv); err != nil {
+		r.close()
+		return rails{}, err
+	}
+	if r.payoutLimit, err = payments.DailyPayoutLimit(os.Getenv); err != nil {
 		r.close()
 		return rails{}, err
 	}
@@ -174,6 +179,7 @@ func (r rails) subscriptions(pool *pgxpool.Pool, p *payments.Service, e *events.
 
 // configure adds the rails that exist to cfg.
 func (r rails) configure(cfg *payments.Config) {
+	cfg.DailyPayoutLimit = r.payoutLimit
 	if r.network != nil {
 		cfg.LiveRail = r.network
 	}

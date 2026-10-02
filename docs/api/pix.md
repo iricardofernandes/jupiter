@@ -71,6 +71,10 @@ until the bank confirms the return, usually within seconds, then `succeeded`, or
 with `pix_return_failed` when the bank could not return it, for example because the
 customer's account was closed.
 
+A Pix reaches your balance as soon as it is paid, and you may pay it out. A refund is paid
+from the balance, so one it cannot cover is refused with `balance_insufficient`; refunds
+and payouts are taken one at a time, so two of them cannot spend the same money.
+
 ## Pix nobody asked for
 
 A Pix that pays nothing you are waiting for is returned to whoever sent it, and never

@@ -63,6 +63,9 @@ func (s *Service) StartRefund(ctx context.Context, tx pgx.Tx, owner Owner, p Ref
 	if amount <= 0 || amount > remaining {
 		return Refund{}, fmt.Errorf("%w: %d requested, %d left to refund", ErrAmountTooLarge, amount, remaining)
 	}
+	if err := s.fundRefund(ctx, tx, owner, row, attempt, amount); err != nil {
+		return Refund{}, err
+	}
 	refundID := RefundPrefix.New().String()
 	now := ts(s.cfg.Now().UTC())
 	if err := q.InsertRefund(ctx, db.InsertRefundParams{
@@ -75,6 +78,38 @@ func (s *Service) StartRefund(ctx context.Context, tx pgx.Tx, owner Owner, p Ref
 		return Refund{}, err
 	}
 	return s.Refund(ctx, tx, owner, mustRefundID(refundID))
+}
+
+// fundRefund makes sure the merchant's balance covers a refund that will be paid from
+// it: a Pix's, whose money reached the balance at once and may have been paid out since,
+// and a card's that no receivables carried. A card's that receivables carried is paid
+// back by the recipients its split credited, who owe what they no longer have.
+func (s *Service) fundRefund(ctx context.Context, tx pgx.Tx, owner Owner, intent db.PaymentsIntent, attempt db.PaymentsAttempt, amount int64) error {
+	if !isPix(attempt.PaymentMethod) && attempt.SplitOut > 0 && s.cfg.Receivables != nil {
+		return nil
+	}
+	currency := mustCurrency(intent.Currency)
+	if err := lockBalance(ctx, db.New(tx), owner, currency, ""); err != nil {
+		return err
+	}
+	asked, err := money.New(amount, currency)
+	if err != nil {
+		return err
+	}
+	_, available, err := s.payoutFunds(ctx, tx, owner, PayoutParams{Amount: asked}, id.ID{})
+	if err != nil {
+		return err
+	}
+	// A card's refund gives the merchant back its share of the fee.
+	needed := amount
+	if !isPix(attempt.PaymentMethod) && attempt.AmountCaptured > 0 {
+		needed -= floorShare(attempt.Fee, intent.AmountRefunded+amount, attempt.AmountCaptured) -
+			floorShare(attempt.Fee, intent.AmountRefunded, attempt.AmountCaptured)
+	}
+	if available < needed {
+		return fmt.Errorf("%w: the refund needs %d and the balance has %d available", ErrInsufficientFunds, needed, max(available, 0))
+	}
+	return nil
 }
 
 func (s *Service) RefundOnRail(ctx context.Context, q db.DBTX, owner Owner, refundID id.ID) (Result, error) {

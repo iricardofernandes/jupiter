@@ -39,9 +39,12 @@ func (r SplitRule) Weight() int64 {
 }
 
 // Recipients checks the recipients a split names: each the merchant's, in its mode, and
-// not rejected.
+// not rejected. OwnPayoutDestination is where the merchant's own balance is paid out: its
+// own recipient's payout destination, verified with the merchant, and whether an operator
+// holds its payouts; an error if it has none.
 type Recipients interface {
 	CheckSplit(ctx context.Context, tx pgx.Tx, owner Owner, recipientIDs []string) error
+	OwnPayoutDestination(ctx context.Context, tx pgx.Tx, owner Owner) (PayoutSource, error)
 }
 
 const (

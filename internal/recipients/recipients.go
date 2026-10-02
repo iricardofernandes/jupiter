@@ -251,13 +251,13 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, recipientI
 	if p.TaxID != "" && p.TaxID != row.TaxID {
 		return Recipient{}, fmt.Errorf("%w: a recipient's CPF or CNPJ cannot change", ErrInvalid)
 	}
+	before := row
 	if name := strings.TrimSpace(p.Name); name != "" {
 		if len([]rune(name)) > 200 {
 			return Recipient{}, fmt.Errorf("%w: name is longer than 200 characters", ErrInvalid)
 		}
 		row.Name = name
 	}
-	before := row
 	if err := apply(&row, p); err != nil {
 		return Recipient{}, err
 	}
@@ -268,11 +268,12 @@ func (s *Service) Update(ctx context.Context, tx pgx.Tx, owner Owner, recipientI
 		row.Status = string(Pending)
 	}
 	rec, err := s.save(ctx, tx, owner, row)
-	if err != nil || !row.IsDefault || !moved || before.PayoutMethod == "" {
+	if err != nil || !row.IsDefault || !moved || !row.Livemode {
 		return rec, err
 	}
-	// The merchant's own recipient is the merchant, verified with it; a new destination for
-	// its money, which a stolen key could set, waits for an operator before payouts go.
+	// The merchant's own recipient is the merchant, verified with it; a destination for its
+	// live money, the first included, which a stolen key could set, waits for an operator
+	// before payouts go.
 	if err := s.HoldPayouts(ctx, tx, row.ID, true); err != nil {
 		return Recipient{}, err
 	}
@@ -292,6 +293,7 @@ func (s *Service) Verify(ctx context.Context, tx pgx.Tx, owner Owner, recipientI
 	row.Status = string(status)
 	return s.save(ctx, tx, owner, row)
 }
+
 
 func (s *Service) save(ctx context.Context, tx pgx.Tx, owner Owner, row db.RecipientsRecipient) (Recipient, error) {
 	row.UpdatedAt = ts(s.cfg.Now().UTC())
@@ -473,6 +475,29 @@ func (s *Service) CheckSplit(ctx context.Context, tx pgx.Tx, owner payments.Owne
 		}
 	}
 	return nil
+}
+
+func (s *Service) OwnPayoutDestination(ctx context.Context, tx pgx.Tx, owner payments.Owner) (payments.PayoutSource, error) {
+	rec, err := s.DefaultOf(ctx, tx, Owner{Merchant: owner.Merchant, Livemode: owner.Livemode})
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return payments.PayoutSource{}, err
+	}
+	if err != nil || rec.Destination.Method == "" {
+		return payments.PayoutSource{}, fmt.Errorf("%w: your balance is paid out only to your own recipient's payout_destination; set one with POST /v1/recipients/me", payments.ErrInvalid)
+	}
+	return payments.PayoutSource{Held: rec.PayoutsHeld, Destination: rec.PayoutDestination()}, nil
+}
+
+// PayoutDestination is where the recipient's payouts go, as payments sends them.
+func (r Recipient) PayoutDestination() payments.PayoutDestination {
+	d := r.Destination
+	method := d.Method
+	if method == "bank_account" {
+		method = payments.PayoutBankTransfer
+	}
+	return payments.PayoutDestination{
+		Method: method, PixKey: d.PixKey, ISPB: d.ISPB, Branch: d.Branch, Account: d.Account, HolderName: r.Name, HolderTaxID: r.TaxID,
+	}
 }
 
 // HoldPayouts holds, or lifts the hold on, a recipient's payouts: an operator's decision.

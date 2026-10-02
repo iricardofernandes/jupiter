@@ -87,7 +87,11 @@ func (a *API) updateRecipient(ctx context.Context, tx pgx.Tx, r *request) (outco
 	if err := decode(r.body, &body, false); err != nil {
 		return outcome{}, err
 	}
-	recipientID, err := recipients.Prefix.Parse(r.pathID)
+	pathID, err := a.resolveRecipient(ctx, tx, r.principal, r.pathID)
+	if err != nil {
+		return outcome{}, err
+	}
+	recipientID, err := recipients.Prefix.Parse(pathID)
 	if err != nil {
 		return outcome{}, notFound("recipient", r.pathID)
 	}

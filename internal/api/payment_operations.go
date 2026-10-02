@@ -465,6 +465,7 @@ func paymentsError(err error, objectID string) error {
 		payments.ErrRailUnavailable:   "livemode_unsupported",
 		payments.ErrAmountTooLarge:    "amount_too_large",
 		payments.ErrInsufficientFunds: "balance_insufficient",
+		payments.ErrPayoutLimit:       "payout_limit_reached",
 	} {
 		if errors.Is(err, sentinel) {
 			return invalidRequest(code, "", "%s", strings.TrimPrefix(err.Error(), sentinel.Error()+": "))

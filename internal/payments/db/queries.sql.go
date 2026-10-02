@@ -892,33 +892,121 @@ SELECT
        AND updated_at < $1::timestamptz)::bigint AS attempts_unresolved,
     (SELECT count(*) FROM payments.refunds WHERE status IN ('pending', 'refund_unknown') AND updated_at < $1::timestamptz)::bigint AS refunds_unresolved,
     (SELECT count(*) FROM payments.payouts WHERE status IN ('sending', 'unknown') AND updated_at < $2::timestamptz)::bigint AS payouts_unresolved,
-    (SELECT count(*) FROM payments.pix_received WHERE status IN ('unmatched', 'returning') AND updated_at < $2::timestamptz)::bigint AS pix_unreturned
+    (SELECT count(*) FROM payments.pix_received WHERE status IN ('unmatched', 'returning') AND updated_at < $2::timestamptz)::bigint AS pix_unreturned,
+    (SELECT count(*) FROM payments.payouts WHERE status = 'held')::bigint AS payouts_held,
+    (SELECT count(*) FROM (
+        SELECT 1 FROM payments.payouts p
+        WHERE p.created_at >= $3::timestamptz AND p.scheduled_on IS NULL AND p.status NOT IN ('failed', 'returned')
+        GROUP BY p.merchant_id, p.livemode, p.recipient_id, p.currency
+        HAVING sum(p.amount) >= $4::bigint
+    ) near)::bigint AS balances_near_daily_limit
 `
 
 type HealthParams struct {
 	AttemptsBefore pgtype.Timestamptz
 	PayoutsBefore  pgtype.Timestamptz
+	DayBegan       pgtype.Timestamptz
+	NearDailyLimit int64
 }
 
 type HealthRow struct {
-	AttemptsUnresolved int64
-	RefundsUnresolved  int64
-	PayoutsUnresolved  int64
-	PixUnreturned      int64
+	AttemptsUnresolved     int64
+	RefundsUnresolved      int64
+	PayoutsUnresolved      int64
+	PixUnreturned          int64
+	PayoutsHeld            int64
+	BalancesNearDailyLimit int64
 }
 
 // What has waited too long for the resolver: attempts, refunds and payouts whose outcome
-// is not final, and Pix received that paid nothing and are not returned.
+// is not final, and Pix received that paid nothing and are not returned. Payouts held for
+// an operator, and balances whose payouts today reached 80% of the daily limit.
 func (q *Queries) Health(ctx context.Context, arg HealthParams) (HealthRow, error) {
-	row := q.db.QueryRow(ctx, health, arg.AttemptsBefore, arg.PayoutsBefore)
+	row := q.db.QueryRow(ctx, health,
+		arg.AttemptsBefore,
+		arg.PayoutsBefore,
+		arg.DayBegan,
+		arg.NearDailyLimit,
+	)
 	var i HealthRow
 	err := row.Scan(
 		&i.AttemptsUnresolved,
 		&i.RefundsUnresolved,
 		&i.PayoutsUnresolved,
 		&i.PixUnreturned,
+		&i.PayoutsHeld,
+		&i.BalancesNearDailyLimit,
 	)
 	return i, err
+}
+
+const heldPayouts = `-- name: HeldPayouts :many
+SELECT id, merchant_id, livemode, amount, currency, pix_key, description, status, failure_code, failure_message, e2e_id, recipient_name, ledger_hold, unknown_since, resolutions, arrived_at, created_at, updated_at, recipient_id, method, bank_ispb, bank_branch, bank_account, holder_name, holder_tax_id, returned_at, scheduled_on, source_account FROM payments.payouts
+WHERE status = 'held' AND (recipient_id = $1
+    OR ($2::boolean AND recipient_id = '' AND merchant_id = $3 AND livemode = $4))
+ORDER BY id
+FOR UPDATE
+`
+
+type HeldPayoutsParams struct {
+	RecipientID string
+	Own         bool
+	MerchantID  string
+	Livemode    bool
+}
+
+func (q *Queries) HeldPayouts(ctx context.Context, arg HeldPayoutsParams) ([]PaymentsPayout, error) {
+	rows, err := q.db.Query(ctx, heldPayouts,
+		arg.RecipientID,
+		arg.Own,
+		arg.MerchantID,
+		arg.Livemode,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PaymentsPayout{}
+	for rows.Next() {
+		var i PaymentsPayout
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.Livemode,
+			&i.Amount,
+			&i.Currency,
+			&i.PixKey,
+			&i.Description,
+			&i.Status,
+			&i.FailureCode,
+			&i.FailureMessage,
+			&i.E2eID,
+			&i.RecipientName,
+			&i.LedgerHold,
+			&i.UnknownSince,
+			&i.Resolutions,
+			&i.ArrivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RecipientID,
+			&i.Method,
+			&i.BankIspb,
+			&i.BankBranch,
+			&i.BankAccount,
+			&i.HolderName,
+			&i.HolderTaxID,
+			&i.ReturnedAt,
+			&i.ScheduledOn,
+			&i.SourceAccount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertAttempt = `-- name: InsertAttempt :exec
@@ -1951,7 +2039,8 @@ WITH received AS (
 SELECT r.merchant_id, r.livemode, r.currency,
        (r.posted - coalesce(p.paid, 0) - coalesce(d.withdrawn, 0))::bigint AS posted,
        coalesce(h.held, 0)::bigint AS held,
-       (coalesce(p.in_flight, 0) + coalesce(d.held, 0))::bigint AS paying_out
+       (coalesce(p.in_flight, 0) + coalesce(d.held, 0))::bigint AS paying_out,
+       coalesce(d.withdrawn, 0)::bigint AS disputed
 FROM received r
 LEFT JOIN held h ON h.merchant_id = r.merchant_id AND h.livemode = r.livemode AND h.currency = r.currency
 LEFT JOIN paid_out p ON p.merchant_id = r.merchant_id AND p.livemode = r.livemode AND p.currency = r.currency
@@ -1965,13 +2054,15 @@ type MerchantTotalsRow struct {
 	Posted     int64
 	Held       int64
 	PayingOut  int64
+	Disputed   int64
 }
 
 // What each merchant's balance should hold: posted, what payments received less what
 // was refunded, Jupiter's fees net of what refunds gave back, what was paid out, and what
 // disputes took net of what recipients gave back for them; held for the merchant, what
 // open card authorizations hold; held against the merchant, what payouts in flight and
-// MED claims under analysis hold.
+// MED claims under analysis hold. Disputed is what disputes took, the most a chargeback
+// can leave the balance below zero.
 func (q *Queries) MerchantTotals(ctx context.Context) ([]MerchantTotalsRow, error) {
 	rows, err := q.db.Query(ctx, merchantTotals)
 	if err != nil {
@@ -1988,6 +2079,7 @@ func (q *Queries) MerchantTotals(ctx context.Context) ([]MerchantTotalsRow, erro
 			&i.Posted,
 			&i.Held,
 			&i.PayingOut,
+			&i.Disputed,
 		); err != nil {
 			return nil, err
 		}
@@ -2108,6 +2200,35 @@ func (q *Queries) PaidOutSince(ctx context.Context, arg PaidOutSinceParams) ([]P
 		return nil, err
 	}
 	return items, nil
+}
+
+const payoutsOfTheDay = `-- name: PayoutsOfTheDay :one
+SELECT coalesce(sum(amount), 0)::bigint FROM payments.payouts
+WHERE merchant_id = $1 AND livemode = $2 AND recipient_id = $3 AND currency = $4
+  AND created_at >= $5 AND scheduled_on IS NULL AND status NOT IN ('failed', 'returned')
+`
+
+type PayoutsOfTheDayParams struct {
+	MerchantID  string
+	Livemode    bool
+	RecipientID string
+	Currency    string
+	Since       pgtype.Timestamptz
+}
+
+// What a balance's payouts asked for since the day began took, but those that failed or
+// came back; scheduled payouts are not counted.
+func (q *Queries) PayoutsOfTheDay(ctx context.Context, arg PayoutsOfTheDayParams) (int64, error) {
+	row := q.db.QueryRow(ctx, payoutsOfTheDay,
+		arg.MerchantID,
+		arg.Livemode,
+		arg.RecipientID,
+		arg.Currency,
+		arg.Since,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const payoutsSince = `-- name: PayoutsSince :many
@@ -2561,37 +2682,6 @@ type RefundsToResolveParams struct {
 
 func (q *Queries) RefundsToResolve(ctx context.Context, arg RefundsToResolveParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, refundsToResolve, arg.Before, arg.MaxCount)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const releaseHeldPayouts = `-- name: ReleaseHeldPayouts :many
-UPDATE payments.payouts SET status = 'sending', updated_at = $1
-WHERE recipient_id = $2 AND status = 'held'
-RETURNING id
-`
-
-type ReleaseHeldPayoutsParams struct {
-	Now         pgtype.Timestamptz
-	RecipientID string
-}
-
-func (q *Queries) ReleaseHeldPayouts(ctx context.Context, arg ReleaseHeldPayoutsParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, releaseHeldPayouts, arg.Now, arg.RecipientID)
 	if err != nil {
 		return nil, err
 	}

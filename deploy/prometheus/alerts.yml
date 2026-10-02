@@ -54,6 +54,21 @@ groups:
           summary: "{{ $value }} payouts were sent and have had no final outcome for over an hour."
           runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterPayoutsUnresolved.md
 
+      - alert: JupiterPayoutsHeld
+        expr: max(jupiter_payouts_held) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} payouts are held for an operator, as after a new payout destination."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterPayoutsHeld.md
+
+      - alert: JupiterPayoutVelocity
+        expr: max(jupiter_payouts_balances_near_daily_limit) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} balances have paid out 80% of the daily payout limit today."
+          runbook_url: https://github.com/iricardofernandes/jupiter/blob/main/docs/runbooks/JupiterPayoutVelocity.md
+
       - alert: JupiterPixUnreturned
         expr: max(jupiter_pix_unreturned) > 0
         for: 1h

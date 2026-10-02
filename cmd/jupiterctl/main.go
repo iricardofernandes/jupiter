@@ -244,12 +244,20 @@ func holdPayouts(ctx context.Context, pool *pgxpool.Pool, recipientID string, he
 		if err := s.HoldPayouts(ctx, tx, rid.String(), held); err != nil || held {
 			return err
 		}
-		released, err := payments.New(payments.Config{}).ReleaseHeldPayouts(ctx, tx, rid.String())
+		owner := payments.Owner{Merchant: rec.Owner.Merchant, Livemode: rec.Owner.Livemode}
+		released, failed, err := payments.New(payments.Config{}).ReleaseHeldPayouts(ctx, tx, owner, rid.String(), rec.Default, rec.PayoutDestination())
 		if err == nil {
-			fmt.Printf("released %d payouts\n", released)
+			fmt.Printf("released %d payouts to %s; %d made for another destination failed\n", released, describe(rec.Destination), failed)
 		}
 		return err
 	})
+}
+
+func describe(d recipients.Destination) string {
+	if d.Method == "pix" {
+		return "Pix key " + d.PixKey
+	}
+	return fmt.Sprintf("bank %s branch %s account %s", d.ISPB, d.Branch, d.Account)
 }
 
 // decideDispute records an operator's decision on a MED claim; the worker tells the bank.

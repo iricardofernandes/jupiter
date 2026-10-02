@@ -115,8 +115,13 @@ The subscription cannot do that now: canceling one the bank has not set up yet, 
 subscribing a customer while another subscription waits for their authorization.
 
 ### balance_insufficient
-A payout asked for more than the balance has available: what payments posted, less
-refunds, payouts and payouts still in flight.
+A payout, or a refund paid from the balance (a Pix's, or a card's whose money no
+receivables carried), asked for more than the balance has available: what payments
+posted, less refunds, payouts and both still in flight.
+
+### payout_limit_reached
+The payouts asked for today from one balance would pass the daily limit. The rest can be
+paid out tomorrow; scheduled payouts are not counted.
 
 ### Refund and payout failures
 A refund of a Pix payment that the bank could not return fails with `failure_reason`

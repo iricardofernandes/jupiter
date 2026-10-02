@@ -2,6 +2,7 @@ package payments
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/iricardofernandes/jupiter/internal/payments/db"
@@ -21,12 +22,15 @@ var Gauges = []telemetry.Gauge{
 	{Name: "jupiter.payments.refunds_unresolved", Description: "Refunds whose outcome has not been final for 15 minutes."},
 	{Name: "jupiter.payouts.unresolved", Description: "Payouts sent without a final outcome for an hour."},
 	{Name: "jupiter.pix.unreturned", Description: "Pix received that paid nothing and have not been returned within an hour."},
+	{Name: "jupiter.payouts.held", Description: "Payouts held for an operator, as after a new payout destination."},
+	{Name: "jupiter.payouts.balances_near_daily_limit", Description: "Balances whose payouts asked for today reached 80% of the daily limit."},
 }
 
 func (s *Service) Health(ctx context.Context, q db.DBTX) ([]telemetry.Reading, error) {
 	now := s.cfg.Now().UTC()
 	row, err := db.New(q).Health(ctx, db.HealthParams{
 		AttemptsBefore: ts(now.Add(-attemptsUnresolvedAfter)), PayoutsBefore: ts(now.Add(-payoutsUnresolvedAfter)),
+		DayBegan: ts(startOfDay(now)), NearDailyLimit: nearDailyLimit(s.cfg.DailyPayoutLimit),
 	})
 	if err != nil {
 		return nil, err
@@ -36,5 +40,15 @@ func (s *Service) Health(ctx context.Context, q db.DBTX) ([]telemetry.Reading, e
 		{Gauge: "jupiter.payments.refunds_unresolved", Value: row.RefundsUnresolved},
 		{Gauge: "jupiter.payouts.unresolved", Value: row.PayoutsUnresolved},
 		{Gauge: "jupiter.pix.unreturned", Value: row.PixUnreturned},
+		{Gauge: "jupiter.payouts.held", Value: row.PayoutsHeld},
+		{Gauge: "jupiter.payouts.balances_near_daily_limit", Value: row.BalancesNearDailyLimit},
 	}, nil
+}
+
+// nearDailyLimit is 80% of the daily payout limit; with no limit, no balance is near it.
+func nearDailyLimit(limit int64) int64 {
+	if limit == 0 {
+		return math.MaxInt64
+	}
+	return limit * 8 / 10
 }

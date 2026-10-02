@@ -1833,9 +1833,12 @@ components:
         currency: { type: string, enum: [brl] }
         recipient:
           type: string
-          description: Pays out this recipient's available balance instead of the merchant's; its Pix key is the destination if none is given.
+          description: Pays out this recipient's available balance instead of the merchant's.
         destination:
           type: object
+          description: |
+            Optional. A balance is paid out only to its own payout_destination: a recipient's, or for
+            the merchant's balance, its own recipient's (me). A key given must be that one.
           required: [type, pix_key]
           additionalProperties: false
           properties:
