@@ -254,6 +254,21 @@ func TestARuleThatFailsIsSkipped(t *testing.T) {
 	}
 }
 
+// A rule created before the language refused what it uses is skipped, and the log says
+// so, rather than stop applying unseen.
+func TestARuleNoLongerAllowedIsSkipped(t *testing.T) {
+	e := newEnv(t)
+	_, err := e.pool.Exec(t.Context(), `INSERT INTO risk.rules (id, merchant_id, livemode, action, expression, description, created_at)
+		VALUES ('rr_old', $1, false, 'block', 'let x = bin + bin; x == ""', 'Old', now())`, e.owner.Merchant.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := e.decide(e.input("card-a", "", 1000), true)
+	if d.Action != risk.Allow || len(d.Rules) != 1 || d.Rules[0].ID != "rr_old" || !strings.Contains(d.Rules[0].Description, "no longer allowed") {
+		t.Fatalf("decision = %+v", d)
+	}
+}
+
 // Card testing: a burst of attempts, mostly declined, throttles the merchant, and the
 // block explains itself with the numbers behind it.
 func TestCardTestingThrottlesTheMerchant(t *testing.T) {

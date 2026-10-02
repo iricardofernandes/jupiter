@@ -34,9 +34,10 @@ Jupiter's scale PostgreSQL answers them in the same transaction, which a separat
 such as Redis could not.
 
 **Lists and rules.** A merchant's allow and block lists (card fingerprint, IP, BIN) are
-checked first. A block entry blocks. An allow entry sets aside the merchant's own rules
-and the platform's milder actions (review, 3-D Secure), but not the platform's blocks nor
-the card-testing throttle, which protect the networks and the other merchants. Then the
+checked first. An allow entry wins over the merchant's block entries and sets aside its
+own rules and the platform's milder actions (review, 3-D Secure), but not the platform's
+blocks nor the card-testing throttle, which protect the networks and the other merchants.
+Without one, a block entry blocks. Then the
 platform's rules (`internal/risk/platform_rules.json`) and the merchant's own run,
 written in expr-lang's expression language, e.g. `amount >= 500000 && brand == "elo"`. A
 rule is compiled against the features when it is created, so one that names a missing

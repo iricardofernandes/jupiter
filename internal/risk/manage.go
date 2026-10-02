@@ -27,8 +27,8 @@ func (s *Service) CreateRule(ctx context.Context, tx pgx.Tx, owner Owner, action
 	switch {
 	case !validAction(action):
 		return MerchantRule{}, fmt.Errorf("%w: action must be allow, review, request_3ds or block", ErrInvalid)
-	case expression == "" || len(expression) > 1000:
-		return MerchantRule{}, fmt.Errorf("%w: expression must be 1 to 1000 characters", ErrInvalid)
+	case expression == "" || len(expression) > maxLength:
+		return MerchantRule{}, fmt.Errorf("%w: expression must be 1 to %d characters", ErrInvalid, maxLength)
 	case len(description) > 500:
 		return MerchantRule{}, fmt.Errorf("%w: description is longer than 500 characters", ErrInvalid)
 	}

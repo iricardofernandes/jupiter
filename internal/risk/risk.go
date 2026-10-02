@@ -87,16 +87,17 @@ type Rule struct {
 	program     *vm.Program
 }
 
-// maxNodes bounds how large an expression may be.
-const maxNodes = 200
+// maxNodes and maxLength bound how large an expression may be.
+const (
+	maxNodes  = 200
+	maxLength = 1000
+)
 
 // Compile checks an expression against the features, and that it yields a boolean.
-// Rules run inside the payment's transaction, so they must be cheap. An expression may
-// only be a tree of features, literals, lists and the operators in allowedOperators: no
-// functions, no ranges, no variables, no regular expressions. A tree of maxNodes nodes
-// then evaluates in time and memory bounded by its size; a variable, which a later
-// node can use twice, would let a short expression double a string at every step.
-// Compiled programs are kept, a bounded number, by expression.
+// Rules run inside the payment's transaction, so what one costs must be bounded by its
+// size: a tree of features, literals, lists and operators is. A variable is refused
+// because a later node can use it twice, which lets a short expression double a string
+// at every step.
 func Compile(expression string) (*vm.Program, error) {
 	if program, ok := programs.get(expression); ok {
 		return program, nil
@@ -117,6 +118,9 @@ func Validate(expression string) error {
 }
 
 func compile(expression string) (*vm.Program, error) {
+	if len(expression) > maxLength {
+		return nil, fmt.Errorf("%w: an expression is at most %d characters", ErrInvalid, maxLength)
+	}
 	tree, err := parser.Parse(expression)
 	if err != nil {
 		return nil, fmt.Errorf("%w: the expression does not compile: %w", ErrInvalid, err)
@@ -142,7 +146,6 @@ var allowedOperators = map[string]bool{
 	"in": true, "contains": true, "startsWith": true, "endsWith": true,
 }
 
-// restricted refuses every node that is not part of the rules language.
 type restricted struct {
 	err error
 }
@@ -171,31 +174,33 @@ func (r *restricted) Visit(node *ast.Node) {
 	}
 }
 
-// maxPrograms bounds the compiled programs kept: the platform's rules and the merchants'
-// that decisions have run, not every expression ever checked.
-const maxPrograms = 4096
+// maxPrograms bounds the compiled programs kept, by expression: well above the platform's
+// rules and those of the merchants deciding at once.
+const maxPrograms = 1 << 16
 
 var programs = &programCache{byExpression: map[string]*vm.Program{}}
 
 type programCache struct {
-	mu           sync.Mutex
+	mu           sync.RWMutex
 	byExpression map[string]*vm.Program
 }
 
 func (c *programCache) get(expression string) (*vm.Program, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	p, ok := c.byExpression[expression]
 	return p, ok
 }
 
-// put keeps a program, starting the cache over when it is full: rare, and cheaper than
-// tracking which program was used last.
+// put keeps a program, letting an arbitrary one go when the cache is full.
 func (c *programCache) put(expression string, p *vm.Program) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.byExpression) >= maxPrograms {
-		clear(c.byExpression)
+		for evicted := range c.byExpression {
+			delete(c.byExpression, evicted)
+			break
+		}
 	}
 	c.byExpression[expression] = p
 }

@@ -183,11 +183,12 @@ func (s *Service) lists(ctx context.Context, q *db.Queries, in Input) ([]Fired, 
 	return out, nil
 }
 
-// applyLists is what fired once the merchant's lists have their say. A block entry
-// blocks. An allow entry, sorted first, sets aside the merchant's own rules and the
-// platform's milder actions, but not the platform's blocks nor the card-testing
-// throttle: an entry for an address the merchant itself reports must not switch off
-// what protects the networks and the other merchants.
+// applyLists is what fired once the merchant's lists have their say. An allow entry,
+// sorted first, wins over the merchant's block entries, as it does over its own rules,
+// and sets aside the platform's milder actions; but not the platform's blocks nor the
+// card-testing throttle: an entry for an address the merchant itself reports must not
+// switch off what protects the networks and the other merchants. A block entry alone
+// blocks.
 func applyLists(listed, platform, own, throttle []Fired) []Fired {
 	switch {
 	case len(listed) == 0:
@@ -211,14 +212,17 @@ func (s *Service) rules(ctx context.Context, q *db.Queries, owner Owner, f Featu
 		return nil, nil, fmt.Errorf("reading rules: %w", err)
 	}
 	var merchants []Rule
+	var inert []Fired
 	for _, r := range rows {
 		program, err := Compile(r.Expression)
 		if err != nil {
-			continue // rules are compiled when created; one that no longer does is inert
+			// A rule the language no longer admits is skipped, and the log says so.
+			inert = append(inert, Fired{ID: r.ID, Action: Allow, Description: "The rule is no longer allowed and was skipped: " + err.Error(), Expression: r.Expression})
+			continue
 		}
 		merchants = append(merchants, Rule{ID: r.ID, Action: Action(r.Action), Description: r.Description, Expression: r.Expression, program: program})
 	}
-	return run(PlatformRules(), f), run(merchants, f), nil
+	return run(PlatformRules(), f), append(inert, run(merchants, f)...), nil
 }
 
 func run(rules []Rule, f Features) []Fired {

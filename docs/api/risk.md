@@ -9,10 +9,10 @@ features they saw ([ADR 0022](../adr/0022-risk-engine-rules-velocity-card-testin
 
 ## How a decision is made
 
-1. **Lists.** If the card's fingerprint, the IP or the BIN is on the merchant's block
-   list, the payment is blocked. On the allow list, the merchant's own rules and the
-   platform's reviews and 3-D Secure requests are set aside, but the platform's blocks
-   and the card-testing throttle still apply. `POST /v1/risk/list_items` adds an entry:
+1. **Lists.** If the card's fingerprint, the IP or the BIN is on the merchant's allow
+   list, the merchant's block list, its own rules and the platform's reviews and 3-D
+   Secure requests are set aside, but the platform's blocks and the card-testing
+   throttle still apply. Otherwise, on the block list, the payment is blocked. `POST /v1/risk/list_items` adds an entry:
    `{"list": "block", "kind": "ip", "value": "203.0.113.9"}`.
 2. **Rules.** The platform's rules, then the merchant's own, each an expression over the
    features below. The decision is the most severe action among those that fired.
