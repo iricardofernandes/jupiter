@@ -1,8 +1,10 @@
 name: nightly
 
-# Every night the simulations run on random seeds, more and larger than on a push. A
-# failing run names its seed in the log, which is kept: the seed, with the size it ran
-# at, goes into test/simulation/testdata/regressions along with the fix.
+# Every night the simulations run on random seeds, more and larger than on a push: two
+# seeds of each per shard, about an hour of the test's two on GitHub's runners, where a
+# seed of 1,000 rail scenarios takes some 22 minutes. A failing run names its seed in the
+# log, which is kept: the seed, with the size it ran at, goes into
+# test/simulation/testdata/regressions along with the fix.
 
 on:
   schedule:
@@ -20,14 +22,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - shell: bash # bash -eo pipefail: the step fails when the simulation does, not as tee does
-        run: make test-simulation SIM_RUN='TestSimulation/|TestRailsSimulation/' SIM_SEEDS=random:4 SIM_PAYMENTS=10000 SIM_RAIL_SCENARIOS=1000 | tee simulation.log
+        run: make test-simulation SIM_RUN='TestSimulation/|TestRailsSimulation/' SIM_SEEDS=random:2 SIM_PAYMENTS=10000 SIM_RAIL_SCENARIOS=1000 | tee simulation.log
       - if: always()
         uses: actions/upload-artifact@v7
         with:

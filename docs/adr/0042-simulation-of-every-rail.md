@@ -73,7 +73,8 @@ payment record. No break may be missing, and none may be extra.
 - `SIM_SEEDS` takes a list, a range or `random:N`.
 - CI runs fixed ranges on every push: cards seeds 1–2 with 10,000 payments each, every
   rail seeds 1–4 with 500 scenarios each.
-- The nightly workflow runs 16 random seeds of each, larger, and keeps the logs.
+- The nightly workflow runs 12 random seeds of each, larger, in six shards, and keeps
+  the logs.
 - A seed that finds a bug goes into `test/simulation/testdata/regressions` with the fix,
   and runs on every push from then on.
 
