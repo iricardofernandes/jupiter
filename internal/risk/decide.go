@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -65,19 +66,15 @@ func (s *Service) Decide(ctx context.Context, tx pgx.Tx, in Input) (Decision, er
 	if err != nil {
 		return Decision{}, err
 	}
-	switch {
-	case len(listed) > 0:
-		d.Rules = listed[:1] // an allow entry sorts first and settles it
-	default:
-		if d.Rules, err = s.rules(ctx, q, in.Owner, f); err != nil {
-			return Decision{}, err
-		}
-		fired, err := s.cardTesting(ctx, q, in.Owner, &f, throttled, now)
-		if err != nil {
-			return Decision{}, err
-		}
-		d.Rules = append(d.Rules, fired...)
+	platform, own, err := s.rules(ctx, q, in.Owner, f)
+	if err != nil {
+		return Decision{}, err
 	}
+	throttle, err := s.cardTesting(ctx, q, in.Owner, &f, throttled, now)
+	if err != nil {
+		return Decision{}, err
+	}
+	d.Rules = applyLists(listed, platform, own, throttle)
 	for _, r := range d.Rules {
 		if severity[r.Action] > severity[d.Action] {
 			d.Action = r.Action
@@ -186,19 +183,45 @@ func (s *Service) lists(ctx context.Context, q *db.Queries, in Input) ([]Fired, 
 	return out, nil
 }
 
-func (s *Service) rules(ctx context.Context, q *db.Queries, owner Owner, f Features) ([]Fired, error) {
-	own, err := q.ActiveRules(ctx, db.ActiveRulesParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
-	if err != nil {
-		return nil, fmt.Errorf("reading rules: %w", err)
+// applyLists is what fired once the merchant's lists have their say. A block entry
+// blocks. An allow entry, sorted first, sets aside the merchant's own rules and the
+// platform's milder actions, but not the platform's blocks nor the card-testing
+// throttle: an entry for an address the merchant itself reports must not switch off
+// what protects the networks and the other merchants.
+func applyLists(listed, platform, own, throttle []Fired) []Fired {
+	switch {
+	case len(listed) == 0:
+		return slices.Concat(platform, own, throttle)
+	case listed[0].Action != Allow:
+		return listed[:1]
 	}
-	rules := PlatformRules()
-	for _, r := range own {
+	out := []Fired{listed[0]}
+	for _, f := range platform {
+		if f.Action == Block {
+			out = append(out, f)
+		}
+	}
+	return append(out, throttle...)
+}
+
+// rules runs the platform's rules and the merchant's own, and answers what fired of each.
+func (s *Service) rules(ctx context.Context, q *db.Queries, owner Owner, f Features) (platform, own []Fired, err error) {
+	rows, err := q.ActiveRules(ctx, db.ActiveRulesParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading rules: %w", err)
+	}
+	var merchants []Rule
+	for _, r := range rows {
 		program, err := Compile(r.Expression)
 		if err != nil {
 			continue // rules are compiled when created; one that no longer does is inert
 		}
-		rules = append(rules, Rule{ID: r.ID, Action: Action(r.Action), Description: r.Description, Expression: r.Expression, program: program})
+		merchants = append(merchants, Rule{ID: r.ID, Action: Action(r.Action), Description: r.Description, Expression: r.Expression, program: program})
 	}
+	return run(PlatformRules(), f), run(merchants, f), nil
+}
+
+func run(rules []Rule, f Features) []Fired {
 	var fired []Fired
 	for _, r := range rules {
 		out, err := expr.Run(r.program, f)
@@ -212,7 +235,7 @@ func (s *Service) rules(ctx context.Context, q *db.Queries, owner Owner, f Featu
 			fired = append(fired, Fired{ID: r.ID, Action: r.Action, Description: r.Description, Expression: r.Expression})
 		}
 	}
-	return fired, nil
+	return fired
 }
 
 // cardTesting throttles a merchant whose recent attempts look like card testing, and

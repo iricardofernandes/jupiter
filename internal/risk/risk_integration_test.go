@@ -168,7 +168,7 @@ func TestListsAndMerchantRules(t *testing.T) {
 			// Nothing whose cost does not follow from its length.
 			`len(brand) > 1`:           "functions are not allowed",
 			`all(1..100000000, # > 0)`: "not allowed",
-			`amount in 1..100000000`:   "ranges are not allowed",
+			`amount in 1..100000000`:   "the operator .. is not allowed",
 		} {
 			if _, err := e.svc.CreateRule(ctx, tx, e.owner, risk.Block, expression, ""); !errors.Is(err, risk.ErrInvalid) || !strings.Contains(err.Error(), want) {
 				return fmt.Errorf("%q: %w", expression, err)
@@ -184,6 +184,46 @@ func TestListsAndMerchantRules(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// An allow entry sets aside the merchant's own rules and the platform's milder actions,
+// but neither the platform's blocks nor the card-testing throttle: an entry for a BIN, or
+// for an address the merchant itself reports, must not switch off what protects the
+// networks and the other merchants.
+func TestAnAllowEntryDoesNotSwitchOffThePlatform(t *testing.T) {
+	e := newEnv(t)
+	err := postgres.InTx(t.Context(), e.pool, func(tx pgx.Tx) error {
+		if _, err := e.svc.AddListItem(t.Context(), tx, e.owner, "allow", "bin", "42424242"); err != nil {
+			return err
+		}
+		_, err := e.svc.CreateRule(t.Context(), tx, e.owner, risk.Block, `amount > 1`, "Everything")
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := e.decide(e.input("card-a", "", 2_000_000), true); d.Action != risk.Allow || fired(d, "large_amount") {
+		t.Fatalf("an allowed BIN skips the merchant's rules and a review: %+v", d)
+	}
+	for range 10 {
+		e.decide(e.input("card-b", "", 1000), true)
+	}
+	if d := e.decide(e.input("card-b", "", 1000), true); d.Action != risk.Block || !fired(d, "card_velocity") {
+		t.Fatalf("an allowed BIN still meets card velocity: %+v", d)
+	}
+	for i := range 25 {
+		e.decide(e.input(fmt.Sprintf("probe-%d", i), fmt.Sprintf("198.51.100.%d", i), 100), i%5 == 0)
+		e.clock.Advance(10 * time.Second)
+	}
+	blocked := 0
+	for i := range 10 {
+		if d := e.decide(e.input(fmt.Sprintf("probe-x%d", i), fmt.Sprintf("192.0.2.%d", i), 100), false); fired(d, "card_testing_throttle") {
+			blocked++
+		}
+	}
+	if blocked < 7 {
+		t.Fatalf("%d of 10 card-testing attempts on an allowed BIN were blocked", blocked)
 	}
 }
 

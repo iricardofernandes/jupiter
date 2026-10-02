@@ -90,17 +90,33 @@ type Rule struct {
 // maxNodes bounds how large an expression may be.
 const maxNodes = 200
 
-var compiled sync.Map
-
 // Compile checks an expression against the features, and that it yields a boolean.
-// Rules run inside the payment's transaction, so they must be cheap: no function calls,
-// no closures and no ranges, which are what could make an expression loop over millions
-// of values; what remains runs in time proportional to its length. Compiled programs are
-// kept by expression.
+// Rules run inside the payment's transaction, so they must be cheap. An expression may
+// only be a tree of features, literals, lists and the operators in allowedOperators: no
+// functions, no ranges, no variables, no regular expressions. A tree of maxNodes nodes
+// then evaluates in time and memory bounded by its size; a variable, which a later
+// node can use twice, would let a short expression double a string at every step.
+// Compiled programs are kept, a bounded number, by expression.
 func Compile(expression string) (*vm.Program, error) {
-	if program, ok := compiled.Load(expression); ok {
-		return program.(*vm.Program), nil //nolint:forcetypeassert // only programs are stored
+	if program, ok := programs.get(expression); ok {
+		return program, nil
 	}
+	program, err := compile(expression)
+	if err != nil {
+		return nil, err
+	}
+	programs.put(expression, program)
+	return program, nil
+}
+
+// Validate checks an expression as Compile does, without keeping its program: a
+// merchant creating rules must not grow the cache with rules it may never keep.
+func Validate(expression string) error {
+	_, err := compile(expression)
+	return err
+}
+
+func compile(expression string) (*vm.Program, error) {
 	tree, err := parser.Parse(expression)
 	if err != nil {
 		return nil, fmt.Errorf("%w: the expression does not compile: %w", ErrInvalid, err)
@@ -114,10 +130,19 @@ func Compile(expression string) (*vm.Program, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: the expression does not compile: %w", ErrInvalid, err)
 	}
-	compiled.Store(expression, program)
 	return program, nil
 }
 
+// allowedOperators are the binary operators of the rules language. Ranges (..) and
+// matches, whose regular expression could be made costly to compile and run, are not.
+var allowedOperators = map[string]bool{
+	"==": true, "!=": true, "<": true, ">": true, "<=": true, ">=": true,
+	"&&": true, "||": true, "and": true, "or": true,
+	"+": true, "-": true, "*": true, "/": true, "%": true,
+	"in": true, "contains": true, "startsWith": true, "endsWith": true,
+}
+
+// restricted refuses every node that is not part of the rules language.
 type restricted struct {
 	err error
 }
@@ -127,13 +152,52 @@ func (r *restricted) Visit(node *ast.Node) {
 		return
 	}
 	switch n := (*node).(type) {
+	case *ast.IdentifierNode, *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode, *ast.StringNode, *ast.NilNode,
+		*ast.ConstantNode, *ast.ArrayNode, *ast.ConditionalNode:
+	case *ast.UnaryNode:
+		if n.Operator != "!" && n.Operator != "not" && n.Operator != "-" && n.Operator != "+" {
+			r.err = fmt.Errorf("the operator %s is not allowed in rules", n.Operator)
+		}
 	case *ast.BinaryNode:
-		if n.Operator == ".." {
-			r.err = errors.New("ranges are not allowed in rules")
+		if !allowedOperators[n.Operator] {
+			r.err = fmt.Errorf("the operator %s is not allowed in rules", n.Operator)
 		}
 	case *ast.CallNode, *ast.BuiltinNode, *ast.PredicateNode:
 		r.err = errors.New("functions are not allowed in rules")
+	case *ast.VariableDeclaratorNode, *ast.SequenceNode:
+		r.err = errors.New("variables are not allowed in rules")
+	default:
+		r.err = errors.New("only features, literals, lists and operators are allowed in rules")
 	}
+}
+
+// maxPrograms bounds the compiled programs kept: the platform's rules and the merchants'
+// that decisions have run, not every expression ever checked.
+const maxPrograms = 4096
+
+var programs = &programCache{byExpression: map[string]*vm.Program{}}
+
+type programCache struct {
+	mu           sync.Mutex
+	byExpression map[string]*vm.Program
+}
+
+func (c *programCache) get(expression string) (*vm.Program, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p, ok := c.byExpression[expression]
+	return p, ok
+}
+
+// put keeps a program, starting the cache over when it is full: rare, and cheaper than
+// tracking which program was used last.
+func (c *programCache) put(expression string, p *vm.Program) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.byExpression) >= maxPrograms {
+		clear(c.byExpression)
+	}
+	c.byExpression[expression] = p
 }
 
 //go:embed platform_rules.json

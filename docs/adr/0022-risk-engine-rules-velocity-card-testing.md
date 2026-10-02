@@ -34,13 +34,17 @@ Jupiter's scale PostgreSQL answers them in the same transaction, which a separat
 such as Redis could not.
 
 **Lists and rules.** A merchant's allow and block lists (card fingerprint, IP, BIN) are
-checked first; an allow entry settles the decision. Then the platform's rules
-(`internal/risk/platform_rules.json`) and the merchant's own run, written in expr-lang's
-expression language, e.g. `amount >= 500000 && brand == "elo"`. A rule is compiled
-against the features when it is created, so one that names a missing feature or is not
-a boolean is refused. Rules run in the payment's transaction, so their cost must follow
-from their length: functions, closures and ranges are refused, an expression has at most
-200 terms, and it cannot have side effects. A rule that fails when it runs (a division by
+checked first. A block entry blocks. An allow entry sets aside the merchant's own rules
+and the platform's milder actions (review, 3-D Secure), but not the platform's blocks nor
+the card-testing throttle, which protect the networks and the other merchants. Then the
+platform's rules (`internal/risk/platform_rules.json`) and the merchant's own run,
+written in expr-lang's expression language, e.g. `amount >= 500000 && brand == "elo"`. A
+rule is compiled against the features when it is created, so one that names a missing
+feature or is not a boolean is refused. Rules run in the payment's transaction, so their
+cost must be bounded by their size: an expression may only be a tree of features,
+literals, lists and allowed operators, of at most 200 nodes. Functions, ranges,
+variables and regular expressions are refused; a variable, used twice by a later node,
+would let a short expression double a string at every step and exhaust memory. A rule that fails when it runs (a division by
 zero) is skipped and logged, so one bad rule cannot stop a merchant's payments. The decision is the most
 severe action of the rules that fired: `block` > `request_3ds` > `review` > `allow`.
 

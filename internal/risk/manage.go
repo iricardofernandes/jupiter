@@ -32,9 +32,6 @@ func (s *Service) CreateRule(ctx context.Context, tx pgx.Tx, owner Owner, action
 	case len(description) > 500:
 		return MerchantRule{}, fmt.Errorf("%w: description is longer than 500 characters", ErrInvalid)
 	}
-	if _, err := Compile(expression); err != nil {
-		return MerchantRule{}, err
-	}
 	q := db.New(tx)
 	existing, err := q.ActiveRules(ctx, db.ActiveRulesParams{MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
 	if err != nil {
@@ -42,6 +39,9 @@ func (s *Service) CreateRule(ctx context.Context, tx pgx.Tx, owner Owner, action
 	}
 	if len(existing) >= maxRules {
 		return MerchantRule{}, fmt.Errorf("%w: a merchant can have at most %d rules", ErrInvalid, maxRules)
+	}
+	if err := Validate(expression); err != nil {
+		return MerchantRule{}, err
 	}
 	row, err := q.InsertRule(ctx, db.InsertRuleParams{
 		ID: RulePrefix.New().String(), MerchantID: owner.Merchant.String(), Livemode: owner.Livemode,
