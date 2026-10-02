@@ -14,6 +14,12 @@ on:
 permissions:
   contents: read
 
+# The runner is thrown away after each job, and postgrestest stops the containers it
+# starts, so testcontainers' reaper adds nothing here. Started by every test package at
+# once, it can take longer than its one-minute wait.
+env:
+  TESTCONTAINERS_RYUK_DISABLED: "true"
+
 jobs:
   simulation:
     name: simulation, random seeds (shard ${{ matrix.shard }})
