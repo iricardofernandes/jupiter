@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -110,5 +111,37 @@ func exec(t *testing.T, pool *pgxpool.Pool, statements ...string) {
 		if _, err := pool.Exec(context.Background(), sql); err != nil {
 			t.Fatalf("%s: %v", sql, err)
 		}
+	}
+}
+
+// A statement that runs past the process's timeout is canceled; a setting the URL names
+// wins over the process's.
+func TestConnectBoundsStatements(t *testing.T) {
+	url := server.URL(t)
+	pool, err := postgres.Connect(t.Context(), url, postgres.Timeouts{Statement: 100 * time.Millisecond, Lock: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	_, err = pool.Exec(t.Context(), "SELECT pg_sleep(1)")
+	if postgres.ErrorCode(err) != "57014" {
+		t.Fatalf("a statement past the timeout: %v", err)
+	}
+	var lock string
+	if err := pool.QueryRow(t.Context(), "SHOW lock_timeout").Scan(&lock); err != nil || lock != "1s" {
+		t.Fatalf("lock_timeout = %q, %v", lock, err)
+	}
+
+	sep := "?"
+	if strings.Contains(url, "?") {
+		sep = "&"
+	}
+	named, err := postgres.Connect(t.Context(), url+sep+"statement_timeout=5000", postgres.Timeouts{Statement: 100 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer named.Close()
+	if _, err := named.Exec(t.Context(), "SELECT pg_sleep(0.3)"); err != nil {
+		t.Fatalf("the URL's own timeout: %v", err)
 	}
 }

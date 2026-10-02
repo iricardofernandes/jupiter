@@ -15,6 +15,7 @@ import (
 
 	"github.com/iricardofernandes/jupiter/internal/api"
 	"github.com/iricardofernandes/jupiter/internal/api/openapi"
+	"github.com/iricardofernandes/jupiter/internal/platform/ratelimit"
 	"github.com/iricardofernandes/jupiter/pkg/webhook"
 )
 
@@ -403,4 +404,39 @@ func TestDeleteUnderAnOlderVersionIsNotRewritten(t *testing.T) {
 	if strings.Contains(string(deleted.body), "disabled") {
 		t.Fatalf("delete response = %s", deleted.body)
 	}
+}
+
+// A key may make so many requests a second, and an address presenting keys that do not
+// exist is refused before each costs a lookup; both are told when to come back.
+func TestRateLimits(t *testing.T) {
+	h := newHarness(t, api.CurrentVersion)
+	limited := api.New(api.Deps{
+		Pool: h.pool, Merchants: h.merchants, Events: h.events, Payments: h.payments, Vault: h.vault, Risk: h.risk, Now: h.clock.Now,
+		Limits: api.Limits{Test: ratelimit.Rate{PerSecond: 2, Burst: 3}, Unknown: ratelimit.Rate{PerSecond: 1, Burst: 2}},
+	})
+	h.server = httptest.NewServer(limited.Handler())
+	t.Cleanup(h.server.Close)
+
+	list := call{method: "GET", path: "/v1/payment_intents"}
+	for range 3 {
+		h.expect(list, http.StatusOK)
+	}
+	resp := h.expect(list, http.StatusTooManyRequests)
+	conforms(t, "ErrorResponse", resp.body)
+	var e openapi.ErrorResponse
+	resp.decode(t, &e)
+	if e.Error.Type != openapi.RateLimitError || resp.header.Get("Retry-After") != "1" {
+		t.Fatalf("over the limit: %s, Retry-After %q", resp.body, resp.header.Get("Retry-After"))
+	}
+	h.clock.Advance(time.Second)
+	h.expect(list, http.StatusOK)
+
+	wrong := call{method: "GET", path: "/v1/payment_intents", key: "sk_test_" + strings.Repeat("Z", 43)}
+	h.expect(wrong, http.StatusUnauthorized)
+	h.expect(wrong, http.StatusUnauthorized)
+	h.expect(wrong, http.StatusTooManyRequests)
+	// Even a key that exists waits, from that address, until the unknown ones have.
+	h.expect(list, http.StatusTooManyRequests)
+	h.clock.Advance(time.Second)
+	h.expect(list, http.StatusOK)
 }

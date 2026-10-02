@@ -25,6 +25,7 @@ Every error has the same envelope:
 | `card_error` | 402 | The card was refused, as invalid or by the issuer |
 | `invalid_request_error` | 400, 404 | The request is wrong; repeating it will fail the same way |
 | `idempotency_error` | 409, 422 | The Idempotency-Key conflicts with another request |
+| `rate_limit_error` | 429 | Too many requests; wait the `Retry-After` header's seconds |
 | `api_error` | 500, 503 | Jupiter failed; retrying with the same Idempotency-Key is safe |
 
 ## Codes
@@ -32,6 +33,13 @@ Every error has the same envelope:
 ### api_key_invalid
 The Authorization header is missing, malformed, or names a key that does not exist or was
 revoked. Keys are sent as `Authorization: Bearer sk_test_…`.
+
+### rate_limit
+A key made more requests than its limit: a hundred a second in live mode and 25 in test
+mode, with as many at once. An address that presents keys that do not exist is also
+limited, to one a second after the first twenty, and then waits even with a valid key.
+Wait the seconds in the `Retry-After` header, then retry; with the same Idempotency-Key, a
+POST is safe to repeat.
 
 ### scope_missing
 The key is valid but not allowed to do this. Publishable keys hold no scopes; restricted

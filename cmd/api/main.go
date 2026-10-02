@@ -32,15 +32,12 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	if cfg.DatabaseURL == "" {
 		return service.App{}, errors.New("JUPITER_DATABASE_URL is required")
 	}
-	box, err := secretbox.FromBase64(os.Getenv("JUPITER_SECRET_KEY"))
-	if err != nil {
-		return service.App{}, errors.New("JUPITER_SECRET_KEY must be 32 random bytes in base64: " + err.Error())
-	}
-	cards, err := vault.ClientFromEnv(os.Getenv)
+	set, err := readSettings()
 	if err != nil {
 		return service.App{}, err
 	}
-	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
+	box, cards := set.box, set.cards
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL, postgres.ServeTimeouts)
 	if err != nil {
 		return service.App{}, err
 	}
@@ -65,7 +62,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	a := api.New(api.Deps{
 		Pool: pool, Merchants: s.merchants, Events: eventService, Payments: paymentService, Risk: riskEngine,
 		Subscriptions: subscriptionService, Receivables: s.receivables, Recipients: s.recipients, Disputes: s.disputes, Reconciliation: s.reconciliation,
-		Vault: cards, Box: box, Logger: logger,
+		Vault: cards, Box: box, Logger: logger, Limits: set.limits,
 	})
 	// The public address also serves the 3DS server's pages and results, and the card
 	// network's token and dispute events.
@@ -88,6 +85,29 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		r.close()
 		pool.Close()
 	}}, nil
+}
+
+// settings are what the api reads from its environment before it connects to anything.
+type settings struct {
+	box    *secretbox.Box
+	cards  *vault.Client
+	limits api.Limits
+}
+
+func readSettings() (settings, error) {
+	box, err := secretbox.FromBase64(os.Getenv("JUPITER_SECRET_KEY"))
+	if err != nil {
+		return settings{}, errors.New("JUPITER_SECRET_KEY must be 32 random bytes in base64: " + err.Error())
+	}
+	cards, err := vault.ClientFromEnv(os.Getenv)
+	if err != nil {
+		return settings{}, err
+	}
+	limits, err := api.LimitsFromEnv(os.Getenv)
+	if err != nil {
+		return settings{}, err
+	}
+	return settings{box: box, cards: cards, limits: limits}, nil
 }
 
 // pixWebhooks serves the Pix bank's notifications on JUPITER_PIX_WEBHOOK_ADDR, over

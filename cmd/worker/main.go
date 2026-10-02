@@ -84,7 +84,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 	if err != nil {
 		return service.App{}, err
 	}
-	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL, postgres.WorkTimeouts)
 	if err != nil {
 		return service.App{}, err
 	}

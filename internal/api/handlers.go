@@ -191,8 +191,10 @@ func (a *API) ListEvents(w http.ResponseWriter, r *http.Request, params openapi.
 		return
 	}
 	out := openapi.EventList{Object: "list", Url: "/v1/events", HasMore: more, Data: make([]openapi.Event, 0, len(list))}
+	// Events of one object share its current state, read once.
+	related := map[events.ObjectRef]map[string]any{}
 	for _, e := range list {
-		ev, err := a.event(r.Context(), p, e, include)
+		ev, err := a.event(r.Context(), p, e, include, related)
 		if err != nil {
 			a.fail(w, r, err)
 			return
@@ -222,7 +224,7 @@ func (a *API) GetEvent(w http.ResponseWriter, r *http.Request, eventID openapi.I
 		a.fail(w, r, domainError(err, "event", eventID))
 		return
 	}
-	ev, err := a.event(r.Context(), p, e, include)
+	ev, err := a.event(r.Context(), p, e, include, nil)
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -249,9 +251,12 @@ func includes(raw *openapi.Include) (bool, error) {
 // event renders an event, with its related object inline when asked for and still there.
 // The related object is read with the caller's own scopes, so include[] reveals nothing
 // the key could not fetch directly.
-func (a *API) event(ctx context.Context, p merchant.Principal, e events.Event, include bool) (openapi.Event, error) {
+func (a *API) event(ctx context.Context, p merchant.Principal, e events.Event, include bool, read map[events.ObjectRef]map[string]any) (openapi.Event, error) {
 	if !include {
 		return eventJSON(e, nil), nil
+	}
+	if object, ok := read[e.Object]; ok {
+		return eventJSON(e, object), nil
 	}
 	var related any
 	var err error
@@ -262,6 +267,9 @@ func (a *API) event(ctx context.Context, p merchant.Principal, e events.Event, i
 		related, err = a.relatedPayment(ctx, p, e.Object)
 	}
 	if errors.Is(err, errRelatedGone) || (err == nil && related == nil) {
+		if read != nil {
+			read[e.Object] = nil
+		}
 		return eventJSON(e, nil), nil
 	}
 	if err != nil {
@@ -274,6 +282,9 @@ func (a *API) event(ctx context.Context, p merchant.Principal, e events.Event, i
 	var object map[string]any
 	if err := json.Unmarshal(raw, &object); err != nil {
 		return openapi.Event{}, err
+	}
+	if read != nil {
+		read[e.Object] = object
 	}
 	return eventJSON(e, object), nil
 }

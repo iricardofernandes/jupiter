@@ -114,7 +114,7 @@ func newService(ctx context.Context, cfg service.Config, logger *slog.Logger) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL, postgres.ServeTimeouts)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -59,6 +59,8 @@ type Deps struct {
 	// IdempotencyWait bounds how long a request waits for a concurrent one holding the
 	// same Idempotency-Key; zero keeps the default of ten seconds.
 	IdempotencyWait time.Duration
+	// Limits bound how fast keys and addresses may call; the zero value sets none.
+	Limits Limits
 }
 
 type API struct {
@@ -68,6 +70,7 @@ type API struct {
 	// afterPhase runs after each atomic phase commits, before the next begins. Tests
 	// use it to abandon a request between phases, as a crash would.
 	afterPhase func(recoveryPoint string)
+	limits     limiters
 }
 
 func New(d Deps) *API {
@@ -82,6 +85,7 @@ func New(d Deps) *API {
 		a.idem.wait = d.IdempotencyWait
 	}
 	a.operations = a.registerOperations()
+	a.limits = a.newLimiters(d.Limits)
 	return a
 }
 
@@ -190,13 +194,25 @@ func (a *API) withAuthentication(next http.Handler) http.Handler {
 			a.writeError(w, r, unauthenticated("No API key provided. Send it as a bearer token in the Authorization header."))
 			return
 		}
+		// An address that keeps presenting keys that do not exist is refused before it
+		// costs a lookup.
+		client := a.limits.clients.Of(r)
+		if a.limits.unknown.Spent(client) {
+			a.tooManyRequests(w, r, a.limits.unknown)
+			return
+		}
 		p, err := a.deps.Merchants.Authenticate(r.Context(), a.deps.Pool, value)
 		switch {
 		case errors.Is(err, merchant.ErrInvalidKey):
+			a.limits.unknown.Allow(client)
 			a.writeError(w, r, unauthenticated("Invalid API key provided: "+redact(value)))
 			return
 		case err != nil:
 			a.fail(w, r, err)
+			return
+		}
+		if keys := a.limits.of(p); !keys.Allow(p.Key.String()) {
+			a.tooManyRequests(w, r, keys)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(payments.WithMemo(context.WithValue(r.Context(), principalKey, p))))
