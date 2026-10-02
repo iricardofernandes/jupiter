@@ -14,8 +14,12 @@ curl -X POST http://127.0.0.1:8080/v1/recipients -H "Authorization: Bearer $SK" 
 }'
 ```
 
-- **`tax_id`.** A recipient's CPF or CNPJ is who its receivables belong to at the registry.
-  It is one recipient per mode, and it does not change.
+- **`tax_id`.** A recipient's CPF or CNPJ is who its receivables belong to at the registry,
+  and it does not change. Once verified, a recipient keeps its document in its mode, even
+  if a later change sends it back to pending: no other recipient can be verified with it.
+  One pending verification reserves nothing. A merchant's own CPF or CNPJ is its own
+  recipient's (`me`): in live mode no other recipient is verified with it, and in test
+  mode the merchant's own recipient takes it back from one that was.
 - **`status`.** A recipient starts `pending` verification (KYC or KYB) and ends `verified`
   or `rejected`. In test mode, `POST /v1/test_helpers/recipients/{id}/verify
   {"status": "verified"}` decides.

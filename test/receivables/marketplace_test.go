@@ -3,10 +3,17 @@
 package receivables_test
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
+	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/recipients"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
 	"github.com/iricardofernandes/jupiter/pkg/registryapi"
 )
@@ -298,6 +305,70 @@ func TestJupitersContractsAreMended(t *testing.T) {
 	h.register()
 	if r := h.reconcile("daily"); len(r.Divergences) != 0 {
 		t.Fatalf("after mending: %+v", r.Divergences)
+	}
+	h.consistent()
+}
+
+// A CPF or CNPJ is reserved by the recipient verified with it, and by a merchant's own
+// recipient from the start. A recipient pending verification reserves nothing, so one
+// merchant cannot keep another's seller, or another merchant, from a document, and the
+// answer never says whose it is.
+func TestADocumentIsReservedOnlyOnceVerified(t *testing.T) {
+	h := newHarness(t)
+	ours := h.key
+	const takenCNPJ = "11222333000343"
+	h.key = h.another("")
+	theirs := h.key
+	early := h.ok(http.MethodPost, "/v1/recipients", map[string]any{"name": "Vendedora", "tax_id": sellerCNPJ})
+	own := h.ok(http.MethodPost, "/v1/recipients", map[string]any{"name": "Outra", "tax_id": merchantCNPJ})
+	squat := h.ok(http.MethodPost, "/v1/recipients", map[string]any{"name": "Futura", "tax_id": takenCNPJ})
+
+	h.key = ours
+	seller := h.seller(true)
+	h.ok(http.MethodPost, "/v1/recipients/"+seller, map[string]any{"name": "Vendedora Renomeada"})
+
+	h.key = theirs
+	r := h.call(http.MethodPost, "/v1/test_helpers/recipients/"+str(early, "id")+"/verify", map[string]any{"status": "verified"})
+	if r.status != http.StatusBadRequest || !strings.Contains(string(r.raw), "cannot be verified as a recipient here") {
+		t.Fatalf("verifying a seller verified elsewhere: %d %s", r.status, r.raw)
+	}
+	// Test mode does not say whose a document is, and the merchant's own recipient takes
+	// its document back.
+	h.ok(http.MethodPost, "/v1/test_helpers/recipients/"+str(own, "id")+"/verify", map[string]any{"status": "verified"})
+	h.key = ours
+	if me := h.ok(http.MethodPost, "/v1/recipients/me", map[string]any{"name": "Loja"}); str(me, "status") != "verified" {
+		t.Fatalf("the merchant's own recipient: %v", me)
+	}
+	h.key = theirs
+	if taken := h.ok(http.MethodGet, "/v1/recipients/"+str(own, "id"), nil); str(taken, "status") != "rejected" {
+		t.Fatalf("the recipient that held the merchant's document: %v", taken)
+	}
+
+	// A merchant signing up with a document someone left pending still has its own recipient.
+	h.key = h.another(takenCNPJ)
+	if me := h.ok(http.MethodPost, "/v1/recipients/me", map[string]any{"payout_destination": map[string]any{"type": "pix", "pix_key": "futura@example.com"}}); str(me, "status") != "verified" {
+		t.Fatalf("its own recipient: %v", me)
+	}
+	h.key = theirs
+	if r := h.call(http.MethodPost, "/v1/test_helpers/recipients/"+str(squat, "id")+"/verify", map[string]any{"status": "verified"}); r.status != http.StatusBadRequest {
+		t.Fatalf("verifying a merchant's document: %d %s", r.status, r.raw)
+	}
+	h.key = ours
+
+	// In live mode, verified by an operator, a merchant's document is never another's.
+	err := postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {
+		live := recipients.Owner{Merchant: h.owner.Merchant, Livemode: true}
+		rec, err := h.recipients.Create(t.Context(), tx, live, recipients.Params{Name: "Outra", TaxID: takenCNPJ})
+		if err != nil {
+			return err
+		}
+		if _, err := h.recipients.Verify(t.Context(), tx, live, rec.ID, recipients.Verified); !errors.Is(err, recipients.ErrInvalid) {
+			return fmt.Errorf("verifying a merchant's document in live mode: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	h.consistent()
 }

@@ -36,3 +36,6 @@ LIMIT @max_count::integer;
 UPDATE merchant.api_keys SET revoked_at = @now::timestamptz
 WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode AND revoked_at IS NULL
 RETURNING id, merchant_id, livemode, kind, name, last4, scopes, created_at, revoked_at;
+
+-- name: MerchantByTaxID :one
+SELECT id FROM merchant.merchants WHERE tax_id = @tax_id;

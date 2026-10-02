@@ -28,4 +28,5 @@ type RecipientsRecipient struct {
 	CreatedAt             pgtype.Timestamptz
 	UpdatedAt             pgtype.Timestamptz
 	PayoutsHeld           bool
+	Reserved              bool
 }

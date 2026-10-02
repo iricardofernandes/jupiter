@@ -183,6 +183,19 @@ func (s *Service) Get(ctx context.Context, q db.DBTX, merchantID id.ID) (Merchan
 	return Merchant{ID: merchantID, Name: row.Name, APIVersion: row.ApiVersion, TaxID: row.TaxID, CreatedAt: row.CreatedAt.Time}, nil
 }
 
+// HolderOf answers which merchant, if any, has a CPF or CNPJ as its own.
+func (s *Service) HolderOf(ctx context.Context, q db.DBTX, taxID string) (id.ID, bool, error) {
+	found, err := db.New(q).MerchantByTaxID(ctx, taxID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return id.ID{}, false, nil
+	}
+	if err != nil {
+		return id.ID{}, false, err
+	}
+	merchantID, err := MerchantPrefix.Parse(found)
+	return merchantID, err == nil, err
+}
+
 // SetTaxID records the merchant's CPF or CNPJ.
 func (s *Service) SetTaxID(ctx context.Context, q db.DBTX, merchantID id.ID, taxID string) error {
 	if !taxid.Valid(taxID) {

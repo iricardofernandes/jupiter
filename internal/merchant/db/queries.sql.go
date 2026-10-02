@@ -227,6 +227,17 @@ func (q *Queries) ListKeys(ctx context.Context, arg ListKeysParams) ([]ListKeysR
 	return items, nil
 }
 
+const merchantByTaxID = `-- name: MerchantByTaxID :one
+SELECT id FROM merchant.merchants WHERE tax_id = $1
+`
+
+func (q *Queries) MerchantByTaxID(ctx context.Context, taxID string) (string, error) {
+	row := q.db.QueryRow(ctx, merchantByTaxID, taxID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const revokeKey = `-- name: RevokeKey :one
 UPDATE merchant.api_keys SET revoked_at = $1::timestamptz
 WHERE id = $2 AND merchant_id = $3 AND livemode = $4 AND revoked_at IS NULL

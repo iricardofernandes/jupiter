@@ -1,10 +1,10 @@
 -- name: InsertRecipient :exec
 INSERT INTO recipients.recipients (id, merchant_id, livemode, name, tax_id, is_default, status, payout_method, pix_key,
     bank_ispb, bank_branch, bank_account, transfer_interval, transfer_day, auto_anticipation, auto_anticipation_delay,
-    created_at, updated_at)
+    reserved, created_at, updated_at)
 VALUES (@id, @merchant_id, @livemode, @name, @tax_id, @is_default, @status, @payout_method, @pix_key,
     @bank_ispb, @bank_branch, @bank_account, @transfer_interval, @transfer_day, @auto_anticipation, @auto_anticipation_delay,
-    @now, @now);
+    @is_default OR @status = 'verified', @now, @now);
 
 -- name: GetRecipient :one
 SELECT * FROM recipients.recipients WHERE id = @id AND merchant_id = @merchant_id AND livemode = @livemode;
@@ -23,7 +23,7 @@ UPDATE recipients.recipients
 SET name = @name, status = @status, payout_method = @payout_method, pix_key = @pix_key, bank_ispb = @bank_ispb,
     bank_branch = @bank_branch, bank_account = @bank_account, transfer_interval = @transfer_interval,
     transfer_day = @transfer_day, auto_anticipation = @auto_anticipation, auto_anticipation_delay = @auto_anticipation_delay,
-    updated_at = @updated_at
+    reserved = reserved OR @status = 'verified', updated_at = @updated_at
 WHERE id = @id;
 
 -- name: ListRecipients :many
@@ -54,3 +54,8 @@ UPDATE recipients.recipients SET payouts_held = @held, updated_at = @now WHERE i
 
 -- name: CountRecipients :one
 SELECT count(*) FROM recipients.recipients WHERE merchant_id = @merchant_id AND livemode = @livemode;
+
+-- name: ReleaseTestTaxID :exec
+-- A test-mode recipient that holds a merchant's own document gives it up, rejected.
+UPDATE recipients.recipients SET reserved = false, status = 'rejected', updated_at = @now
+WHERE NOT livemode AND tax_id = @tax_id AND reserved AND NOT is_default;

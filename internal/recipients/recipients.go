@@ -290,10 +290,24 @@ func (s *Service) Verify(ctx context.Context, tx pgx.Tx, owner Owner, recipientI
 	if err != nil {
 		return Recipient{}, notFoundOr(err, recipientID)
 	}
+	if status == Verified && !row.IsDefault && row.Livemode {
+		// A merchant's own CPF or CNPJ is its own recipient's, which no other recipient
+		// may take from it. Test mode, where a merchant verifies its own recipients, does
+		// not ask: the answer would tell it who else is a merchant.
+		_, held, err := s.cfg.Merchants.HolderOf(ctx, tx, row.TaxID)
+		if err != nil {
+			return Recipient{}, err
+		}
+		if held {
+			return Recipient{}, errDocumentTaken
+		}
+	}
 	row.Status = string(status)
 	return s.save(ctx, tx, owner, row)
 }
 
+// errDocumentTaken is all a merchant learns when a CPF or CNPJ is another's: not whose.
+var errDocumentTaken = fmt.Errorf("%w: that CPF or CNPJ cannot be verified as a recipient here", ErrInvalid)
 
 func (s *Service) save(ctx context.Context, tx pgx.Tx, owner Owner, row db.RecipientsRecipient) (Recipient, error) {
 	row.UpdatedAt = ts(s.cfg.Now().UTC())
@@ -301,7 +315,9 @@ func (s *Service) save(ctx context.Context, tx pgx.Tx, owner Owner, row db.Recip
 		ID: row.ID, Name: row.Name, Status: row.Status, PayoutMethod: row.PayoutMethod, PixKey: row.PixKey, BankIspb: row.BankIspb,
 		BankBranch: row.BankBranch, BankAccount: row.BankAccount, TransferInterval: row.TransferInterval, TransferDay: row.TransferDay,
 		AutoAnticipation: row.AutoAnticipation, AutoAnticipationDelay: row.AutoAnticipationDelay, UpdatedAt: row.UpdatedAt,
-	}); err != nil {
+	}); postgres.ErrorCode(err) == "23505" {
+		return Recipient{}, errDocumentTaken
+	} else if err != nil {
 		return Recipient{}, err
 	}
 	if err := s.publish(ctx, tx, owner, events.TypeRecipientUpdated, row.ID); err != nil {
@@ -328,6 +344,13 @@ func (s *Service) Default(ctx context.Context, tx pgx.Tx, owner Owner) (Recipien
 	}
 	if m.TaxID == "" {
 		return Recipient{}, fmt.Errorf("%w: the merchant has no CPF or CNPJ yet", ErrInvalid)
+	}
+	if !owner.Livemode {
+		// In test mode, another merchant's recipient may have been verified with this
+		// merchant's document; the merchant's own recipient takes it back.
+		if err := q.ReleaseTestTaxID(ctx, db.ReleaseTestTaxIDParams{TaxID: m.TaxID, Now: ts(s.cfg.Now().UTC())}); err != nil {
+			return Recipient{}, err
+		}
 	}
 	return s.insert(ctx, tx, owner, db.RecipientsRecipient{
 		ID: Prefix.New().String(), MerchantID: key.MerchantID, Livemode: key.Livemode, Name: m.Name, TaxID: m.TaxID,
