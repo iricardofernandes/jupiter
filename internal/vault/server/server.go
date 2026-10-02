@@ -32,6 +32,7 @@ const (
 	defaultCVCTTL      = 30 * time.Minute
 	defaultMaxCVCs     = 100_000
 	defaultClaimWindow = time.Hour
+	purgeBatch         = 1000
 	defaultPublicRate  = 2
 	defaultPublicBurst = 20
 	// A publishable key, and the public route as a whole, may make tokens this fast: what
@@ -396,11 +397,19 @@ func (s *Service) get(ctx context.Context, token string) (db.VaultCard, error) {
 // security codes past their time.
 func (s *Service) PurgeUnclaimed(ctx context.Context) (int64, error) {
 	s.cvcs.sweep()
-	n, err := db.New(s.cfg.Pool).PurgeUnclaimed(ctx, pgtype.Timestamptz{Time: s.cfg.Now().UTC(), Valid: true})
-	if err != nil {
-		return 0, fmt.Errorf("purging unclaimed cards: %w", err)
+	var purged int64
+	for {
+		n, err := db.New(s.cfg.Pool).PurgeUnclaimed(ctx, db.PurgeUnclaimedParams{
+			Now: pgtype.Timestamptz{Time: s.cfg.Now().UTC(), Valid: true}, MaxCount: purgeBatch,
+		})
+		if err != nil {
+			return purged, fmt.Errorf("purging unclaimed cards: %w", err)
+		}
+		purged += n
+		if n < purgeBatch {
+			return purged, nil
+		}
 	}
-	return n, nil
 }
 
 func cardOf(row db.VaultCard) vault.Card {

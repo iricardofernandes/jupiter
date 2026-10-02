@@ -128,7 +128,8 @@ type Config struct {
 }
 
 type Service struct {
-	cfg Config
+	cfg      Config
+	inFlight *inFlight
 }
 
 func New(cfg Config) *Service {
@@ -147,7 +148,7 @@ func New(cfg Config) *Service {
 	if cfg.MaxAttempts == 0 {
 		cfg.MaxAttempts = maxDeliveryAttempts
 	}
-	return &Service{cfg: cfg}
+	return &Service{cfg: cfg, inFlight: &inFlight{running: map[string]int{}}}
 }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {

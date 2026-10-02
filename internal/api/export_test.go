@@ -45,6 +45,8 @@ var Fingerprint = fingerprint
 
 func (a *API) SetAfterPhase(fn func(recoveryPoint string)) { a.afterPhase = fn }
 
+const MaxCompleterRuns = maxCompleterRuns
+
 func (a *API) SetIdempotencyTiming(lockTimeout, wait time.Duration) {
 	a.idem.lockTimeout = lockTimeout
 	a.idem.wait = wait

@@ -21,11 +21,11 @@ const defaultSecretOverlap = 24 * time.Hour
 
 func (a *API) registerOperations() map[string]operation {
 	ops := []operation{
-		{name: "create_api_key", scope: merchant.ScopeAPIKeysWrite, phases: []phase{{point: pointStarted, atomic: a.createAPIKey}}},
+		{name: "create_api_key", scope: merchant.ScopeAPIKeysWrite, phases: []phase{{point: pointStarted, atomic: a.createAPIKey}}, secret: true},
 		{name: "revoke_api_key", scope: merchant.ScopeAPIKeysWrite, phases: []phase{{point: pointStarted, atomic: a.revokeAPIKey}}},
-		{name: "create_webhook_endpoint", scope: merchant.ScopeWebhookEndpointWrite, phases: []phase{{point: pointStarted, atomic: a.createWebhookEndpoint}}},
+		{name: "create_webhook_endpoint", scope: merchant.ScopeWebhookEndpointWrite, phases: []phase{{point: pointStarted, atomic: a.createWebhookEndpoint}}, secret: true},
 		{name: "update_webhook_endpoint", scope: merchant.ScopeWebhookEndpointWrite, phases: []phase{{point: pointStarted, atomic: a.updateWebhookEndpoint}}},
-		{name: "roll_webhook_endpoint_secret", scope: merchant.ScopeWebhookEndpointWrite, phases: []phase{{point: pointStarted, atomic: a.rollWebhookEndpointSecret}}},
+		{name: "roll_webhook_endpoint_secret", scope: merchant.ScopeWebhookEndpointWrite, phases: []phase{{point: pointStarted, atomic: a.rollWebhookEndpointSecret}}, secret: true},
 		{name: "resend_event", scope: merchant.ScopeEventsWrite, phases: []phase{{point: pointStarted, atomic: a.resendEvent}}},
 	}
 	ops = append(ops, a.paymentOperations()...)

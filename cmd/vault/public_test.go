@@ -12,7 +12,7 @@ func TestThePublicRouteNeedsTLSAwayFromLoopback(t *testing.T) {
 		{"JUPITER_VAULT_PUBLIC_ADDR": "127.0.0.1:9000"},
 		{"JUPITER_VAULT_PUBLIC_ADDR": "[::1]:9000"},
 		{"JUPITER_VAULT_PUBLIC_ADDR": "localhost:9000"},
-		{"JUPITER_VAULT_PUBLIC_ADDR": ":8083", "JUPITER_VAULT_PUBLIC_BEHIND_EDGE": "true"},
+		{"JUPITER_VAULT_PUBLIC_ADDR": ":8083", "JUPITER_VAULT_PUBLIC_BEHIND_EDGE": "true", "JUPITER_TRUSTED_PROXIES": "10.0.0.0/8"},
 	} {
 		if p, err := publicListener(env(ok)); err != nil || p.tls != nil {
 			t.Errorf("%v: %v", ok, err)
@@ -22,6 +22,7 @@ func TestThePublicRouteNeedsTLSAwayFromLoopback(t *testing.T) {
 		{"JUPITER_VAULT_PUBLIC_ADDR": ":8083"},
 		{"JUPITER_VAULT_PUBLIC_ADDR": "0.0.0.0:8083"},
 		{"JUPITER_VAULT_PUBLIC_ADDR": "10.0.0.5:8083", "JUPITER_VAULT_PUBLIC_BEHIND_EDGE": "yes"},
+		{"JUPITER_VAULT_PUBLIC_ADDR": ":8083", "JUPITER_VAULT_PUBLIC_BEHIND_EDGE": "true"},
 		{"JUPITER_VAULT_PUBLIC_TLS_CERT": "/nonexistent.pem", "JUPITER_VAULT_PUBLIC_TLS_KEY": "/nonexistent.key"},
 	} {
 		if _, err := publicListener(env(refused)); err == nil {

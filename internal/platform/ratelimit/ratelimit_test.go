@@ -62,10 +62,16 @@ func TestIdleBucketsAreForgotten(t *testing.T) {
 	for i := range maxBuckets {
 		b.Allow(strconv.Itoa(i))
 	}
+	if !b.Allow("past-the-cap") || b.Allow("another-past-the-cap") {
+		t.Fatal("keys past the cap do not share the overflow bucket")
+	}
 	c.now = c.now.Add(2 * idleBucket)
 	b.Allow("new")
 	if n := len(b.buckets); n > 1 {
 		t.Fatalf("%d buckets kept", n)
+	}
+	if b.Spent("never-seen"); len(b.buckets) != 1 {
+		t.Fatal("checking a key never seen kept a bucket for it")
 	}
 }
 
@@ -86,6 +92,8 @@ func TestTheClientBehindProxies(t *testing.T) {
 		{"10.1.2.3:4000", "198.51.100.1", false, "10.1.2.3"},
 		{"[2001:db8:1:2:3:4:5:6]:4000", "", true, "2001:db8:1:2::/64"},
 		{"[::ffff:203.0.113.9]:4000", "", true, "203.0.113.9"},
+		{"10.1.2.3:4000", "203.0.113.50:61000", true, "203.0.113.50"},
+		{"10.1.2.3:4000", "[2001:db8:9::1]:443", true, "2001:db8:9::/64"},
 	} {
 		r := httptest.NewRequestWithContext(t.Context(), "GET", "/", nil)
 		r.RemoteAddr = tc.remote
@@ -100,7 +108,9 @@ func TestTheClientBehindProxies(t *testing.T) {
 			t.Errorf("%s via %q: %s, want %s", tc.remote, tc.forwarded, got, tc.want)
 		}
 	}
-	if _, err := ParseTrusted("not an address"); err == nil {
-		t.Fatal("a bad proxy was accepted")
+	for _, bad := range []string{"not an address", "0.0.0.0/0", "10.0.0.0/4", "::/0"} {
+		if _, err := ParseTrusted(bad); err == nil {
+			t.Fatalf("%q was accepted", bad)
+		}
 	}
 }

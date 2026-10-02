@@ -124,12 +124,12 @@ func newService(ctx context.Context, cfg service.Config, logger *slog.Logger) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	pool, err := postgres.Connect(ctx, cfg.DatabaseURL, postgres.ServeTimeouts)
-	if err != nil {
+	// Migrations run unbounded, before the pool that serves, whose statements are bounded.
+	if err := migrate(ctx, cfg); err != nil {
 		return nil, nil, err
 	}
-	if err := server.Migrate(ctx, pool); err != nil {
-		pool.Close()
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL, postgres.ServeTimeouts)
+	if err != nil {
 		return nil, nil, err
 	}
 	limits, err := publicLimits(os.Getenv)
@@ -238,6 +238,11 @@ func publicListener(getenv func(string) string) (public, error) {
 	if ip := net.ParseIP(host); (ip == nil || !ip.IsLoopback()) && host != "localhost" && getenv("JUPITER_VAULT_PUBLIC_BEHIND_EDGE") != "true" {
 		return public{}, fmt.Errorf("JUPITER_VAULT_PUBLIC_ADDR %s is not a loopback address: give the route a certificate, "+
 			"or set JUPITER_VAULT_PUBLIC_BEHIND_EDGE=true when an edge in front of it ends TLS", p.addr)
+	}
+	if getenv("JUPITER_VAULT_PUBLIC_BEHIND_EDGE") == "true" && getenv("JUPITER_TRUSTED_PROXIES") == "" {
+		// Every browser would then be the edge: one limit for the whole site, and one
+		// address for every card the risk engine counts.
+		return public{}, errors.New("JUPITER_VAULT_PUBLIC_BEHIND_EDGE needs JUPITER_TRUSTED_PROXIES, the edge's addresses")
 	}
 	return p, nil
 }

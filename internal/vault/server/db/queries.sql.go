@@ -278,11 +278,19 @@ func (q *Queries) KeyUsage(ctx context.Context) ([]KeyUsageRow, error) {
 }
 
 const purgeUnclaimed = `-- name: PurgeUnclaimed :execrows
-DELETE FROM vault.cards WHERE owner IS NULL AND claim_expires_at <= $1
+DELETE FROM vault.cards WHERE token IN (
+    SELECT c.token FROM vault.cards c WHERE c.owner IS NULL AND c.claim_expires_at <= $1::timestamptz LIMIT $2::integer
+)
 `
 
-func (q *Queries) PurgeUnclaimed(ctx context.Context, now pgtype.Timestamptz) (int64, error) {
-	result, err := q.db.Exec(ctx, purgeUnclaimed, now)
+type PurgeUnclaimedParams struct {
+	Now      pgtype.Timestamptz
+	MaxCount int32
+}
+
+// A batch at a time, so that a backlog cannot outlast the statement timeout.
+func (q *Queries) PurgeUnclaimed(ctx context.Context, arg PurgeUnclaimedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeUnclaimed, arg.Now, arg.MaxCount)
 	if err != nil {
 		return 0, err
 	}

@@ -108,7 +108,7 @@ func listValue(kind, value string) (string, error) {
 	switch kind {
 	case "ip":
 		addr, err := netip.ParseAddr(value)
-		if err != nil {
+		if err != nil || addr.Zone() != "" {
 			return "", fmt.Errorf("%w: value must be an IPv4 or IPv6 address", ErrInvalid)
 		}
 		return addr.Unmap().String(), nil

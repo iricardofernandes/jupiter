@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -91,6 +92,10 @@ func (w *deliveryWorker) Work(ctx context.Context, job *river.Job[DeliveryArgs])
 	if err != nil {
 		return err
 	}
+	if !s.inFlight.take(endpointRow.MerchantID) {
+		return river.JobSnooze(busySnooze)
+	}
+	defer s.inFlight.release(endpointRow.MerchantID)
 
 	began := s.cfg.Now()
 	status, sendErr := s.send(ctx, endpointRow.Url, body, webhook.Sign(body, began, secrets...))
@@ -113,6 +118,37 @@ func (w *deliveryWorker) Work(ctx context.Context, job *river.Job[DeliveryArgs])
 		s.disableIfFailing(ctx, q, endpointRow.ID)
 	}
 	return sendErr
+}
+
+// A merchant has at most maxInFlight deliveries running at once in a process; more wait
+// busySnooze, not counted as an attempt. Its slow endpoints then keep its own deliveries
+// waiting, not the other merchants'.
+const (
+	maxInFlight = 4
+	busySnooze  = 5 * time.Second
+)
+
+type inFlight struct {
+	mu      sync.Mutex
+	running map[string]int
+}
+
+func (f *inFlight) take(merchantID string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.running[merchantID] >= maxInFlight {
+		return false
+	}
+	f.running[merchantID]++
+	return true
+}
+
+func (f *inFlight) release(merchantID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.running[merchantID]--; f.running[merchantID] <= 0 {
+		delete(f.running, merchantID)
+	}
 }
 
 // failingFor is how long an endpoint may take no delivery before it is disabled.

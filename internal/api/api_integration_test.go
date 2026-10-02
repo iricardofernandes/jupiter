@@ -435,8 +435,42 @@ func TestRateLimits(t *testing.T) {
 	h.expect(wrong, http.StatusUnauthorized)
 	h.expect(wrong, http.StatusUnauthorized)
 	h.expect(wrong, http.StatusTooManyRequests)
-	// Even a key that exists waits, from that address, until the unknown ones have.
+	// A key that authenticated lately still gets through from that address: a neighbour
+	// presenting bad keys cannot lock it out.
+	h.expect(list, http.StatusOK)
+	// One never seen waits, from that address, until the unknown ones have.
+	h.newMerchant(api.CurrentVersion)
 	h.expect(list, http.StatusTooManyRequests)
 	h.clock.Advance(time.Second)
 	h.expect(list, http.StatusOK)
+}
+
+// A response carrying a secret is replayed only to the key that asked for it: another
+// key of the account repeating the Idempotency-Key and the body gets a mismatch, not the
+// new key. And what a keyed request stored of its body is sealed.
+func TestASecretIsReplayedOnlyToItsKey(t *testing.T) {
+	h := newHarness(t, api.CurrentVersion)
+	resp := h.expect(call{method: "POST", path: "/v1/api_keys", body: map[string]any{"name": "keys", "scopes": []string{"api_keys:write"}}}, http.StatusOK)
+	var restricted openapi.ApiKey
+	resp.decode(t, &restricted)
+
+	body := map[string]any{"name": "everything", "scopes": []string{"events:read"}}
+	first := h.expect(call{method: "POST", path: "/v1/api_keys", body: body, headers: map[string]string{"Idempotency-Key": "secret-1"}}, http.StatusOK)
+	again := h.expect(call{method: "POST", path: "/v1/api_keys", body: body, headers: map[string]string{"Idempotency-Key": "secret-1"}}, http.StatusOK)
+	if string(first.body) != string(again.body) {
+		t.Fatal("the same key's retry got another answer")
+	}
+	other := h.expect(call{method: "POST", path: "/v1/api_keys", key: *restricted.Value, body: body, headers: map[string]string{"Idempotency-Key": "secret-1"}},
+		http.StatusUnprocessableEntity)
+	if strings.Contains(string(other.body), "sk_test_") || strings.Contains(string(other.body), "rk_test_") {
+		t.Fatalf("another key was handed the secret: %s", other.body)
+	}
+
+	var stored []byte
+	if err := h.pool.QueryRow(t.Context(), `SELECT request_body FROM api.idempotency_keys WHERE key = 'secret-1'`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(stored), "everything") {
+		t.Fatal("the request body is stored in the clear")
+	}
 }

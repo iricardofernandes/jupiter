@@ -55,7 +55,7 @@ No endpoint exists at this method and path.
 The request needs a JSON body and has none.
 
 ### body_invalid
-The body is not a single valid JSON object, or is larger than 1 MB.
+The body is not a single valid JSON object, or is larger than 64 KB.
 
 ### parameter_unknown
 The body has a parameter the endpoint does not accept. Jupiter refuses unknown
@@ -78,7 +78,9 @@ seconds. Retry later with the same key.
 
 ### idempotency_key_mismatch
 The key was already used for a different request: another endpoint, another object, or
-another body. A key names one request; use a new key for a new request.
+another body. A key names one request; use a new key for a new request. A request whose
+answer holds a secret shown once (a new API key, a webhook endpoint's signing secret) is
+replayed only to the API key that made it; another key repeating it gets this error.
 
 ### card_declined
 The payment was declined. `decline_code` says why:

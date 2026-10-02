@@ -23,9 +23,11 @@ type Rate struct {
 const (
 	idleBucket = 10 * time.Minute
 	// maxBuckets bounds the memory a flood of new keys can take. Past it, keys not yet
-	// seen are let through untracked until idle ones are forgotten: an edge, not this
-	// process, must stop a flood from that many addresses.
+	// seen share one overflow bucket until idle ones are forgotten, which is looked for
+	// at most once a second: an edge, not this process, must stop a flood from that many
+	// addresses.
 	maxBuckets = 100_000
+	overflow   = "\x00overflow"
 )
 
 // Buckets is a token bucket per key. The zero Rate allows everything.
@@ -35,6 +37,7 @@ type Buckets struct {
 	mu      sync.Mutex
 	buckets map[string]*bucket
 	seen    int
+	swept   time.Time
 }
 
 type bucket struct {
@@ -70,14 +73,10 @@ func (b *Buckets) take(key string, consume bool) bool {
 	b.forgetIdle(now, false)
 	k, ok := b.buckets[key]
 	if !ok {
-		if len(b.buckets) >= maxBuckets {
-			b.forgetIdle(now, true)
-			if len(b.buckets) >= maxBuckets {
-				return true
-			}
+		if !consume {
+			return true // a key never seen has its whole burst
 		}
-		k = &bucket{tokens: float64(b.rate.Burst), last: now}
-		b.buckets[key] = k
+		k = b.add(key, now)
 	}
 	k.tokens = min(float64(b.rate.Burst), k.tokens+now.Sub(k.last).Seconds()*b.rate.PerSecond)
 	k.last = now
@@ -88,6 +87,23 @@ func (b *Buckets) take(key string, consume bool) bool {
 		k.tokens--
 	}
 	return true
+}
+
+// add makes key a bucket, or, past maxBuckets, gives it the overflow bucket.
+func (b *Buckets) add(key string, now time.Time) *bucket {
+	if len(b.buckets) >= maxBuckets && now.Sub(b.swept) >= time.Second {
+		b.swept = now
+		b.forgetIdle(now, true)
+	}
+	if len(b.buckets) >= maxBuckets {
+		key = overflow
+	}
+	k, ok := b.buckets[key]
+	if !ok {
+		k = &bucket{tokens: float64(b.rate.Burst), last: now}
+		b.buckets[key] = k
+	}
+	return k
 }
 
 // RetryAfter is how long until an empty bucket has a token again, in whole seconds.
@@ -139,6 +155,13 @@ func ParseTrusted(list string) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("trusted proxy %q: %w", field, err)
 		}
+		shortest := 32
+		if prefix.Addr().Is4() {
+			shortest = 8
+		}
+		if prefix.Bits() < shortest {
+			return nil, fmt.Errorf("trusted proxy %q: a prefix shorter than /%d would let clients name themselves", field, shortest)
+		}
 		out = append(out, prefix.Masked())
 	}
 	return out, nil
@@ -176,17 +199,43 @@ func (c Clients) Address(r *http.Request) netip.Addr {
 	if c.trusted(addr) {
 		hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 		for i := len(hops) - 1; i >= 0; i-- {
-			hop, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
-			if err != nil {
+			hop, ok := parseHop(hops[i])
+			if !ok {
 				break
 			}
-			addr = hop.Unmap()
+			addr = hop
 			if !c.trusted(addr) {
 				break
 			}
 		}
 	}
 	return addr
+}
+
+// parseHop reads one X-Forwarded-For entry, which some proxies write with a port.
+func parseHop(hop string) (netip.Addr, bool) {
+	hop = strings.TrimSpace(hop)
+	if addr, err := netip.ParseAddr(hop); err == nil {
+		return addr.Unmap(), true
+	}
+	if addrPort, err := netip.ParseAddrPort(hop); err == nil {
+		return addrPort.Addr().Unmap(), true
+	}
+	return netip.Addr{}, false
+}
+
+// Untrusted says a request was forwarded, by X-Forwarded-For, through a peer that is not
+// a trusted proxy: every client behind that peer counts as the peer.
+func (c Clients) Untrusted(r *http.Request) bool {
+	if r.Header.Get("X-Forwarded-For") == "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	addr, err := netip.ParseAddr(host)
+	return err == nil && !c.trusted(addr.Unmap())
 }
 
 func (c Clients) trusted(addr netip.Addr) bool {

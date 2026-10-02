@@ -120,12 +120,14 @@ func (s *Service) PublicHandler() http.Handler {
 			s.writeError(w, r, vault.WireError{Code: vault.CodeUnauthorized, Message: "A publishable key is required as a bearer token."})
 			return
 		}
-		if !s.byKey.Allow(key) || !s.route.Allow("") {
-			s.writeError(w, r, vault.WireError{Code: vault.CodeRateLimited, Message: "Too many cards right now. Slow down."})
-			return
-		}
 		var body vault.WireCard
 		if !s.decode(w, r, &body) {
+			return
+		}
+		// Only a well-formed card spends the route's and the key's quotas, and the route's
+		// first: keys are only checked for shape, so anyone can make up new ones.
+		if !s.route.Allow("") || !s.byKey.Allow(key) {
+			s.writeError(w, r, vault.WireError{Code: vault.CodeRateLimited, Message: "Too many cards right now. Slow down."})
 			return
 		}
 		c, err := s.TokenizePublic(r.Context(), key, client.String(), body.Data())

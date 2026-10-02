@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres/postgrestest"
 	"github.com/iricardofernandes/jupiter/internal/risk"
+	"github.com/iricardofernandes/jupiter/internal/risk/migrations"
 )
 
 var server *postgrestest.Server
@@ -391,5 +393,37 @@ func TestListEntriesArePaged(t *testing.T) {
 	rest, more, err := e.svc.ListItems(t.Context(), e.pool, e.owner, page.Request{Limit: 3, StartingAfter: first[2].ID})
 	if err != nil || len(rest) != 2 || more {
 		t.Fatalf("the second page: %+v, %t, %v", rest, more, err)
+	}
+}
+
+// Entries stored before values were written one way are rewritten as attempts are matched;
+// one that could never match goes, and so does one that becomes another's twin.
+func TestOldListEntriesAreMadeCanonical(t *testing.T) {
+	e := newEnv(t)
+	m := e.owner.Merchant.String()
+	for i, value := range []string{"::FFFF:192.0.2.9", "2001:DB8:0:0::1", "2001:db8::1", "not an address"} {
+		if _, err := e.pool.Exec(t.Context(), `INSERT INTO risk.list_items (id, merchant_id, livemode, list, kind, value, created_at)
+			VALUES ($1, $2, false, 'block', 'ip', $3, now())`, fmt.Sprintf("rli_old%d", i), m, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	up, err := migrations.FS.ReadFile("00002_canonical_list_values.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(t.Context(), strings.Split(string(up), "-- +goose Down")[0]); err != nil {
+		t.Fatal(err)
+	}
+	items, _, err := e.svc.ListItems(t.Context(), e.pool, e.owner, page.Request{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var values []string
+	for _, item := range items {
+		values = append(values, item.Value)
+	}
+	slices.Sort(values)
+	if !slices.Equal(values, []string{"192.0.2.9", "2001:db8::1"}) {
+		t.Fatalf("entries after the migration: %v", values)
 	}
 }

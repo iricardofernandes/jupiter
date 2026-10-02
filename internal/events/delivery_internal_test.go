@@ -34,3 +34,31 @@ func TestIsPublic(t *testing.T) {
 		}
 	}
 }
+
+// A merchant's deliveries in flight are bounded; another merchant's are not held by
+// them, and a slot is free again once released.
+func TestDeliveriesInFlightAreBoundedPerMerchant(t *testing.T) {
+	f := &inFlight{running: map[string]int{}}
+	for range maxInFlight {
+		if !f.take("mch_a") {
+			t.Fatal("a slot within the bound was refused")
+		}
+	}
+	if f.take("mch_a") {
+		t.Fatal("a delivery past the bound was let through")
+	}
+	if !f.take("mch_b") {
+		t.Fatal("another merchant waited on the first")
+	}
+	f.release("mch_a")
+	if !f.take("mch_a") {
+		t.Fatal("a released slot was not free again")
+	}
+	for range maxInFlight {
+		f.release("mch_a")
+	}
+	f.release("mch_b")
+	if len(f.running) != 0 {
+		t.Fatalf("merchants left counted: %v", f.running)
+	}
+}

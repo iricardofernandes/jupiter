@@ -224,6 +224,9 @@ func (a *API) startQuote(ctx context.Context, tx pgx.Tx, r *request) (outcome, e
 		return outcome{}, err
 	}
 	if recipientID == "" {
+		if a.deps.Recipients == nil {
+			return outcome{}, invalidRequest("parameter_invalid", "recipient", "Recipients are not available.")
+		}
 		rec, err := a.deps.Recipients.Default(ctx, tx, owner(r.principal))
 		if err != nil {
 			return outcome{}, recipientsError(err, me)

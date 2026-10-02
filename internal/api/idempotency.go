@@ -22,12 +22,17 @@ import (
 )
 
 const (
-	pointStarted    = "started"
-	idempotencyHdr  = "Idempotency-Key"
-	maxBodyBytes    = 1 << 20
-	maxKeyLength    = 255
-	abandonedBatch  = 100
-	completerSource = "completer"
+	pointStarted   = "started"
+	idempotencyHdr = "Idempotency-Key"
+	maxBodyBytes   = 64 << 10
+	maxKeyLength   = 255
+	maxPoll        = 500 * time.Millisecond
+	abandonedBatch = 100
+	// maxCompleterRuns bounds how often the completer takes on one request, the runs
+	// spaced further apart each time, over about a day: one that fails each time is
+	// left, still unfinished, for a person (JupiterRequestsUnfinished).
+	maxCompleterRuns = 30
+	completerSource  = "completer"
 	// runTimeout bounds a keyed request once it holds its key. The request runs on a
 	// context detached from the client's, so a client that hangs up cannot abort it
 	// half-way, and must finish well within the lock timeout.
@@ -100,6 +105,9 @@ type operation struct {
 	// card numbers out of the database, and must give the same body for the same request.
 	prepare func(ctx context.Context, req *request, idempotencyKey string) error
 	phases  []phase
+	// secret says the response carries a secret shown once: it is replayed only to the
+	// key that made the request, not to any key of the account.
+	secret bool
 }
 
 func (o operation) phase(point string) (phase, bool) {
@@ -134,7 +142,7 @@ func (a *API) serve(w http.ResponseWriter, r *http.Request, opName, pathID strin
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
 	if err != nil || len(body) > maxBodyBytes {
-		a.writeError(w, r, invalidRequest("body_invalid", "", "The request body could not be read or is larger than 1 MB."))
+		a.writeError(w, r, invalidRequest("body_invalid", "", "The request body could not be read or is larger than 64 KB."))
 		return
 	}
 	req := &request{
@@ -207,9 +215,14 @@ func (a *API) runKeyed(ctx context.Context, op operation, req *request, key stri
 	if err != nil {
 		return 0, nil, err
 	}
+	sealed, err := a.deps.Box.Seal(req.body, requestAD(req.principal, key))
+	if err != nil {
+		return 0, nil, err
+	}
 	deadline := time.Now().Add(a.idem.wait)
+	poll := a.idem.poll
 	for {
-		got, err := a.acquire(ctx, op, req, key, fp)
+		got, err := a.acquire(ctx, op, req, key, fp, sealed)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -227,15 +240,17 @@ func (a *API) runKeyed(ctx context.Context, op operation, req *request, key stri
 		select {
 		case <-ctx.Done():
 			return 0, nil, ctx.Err()
-		case <-time.After(a.idem.poll):
+		case <-time.After(poll):
 		}
+		// A request that waits long waits for a long one: ask less often.
+		poll = min(2*poll, maxPoll)
 	}
 }
 
 // acquire records the key or finds it. It returns the stored response of a finished
 // request, busy while another runner holds the key, or the lock and the recovery point
 // to continue from.
-func (a *API) acquire(ctx context.Context, op operation, req *request, key string, fp []byte) (acquired, error) {
+func (a *API) acquire(ctx context.Context, op operation, req *request, key string, fp, sealed []byte) (acquired, error) {
 	var got acquired
 	now := a.deps.Now().UTC()
 	err := postgres.InTx(ctx, a.deps.Pool, func(tx pgx.Tx) error {
@@ -244,7 +259,7 @@ func (a *API) acquire(ctx context.Context, op operation, req *request, key strin
 		token := newLockToken()
 		keyID, err := q.InsertIdempotencyKey(ctx, db.InsertIdempotencyKeyParams{
 			MerchantID: req.principal.Merchant.String(), Livemode: req.principal.Livemode, Key: key,
-			Fingerprint: fp, Operation: op.name, PathID: req.pathID, RequestBody: req.body,
+			Fingerprint: fp, Operation: op.name, PathID: req.pathID, RequestBody: sealed,
 			ApiVersion: req.version, KeyID: req.principal.Key.String(), KeyKind: string(req.principal.Kind),
 			KeyScopes: scopeStrings(req.principal.Scopes), LockToken: token, Now: timestamptz(now),
 		})
@@ -262,7 +277,7 @@ func (a *API) acquire(ctx context.Context, op operation, req *request, key strin
 			return fmt.Errorf("locking idempotency key: %w", err)
 		}
 		switch {
-		case !bytes.Equal(row.Fingerprint, fp):
+		case !bytes.Equal(row.Fingerprint, fp), op.secret && row.KeyID != req.principal.Key.String():
 			return errMismatch
 		case row.ResponseStatus.Valid:
 			body, err := a.deps.Box.Open(row.ResponseBody, responseAD(row.ID))
@@ -438,7 +453,7 @@ func (a *API) CompleteAbandoned(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("unlocking requests that did nothing: %w", err)
 	}
 	ids, err := q.AbandonedIdempotencyKeys(ctx, db.AbandonedIdempotencyKeysParams{
-		StaleBefore: timestamptz(staleBefore), MaxCount: abandonedBatch,
+		StaleBefore: timestamptz(staleBefore), MaxRuns: maxCompleterRuns, MaxCount: abandonedBatch,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("finding abandoned requests: %w", err)
@@ -472,6 +487,9 @@ func (a *API) complete(ctx context.Context, keyID int64, staleBefore time.Time) 
 			return nil
 		}
 		taken = true
+		if err := q.CountCompleterRun(ctx, keyID); err != nil {
+			return err
+		}
 		return q.TakeIdempotencyLock(ctx, db.TakeIdempotencyLockParams{ID: keyID, LockToken: token, Now: timestamptz(a.deps.Now().UTC())})
 	})
 	if err != nil || !taken {
@@ -481,7 +499,7 @@ func (a *API) complete(ctx context.Context, keyID int64, staleBefore time.Time) 
 	if !ok {
 		return false, fmt.Errorf("unknown operation %q", row.Operation)
 	}
-	req, err := storedRequest(row)
+	req, err := a.storedRequest(row)
 	if err != nil {
 		return false, err
 	}
@@ -493,7 +511,7 @@ func (a *API) complete(ctx context.Context, keyID int64, staleBefore time.Time) 
 	return true, nil
 }
 
-func storedRequest(row db.ApiIdempotencyKey) (*request, error) {
+func (a *API) storedRequest(row db.ApiIdempotencyKey) (*request, error) {
 	merchantID, err := merchant.MerchantPrefix.Parse(row.MerchantID)
 	if err != nil {
 		return nil, err
@@ -506,12 +524,19 @@ func storedRequest(row db.ApiIdempotencyKey) (*request, error) {
 	for i, s := range row.KeyScopes {
 		scopes[i] = merchant.Scope(s)
 	}
+	principal := merchant.Principal{
+		Merchant: merchantID, Key: keyID, Livemode: row.Livemode, Kind: merchant.Kind(row.KeyKind),
+		Scopes: scopes, APIVersion: row.ApiVersion,
+	}
+	body := row.RequestBody
+	if row.RequestSealed {
+		if body, err = a.deps.Box.Open(row.RequestBody, requestAD(principal, row.Key)); err != nil {
+			return nil, fmt.Errorf("opening the stored request: %w", err)
+		}
+	}
 	req := &request{
-		principal: merchant.Principal{
-			Merchant: merchantID, Key: keyID, Livemode: row.Livemode, Kind: merchant.Kind(row.KeyKind),
-			Scopes: scopes, APIVersion: row.ApiVersion,
-		},
-		version: row.ApiVersion, pathID: row.PathID, body: row.RequestBody,
+		principal: principal,
+		version:   row.ApiVersion, pathID: row.PathID, body: body,
 		requestID: requestPrefix.New().String() + "_" + completerSource,
 	}
 	return req, restoreState(req, row.RecoveryState)
@@ -533,6 +558,11 @@ func newLockToken() pgtype.UUID {
 
 func responseAD(keyID int64) []byte {
 	return []byte("idempotency_key/" + strconv.FormatInt(keyID, 10))
+}
+
+// requestAD binds a stored request body to its account, mode and key.
+func requestAD(p merchant.Principal, key string) []byte {
+	return []byte("idempotency_request/" + p.Merchant.String() + "/" + strconv.FormatBool(p.Livemode) + "/" + key)
 }
 
 func scopeStrings(scopes []merchant.Scope) []string {

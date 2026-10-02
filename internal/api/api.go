@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -195,9 +196,12 @@ func (a *API) withAuthentication(next http.Handler) http.Handler {
 			return
 		}
 		// An address that keeps presenting keys that do not exist is refused before it
-		// costs a lookup.
-		client := a.limits.clients.Of(r)
-		if a.limits.unknown.Spent(client) {
+		// costs a lookup, unless the key it presents authenticated lately.
+		if a.limits.clients.Untrusted(r) {
+			a.warnUntrusted(r.Context())
+		}
+		client, hash := a.limits.clients.Of(r), sha256.Sum256([]byte(value))
+		if !a.limits.known.has(hash) && a.limits.unknown.Spent(client) {
 			a.tooManyRequests(w, r, a.limits.unknown)
 			return
 		}
@@ -211,6 +215,7 @@ func (a *API) withAuthentication(next http.Handler) http.Handler {
 			a.fail(w, r, err)
 			return
 		}
+		a.limits.known.add(hash)
 		if keys := a.limits.of(p); !keys.Allow(p.Key.String()) {
 			a.tooManyRequests(w, r, keys)
 			return

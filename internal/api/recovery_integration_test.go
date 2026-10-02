@@ -35,10 +35,11 @@ func (p *processor) charge(key string) int {
 }
 
 type twoPhase struct {
-	h         *harness
-	handler   http.Handler
-	processor *processor
-	failOnce  atomic.Bool
+	h          *harness
+	handler    http.Handler
+	processor  *processor
+	failOnce   atomic.Bool
+	failAlways atomic.Bool
 }
 
 // newTwoPhase registers an operation shaped like a payment: reserve (atomic), call the
@@ -60,7 +61,7 @@ func newTwoPhase(h *harness) *twoPhase {
 				return nil
 			},
 			func(ctx context.Context, tx pgx.Tx) (string, any, error) {
-				if tp.failOnce.CompareAndSwap(true, false) {
+				if tp.failOnce.CompareAndSwap(true, false) || tp.failAlways.Load() {
 					return "", nil, errors.New("database hiccup")
 				}
 				_, err := tx.Exec(ctx, "INSERT INTO effects VALUES ('captured')")
@@ -155,6 +156,69 @@ func TestTheCompleterFinishesARequestAbandonedBetweenPhases(t *testing.T) {
 	}
 	if got := tp.effects(); got["captured"] != 1 {
 		t.Fatalf("the retry acted again: %v", got)
+	}
+}
+
+// A request stored before bodies were sealed is still finished by the completer.
+func TestTheCompleterReadsARequestStoredBeforeSealing(t *testing.T) {
+	h := newHarness(t, api.CurrentVersion)
+	tp := newTwoPhase(h)
+	h.api.SetIdempotencyTiming(time.Minute, 200*time.Millisecond)
+	h.api.SetAfterPhase(func(point string) {
+		if point == "reserved" {
+			runtime.Goexit()
+		}
+	})
+	if _, _, err := tp.post("op-legacy"); err == nil {
+		t.Fatal("the request completed although its process died")
+	}
+	h.api.SetAfterPhase(nil)
+	if _, err := h.pool.Exec(t.Context(), `UPDATE api.idempotency_keys SET request_body = '', request_sealed = false WHERE key = 'op-legacy'`); err != nil {
+		t.Fatal(err)
+	}
+	h.clock.Advance(2 * time.Minute)
+	if n, err := h.api.CompleteAbandoned(t.Context()); err != nil || n != 1 {
+		t.Fatalf("CompleteAbandoned = %d, %v", n, err)
+	}
+	if got := tp.effects(); got["captured"] != 1 {
+		t.Fatalf("effects = %v", got)
+	}
+}
+
+// A request the completer cannot finish, however often it tries, is left for a person
+// after a bounded number of runs, still counted as unfinished.
+func TestTheCompleterGivesUp(t *testing.T) {
+	h := newHarness(t, api.CurrentVersion)
+	tp := newTwoPhase(h)
+	tp.failAlways.Store(true)
+	h.api.SetIdempotencyTiming(time.Minute, 200*time.Millisecond)
+	h.api.SetAfterPhase(func(point string) {
+		if point == "reserved" {
+			runtime.Goexit()
+		}
+	})
+	if _, _, err := tp.post("op-stuck"); err == nil {
+		t.Fatal("the request completed although its process died")
+	}
+	h.api.SetAfterPhase(nil)
+	// Each run waits longer than the one before, up to an hour.
+	for i := range api.MaxCompleterRuns {
+		h.clock.Advance(2 * time.Hour)
+		if _, err := h.api.CompleteAbandoned(t.Context()); err == nil {
+			t.Fatalf("run %d of a request that always fails succeeded", i+1)
+		}
+		if _, err := h.api.CompleteAbandoned(t.Context()); err != nil {
+			t.Fatalf("run %d was taken on again at once: %v", i+1, err)
+		}
+	}
+	h.clock.Advance(2 * time.Hour)
+	if n, err := h.api.CompleteAbandoned(t.Context()); err != nil || n != 0 {
+		t.Fatalf("after %d runs the completer still took it on: %d, %v", api.MaxCompleterRuns, n, err)
+	}
+	h.clock.Advance(time.Hour)
+	readings, err := h.api.Health(t.Context())
+	if err != nil || len(readings) != 1 || readings[0].Value != 1 {
+		t.Fatalf("the request left unfinished is not counted: %+v, %v", readings, err)
 	}
 }
 

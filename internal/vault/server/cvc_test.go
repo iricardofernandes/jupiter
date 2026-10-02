@@ -47,13 +47,34 @@ func TestSecurityCodesAreBounded(t *testing.T) {
 // servers' cards.
 func TestPublicCodesLeaveRoomForTheInternalPath(t *testing.T) {
 	c := newCVCs(time.Minute, 4, time.Now)
-	if !c.put("pub_a", "111", true) || !c.put("pub_b", "222", true) || c.put("pub_c", "333", true) {
-		t.Fatal("public codes took more than half the store")
+	for _, token := range []string{"pub_a", "pub_b", "pub_c"} {
+		c.put(token, "111", true)
+	}
+	if c.inUse != 2 {
+		t.Fatalf("public codes hold %d places of 4", c.inUse)
 	}
 	if !c.put("tok_a", "444", false) || !c.put("tok_b", "555", false) || c.put("tok_c", "666", false) {
 		t.Fatal("the internal path lacked its room, or overfilled the store")
 	}
-	if c.take("pub_a") != "111" || !c.put("pub_c", "333", true) {
-		t.Fatal("a public code taken did not make room for another")
+}
+
+// A full public half lets its oldest code go for a new one, and the internal half is
+// untouched.
+func TestANewPublicCodeTakesTheOldestOnesPlace(t *testing.T) {
+	c := newCVCs(time.Minute, 4, time.Now)
+	c.put("tok_a", "900", false)
+	for i, token := range []string{"pub_1", "pub_2", "pub_3", "pub_4"} {
+		if !c.put(token, "11"+string(rune('0'+i)), true) {
+			t.Fatalf("%s was not kept", token)
+		}
+	}
+	if c.take("pub_1") != "" || c.take("pub_2") != "" || c.take("pub_3") != "112" || c.take("pub_4") != "113" {
+		t.Fatal("the oldest public codes were not the ones let go")
+	}
+	if c.take("tok_a") != "900" {
+		t.Fatal("a public code took an internal one's place")
+	}
+	if c.inUse != 0 || len(c.entries) != 0 {
+		t.Fatalf("counts after all were taken: %d in use, %d entries", c.inUse, len(c.entries))
 	}
 }

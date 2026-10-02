@@ -1,6 +1,7 @@
 package server
 
 import (
+	"slices"
 	"sync"
 	"time"
 )
@@ -12,14 +13,19 @@ import (
 // tokenized the card: the authorization then goes without it.
 //
 // Codes from web pages, which anyone can send, may fill at most half the store, so that
-// a flood of them cannot leave the merchants' servers' cards without theirs.
+// a flood of them cannot leave the merchants' servers' cards without theirs. When that
+// half is full, a new one takes the place of the oldest: under a flood, a customer's code
+// is kept for minutes, which is enough for its payment, rather than not at all.
 type cvcs struct {
 	mu      sync.Mutex
 	entries map[string]cvcEntry
-	public  int
-	ttl     time.Duration
-	max     int
-	now     func() time.Time
+	// public holds the tokens of codes from web pages, oldest first; some may have been
+	// taken already.
+	public []string
+	inUse  int
+	ttl    time.Duration
+	max    int
+	now    func() time.Time
 }
 
 type cvcEntry struct {
@@ -42,12 +48,25 @@ func (c *cvcs) put(token, code string, public bool) bool {
 	if old, ok := c.entries[token]; ok {
 		c.forget(token, old)
 	}
-	if len(c.entries) >= c.max || (public && c.public >= c.max/2) {
+	if public {
+		for c.inUse >= c.max/2 && len(c.public) > 0 {
+			oldest := c.public[0]
+			c.public = c.public[1:]
+			if e, ok := c.entries[oldest]; ok && e.public {
+				c.forget(oldest, e)
+			}
+		}
+	}
+	if len(c.entries) >= c.max || (public && c.inUse >= c.max/2) {
 		return false
 	}
 	c.entries[token] = cvcEntry{code: []byte(code), expires: c.now().Add(c.ttl), public: public}
 	if public {
-		c.public++
+		c.inUse++
+		c.public = append(c.public, token)
+		if len(c.public) > c.max {
+			c.public = slices.DeleteFunc(c.public, func(t string) bool { return !c.entries[t].public })
+		}
 	}
 	return true
 }
@@ -56,7 +75,7 @@ func (c *cvcs) forget(token string, e cvcEntry) {
 	clear(e.code)
 	delete(c.entries, token)
 	if e.public {
-		c.public--
+		c.inUse--
 	}
 }
 

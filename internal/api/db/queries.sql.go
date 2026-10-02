@@ -12,24 +12,29 @@ import (
 )
 
 const abandonedIdempotencyKeys = `-- name: AbandonedIdempotencyKeys :many
-SELECT id FROM api.idempotency_keys
-WHERE response_status IS NULL AND recovery_point <> 'started'
-  AND ((locked_at IS NOT NULL AND locked_at < $1::timestamptz)
-       OR (locked_at IS NULL AND last_run_at < $1::timestamptz))
-ORDER BY last_run_at
+WITH stale AS (SELECT $3::timestamptz AS before)
+SELECT k.id FROM api.idempotency_keys k, stale
+WHERE k.response_status IS NULL AND k.recovery_point <> 'started' AND k.completer_runs < $1::integer
+  AND ((k.locked_at IS NOT NULL AND k.locked_at < stale.before)
+       OR (k.locked_at IS NULL AND k.last_run_at < stale.before))
+  AND k.last_run_at < stale.before - least(power(2, k.completer_runs), 60) * interval '1 minute'
+ORDER BY k.last_run_at
 LIMIT $2::integer
 `
 
 type AbandonedIdempotencyKeysParams struct {
-	StaleBefore pgtype.Timestamptz
+	MaxRuns     int32
 	MaxCount    int32
+	StaleBefore pgtype.Timestamptz
 }
 
 // Keys whose request committed some work and then stopped: the runner died while it
 // held the lock, or failed and released it. Keys still at 'started' did nothing and
 // are left for the client to retry.
+// Each run of the completer waits longer before the next, up to an hour, so that a
+// request held up by an outage of a counterparty outlasts a day of it.
 func (q *Queries) AbandonedIdempotencyKeys(ctx context.Context, arg AbandonedIdempotencyKeysParams) ([]int64, error) {
-	rows, err := q.db.Query(ctx, abandonedIdempotencyKeys, arg.StaleBefore, arg.MaxCount)
+	rows, err := q.db.Query(ctx, abandonedIdempotencyKeys, arg.MaxRuns, arg.MaxCount, arg.StaleBefore)
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +91,15 @@ func (q *Queries) CheckIdempotencyLock(ctx context.Context, arg CheckIdempotency
 	return recovery_point, err
 }
 
+const countCompleterRun = `-- name: CountCompleterRun :exec
+UPDATE api.idempotency_keys SET completer_runs = completer_runs + 1 WHERE id = $1
+`
+
+func (q *Queries) CountCompleterRun(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, countCompleterRun, id)
+	return err
+}
+
 const finishIdempotencyKey = `-- name: FinishIdempotencyKey :execrows
 UPDATE api.idempotency_keys
 SET recovery_point = 'finished', response_status = $1, response_body = $2,
@@ -129,10 +143,10 @@ func (q *Queries) Health(ctx context.Context, before pgtype.Timestamptz) (int64,
 const insertIdempotencyKey = `-- name: InsertIdempotencyKey :one
 INSERT INTO api.idempotency_keys (
     merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version,
-    key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, created_at, last_run_at
+    key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, created_at, last_run_at, request_sealed
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8,
-    $9, $10, $11, 'started', $12, $13::timestamptz, $13::timestamptz, $13::timestamptz
+    $9, $10, $11, 'started', $12, $13::timestamptz, $13::timestamptz, $13::timestamptz, true
 )
 ON CONFLICT (merchant_id, livemode, key) DO NOTHING
 RETURNING id
@@ -176,7 +190,7 @@ func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotenc
 }
 
 const lockIdempotencyKeyByID = `-- name: LockIdempotencyKeyByID :one
-SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at, recovery_state FROM api.idempotency_keys WHERE id = $1 FOR UPDATE
+SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at, recovery_state, completer_runs, request_sealed FROM api.idempotency_keys WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockIdempotencyKeyByID(ctx context.Context, id int64) (ApiIdempotencyKey, error) {
@@ -203,12 +217,14 @@ func (q *Queries) LockIdempotencyKeyByID(ctx context.Context, id int64) (ApiIdem
 		&i.CreatedAt,
 		&i.LastRunAt,
 		&i.RecoveryState,
+		&i.CompleterRuns,
+		&i.RequestSealed,
 	)
 	return i, err
 }
 
 const lockIdempotencyKeyRow = `-- name: LockIdempotencyKeyRow :one
-SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at, recovery_state FROM api.idempotency_keys
+SELECT id, merchant_id, livemode, key, fingerprint, operation, path_id, request_body, api_version, key_id, key_kind, key_scopes, recovery_point, lock_token, locked_at, response_status, response_body, created_at, last_run_at, recovery_state, completer_runs, request_sealed FROM api.idempotency_keys
 WHERE merchant_id = $1 AND livemode = $2 AND key = $3
 FOR UPDATE
 `
@@ -243,6 +259,8 @@ func (q *Queries) LockIdempotencyKeyRow(ctx context.Context, arg LockIdempotency
 		&i.CreatedAt,
 		&i.LastRunAt,
 		&i.RecoveryState,
+		&i.CompleterRuns,
+		&i.RequestSealed,
 	)
 	return i, err
 }

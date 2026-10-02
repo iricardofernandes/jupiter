@@ -29,4 +29,6 @@ type ApiIdempotencyKey struct {
 	CreatedAt      pgtype.Timestamptz
 	LastRunAt      pgtype.Timestamptz
 	RecoveryState  []byte
+	CompleterRuns  int32
+	RequestSealed  bool
 }
