@@ -111,3 +111,9 @@ LIMIT @max_count::integer;
 SELECT counterparty, count(*)::bigint AS open, count(*) FILTER (WHERE opened_on < @yesterday::date)::bigint AS ageing
 FROM reconciliation.breaks WHERE status = 'open'
 GROUP BY counterparty ORDER BY counterparty;
+
+-- name: BreakOfSubjectExists :one
+SELECT EXISTS (
+    SELECT 1 FROM reconciliation.breaks
+    WHERE livemode = @livemode AND counterparty = @counterparty AND stream = @stream AND kind = @kind AND subject = @subject
+);

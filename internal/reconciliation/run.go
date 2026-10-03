@@ -2,6 +2,8 @@ package reconciliation
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,15 +69,63 @@ func (s *Service) Reconcile(ctx context.Context, livemode bool, through time.Tim
 		through = limit
 	}
 	mode := s.mode(livemode)
-	records, failed, failures := s.read(ctx, livemode, mode.Streams, oursSince, from, through)
+	records, unreadable, failed, failures := s.read(ctx, livemode, mode.Streams, oursSince, from, through)
 	var divergences map[string][]Divergence
 	divergences, failures = s.divergences(ctx, livemode, mode, failures)
 	var run Run
 	err = postgres.InTx(ctx, s.cfg.Pool, func(tx pgx.Tx) error {
 		run = Run{Through: through}
-		return s.apply(ctx, db.New(tx), livemode, mode, records, failed, divergences, len(failures) == 0, &run)
+		if err := s.apply(ctx, db.New(tx), livemode, mode, records, failed, divergences, len(failures) == 0, &run); err != nil {
+			return err
+		}
+		return s.openUnreadable(ctx, db.New(tx), livemode, unreadable, &run)
 	})
 	return run, errors.Join(append(failures, err)...)
+}
+
+const maxUnreadable = 100
+
+// unreadableRecord is a record that cannot be matched, and why.
+type unreadableRecord struct {
+	Record
+	why string
+}
+
+// openUnreadable opens a break for each record that cannot be matched, once: it is kept
+// for a person, and does not stop the reconciliation from going on, as a run left
+// unrecorded would.
+func (s *Service) openUnreadable(ctx context.Context, q *db.Queries, livemode bool, records []unreadableRecord, run *Run) error {
+	// A file of nothing but such records opens so many breaks a run; the days are read
+	// again by the next runs, which open the rest.
+	opened := 0
+	for _, r := range records {
+		if opened == maxUnreadable {
+			break
+		}
+		sum := sha256.Sum256(fmt.Appendf(nil, "%s|%s|%s|%s|%d|%s|%s", r.Side, r.Identity, r.Key, r.Direction, r.Amount, r.Date.Format(time.DateOnly), r.Reference))
+		subject := string(r.Side) + "/" + hex.EncodeToString(sum[:8])
+		exists, err := q.BreakOfSubjectExists(ctx, db.BreakOfSubjectExistsParams{
+			Livemode: livemode, Counterparty: r.Counterparty, Stream: r.Stream, Kind: KindUnreadable, Subject: subject,
+		})
+		if err != nil {
+			return err
+		}
+		if exists {
+			continue
+		}
+		run.Opened++
+		opened++
+		err = q.InsertBreak(ctx, db.InsertBreakParams{
+			ID: BreakPrefix.New().String(), Livemode: livemode, Counterparty: r.Counterparty, Stream: r.Stream, Kind: KindUnreadable,
+			Key: truncate(r.Key, maxField), Subject: subject, Detail: fmt.Sprintf("a %s record that cannot be matched: %s; identity %.40q", r.Side, r.why, r.Identity),
+			MerchantID: r.Merchant, Amount: r.Amount, ValueDate: date(r.Date), Reasons: []byte("[]"),
+			OpenedOn: date(run.Through), Now: ts(s.cfg.Now()),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // apply records what was read and matches it, one mode at a time: the lock serializes
@@ -119,9 +169,10 @@ func (s *Service) apply(ctx context.Context, q *db.Queries, livemode bool, mode 
 }
 
 // read gathers both sides of every stream, and which streams could not be read whole.
-// A record that is not one, or one of too many, is left out and reported.
-func (s *Service) read(ctx context.Context, livemode bool, streams []Stream, oursSince, from, through time.Time) ([]Record, map[string]bool, []error) {
+// A record that cannot be matched is answered apart.
+func (s *Service) read(ctx context.Context, livemode bool, streams []Stream, oursSince, from, through time.Time) ([]Record, []unreadableRecord, map[string]bool, []error) {
 	var out []Record
+	var unreadable []unreadableRecord
 	failed := map[string]bool{}
 	var failures []error
 	fail := func(st Stream, err error) {
@@ -138,7 +189,8 @@ func (s *Service) read(ctx context.Context, livemode bool, streams []Stream, our
 				fail(st, fmt.Errorf("%s %s, Jupiter's side: %w", st.Counterparty, st.Name, err))
 				continue
 			}
-			out = append(out, s.valid(stamped(got, st, Ours), &failures)...)
+			ok, bad := valid(stamped(got, st, Ours))
+			out, unreadable = append(out, ok...), append(unreadable, bad...)
 		}
 		for day := from; !day.After(through); day = day.AddDate(0, 0, 1) {
 			got, err := st.Theirs(ctx, s.cfg.Pool, livemode, day)
@@ -149,27 +201,45 @@ func (s *Service) read(ctx context.Context, livemode bool, streams []Stream, our
 				fail(st, fmt.Errorf("%s %s of %s: %w", st.Counterparty, st.Name, day.Format(time.DateOnly), err))
 				break
 			}
-			out = append(out, s.valid(stamped(got, st, Theirs), &failures)...)
+			ok, bad := valid(stamped(got, st, Theirs))
+			out, unreadable = append(out, ok...), append(unreadable, bad...)
 		}
 	}
-	return out, failed, failures
+	return out, unreadable, failed, failures
 }
 
-// valid keeps the records that can be matched: with an identity, a key and a direction,
-// for a positive amount; references are cut short.
-func (s *Service) valid(records []Record, failures *[]error) []Record {
-	out := records[:0]
+// valid splits the records that can be matched, with an identity, a key and a direction,
+// for a positive amount, from those that cannot; references are cut short.
+func valid(records []Record) ([]Record, []unreadableRecord) {
+	var ok []Record
+	var bad []unreadableRecord
 	for _, r := range records {
-		if r.Amount <= 0 || r.Identity == "" || r.Key == "" || len(r.Identity) > maxField || len(r.Key) > maxField || (r.Direction != In && r.Direction != Out) {
-			*failures = append(*failures, fmt.Errorf("%w: a %s record of %s %s that cannot be matched: %.40q", ErrInvalid, r.Side, r.Counterparty, r.Stream, r.Identity))
+		why := ""
+		switch {
+		case r.Amount <= 0:
+			why = "no positive amount"
+		case r.Identity == "" || len(r.Identity) > maxField:
+			why = "no identity of up to " + strconv.Itoa(maxField) + " characters"
+		case r.Key == "" || len(r.Key) > maxField:
+			why = "no key of up to " + strconv.Itoa(maxField) + " characters"
+		case r.Direction != In && r.Direction != Out:
+			why = "no direction"
+		}
+		if why != "" {
+			bad = append(bad, unreadableRecord{Record: r, why: why})
 			continue
 		}
-		if len(r.Reference) > maxField {
-			r.Reference = r.Reference[:maxField]
-		}
-		out = append(out, r)
+		r.Reference = truncate(r.Reference, maxField)
+		ok = append(ok, r)
 	}
-	return out
+	return ok, bad
+}
+
+func truncate(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
 }
 
 func stamped(records []Record, st Stream, side Side) []Record {

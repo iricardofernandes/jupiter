@@ -11,6 +11,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const breakOfSubjectExists = `-- name: BreakOfSubjectExists :one
+SELECT EXISTS (
+    SELECT 1 FROM reconciliation.breaks
+    WHERE livemode = $1 AND counterparty = $2 AND stream = $3 AND kind = $4 AND subject = $5
+)
+`
+
+type BreakOfSubjectExistsParams struct {
+	Livemode     bool
+	Counterparty string
+	Stream       string
+	Kind         string
+	Subject      string
+}
+
+func (q *Queries) BreakOfSubjectExists(ctx context.Context, arg BreakOfSubjectExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, breakOfSubjectExists,
+		arg.Livemode,
+		arg.Counterparty,
+		arg.Stream,
+		arg.Kind,
+		arg.Subject,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const breaksForReport = `-- name: BreaksForReport :many
 SELECT id, livemode, counterparty, stream, kind, record_id, other_record_id, key, subject, detail, merchant_id, amount, value_date, score, reasons, status, resolution, opened_on, resolved_on, created_at, updated_at FROM reconciliation.breaks
 WHERE livemode = $1 AND opened_on <= $2 AND (status = 'open' OR resolved_on >= $2)

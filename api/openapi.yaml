@@ -2217,7 +2217,7 @@ components:
         stream: { type: string }
         kind:
           type: string
-          enum: [missing_at_counterparty, missing_at_jupiter, duplicate, amount_mismatch, probable_match, divergence]
+          enum: [missing_at_counterparty, missing_at_jupiter, duplicate, amount_mismatch, probable_match, divergence, unreadable]
         key: { type: string, description: "What the movement is known by: an RRN, a nosso número, an end-to-end id, a transfer, a day." }
         amount: { type: integer, format: int64 }
         value_date: { type: string, format: date }

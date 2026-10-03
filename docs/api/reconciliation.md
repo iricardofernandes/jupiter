@@ -30,6 +30,7 @@ lists them all, newest first.
 | `duplicate` | The counterparty reports the same movement twice |
 | `amount_mismatch` | The two sides disagree on the amount |
 | `probable_match` | Two records with different keys look like the same movement, and wait for a person |
+| `unreadable` | The counterparty listed a record of yours that cannot be matched, such as one without a reference; a person looks into it |
 
 Each break says what the movement is known by (`key`: an RRN, a nosso número, an
 end-to-end id, a transfer), how alike the two sides are (`score`, out of 100), and why

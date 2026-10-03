@@ -85,8 +85,9 @@ catches up over several runs.
 A stream that cannot be read whole is reported, and the others go on. It is not matched,
 so a counterparty that does not answer opens no false break, and the run is not recorded
 as done, so the next one reads those days again. A record that cannot be matched (no key,
-no identity, no positive amount) is reported and left out; one side of a stream gives at
-most 200,000 records per read.
+no identity, no positive amount) opens an `unreadable` break of its own, once, for a
+person, and the reconciliation goes on; one side of a stream gives at most 200,000
+records per read.
 
 ## Matching rules
 
@@ -101,11 +102,12 @@ Within a stream, in this order:
    run or an earlier one: the second line of a statement listed twice. A break on the
    extra record.
 4. **Probable match.** Of what is left, one of Jupiter's records and one of the
-   counterparty's whose keys are alike, of the same amount and direction, no more than two
-   days apart. Keys are alike when one is the other cut short, or when, of one length (8
-   or more), they differ in at most two characters: a mistyped or truncated reference,
-   never just two movements of one amount on one day. A break holding both, for a person to confirm (`jupiterctl reconcile
-   confirm`) or resolve.
+   counterparty's whose keys are alike, of the same amount and direction and, when both
+   name one, the same merchant, no more than two days apart. Keys are alike when one is
+   the other cut short, or when, of one length (8 or more) and not of digits alone, they
+   differ in one character: a mistyped or truncated reference, never just two movements
+   of one amount on one day, nor two sequence numbers one apart. A break holding both,
+   for a person to confirm (`jupiterctl reconcile confirm`) or resolve.
 5. **Missing.** Anything left: `missing_at_counterparty` for Jupiter's records,
    `missing_at_jupiter` for the counterparty's.
 

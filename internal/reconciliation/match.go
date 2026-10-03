@@ -59,6 +59,7 @@ const (
 	AmountMismatch        = "amount_mismatch"
 	ProbableMatch         = "probable_match"
 	KindDivergence        = "divergence"
+	KindUnreadable        = "unreadable"
 )
 
 // RuleExact is the rule exact matches are made by.
@@ -78,7 +79,7 @@ const (
 	// characters two keys of one length may differ by and still be alike: a mistyped or
 	// truncated reference, not two movements numbered by one institution.
 	alikeFrom  = 8
-	alikeEdits = 2
+	alikeEdits = 1
 )
 
 type Pair struct {
@@ -212,7 +213,8 @@ func probables(day time.Time, ours, theirs []Record, used map[int64]bool) []Find
 		best, bestScore := -1, 0
 		var bestReasons []string
 		for i, t := range theirs {
-			if used[t.ID] || t.Amount != o.Amount || t.Direction != o.Direction || daysApart(o.Date, t.Date) > probableDays || !alike(o.Key, t.Key) {
+			if used[t.ID] || t.Amount != o.Amount || t.Direction != o.Direction || daysApart(o.Date, t.Date) > probableDays ||
+				!alike(o.Key, t.Key) || (o.Merchant != "" && t.Merchant != "" && o.Merchant != t.Merchant) {
 				continue
 			}
 			if score, reasons := Score(o, t); score > bestScore {
@@ -282,7 +284,8 @@ func daysApart(a, b time.Time) int {
 }
 
 // alike says whether two different keys may name one movement: one is the other cut
-// short, or they differ in a character or two.
+// short, or they differ in a character. Keys of digits alone never differ alike: an RRN,
+// a nosso número or a sequence number one apart is the next movement, not a mistyped one.
 func alike(a, b string) bool {
 	if a == b || len(a) < alikeFrom || len(b) < alikeFrom {
 		return false
@@ -290,7 +293,7 @@ func alike(a, b string) bool {
 	if strings.HasPrefix(a, b) || strings.HasPrefix(b, a) {
 		return true
 	}
-	if len(a) != len(b) {
+	if len(a) != len(b) || digits(a) || digits(b) {
 		return false
 	}
 	edits := 0
@@ -300,6 +303,10 @@ func alike(a, b string) bool {
 		}
 	}
 	return edits <= alikeEdits
+}
+
+func digits(s string) bool {
+	return strings.Trim(s, "0123456789") == ""
 }
 
 func abs(x int64) int64 {

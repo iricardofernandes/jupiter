@@ -243,7 +243,7 @@ func TestAStreamThatCannotBeRead(t *testing.T) {
 	}
 	down = false
 	run, err := s.Reconcile(t.Context(), false, date("2026-10-01"))
-	if !errors.Is(err, reconciliation.ErrInvalid) || run.Matched != 1 {
-		t.Fatalf("read again: %+v, %v (a line without a key is reported, the rest matched)", run, err)
+	if err != nil || run.Matched != 1 || run.Opened != 1 {
+		t.Fatalf("read again: %+v, %v (a line without a key opens a break of its own, the rest matched)", run, err)
 	}
 }

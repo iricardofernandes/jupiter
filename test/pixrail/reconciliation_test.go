@@ -3,12 +3,15 @@
 package pixrail_test
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/platform/page"
 	"github.com/iricardofernandes/jupiter/internal/reconciliation"
@@ -87,4 +90,40 @@ func TestTheSPIStatementReconciles(t *testing.T) {
 		t.Fatalf("the next day, open breaks %v, want %v", got, want)
 	}
 	h.consistent()
+}
+
+// A record a counterparty lists that cannot be matched opens a break of its own, once,
+// and the reconciliation goes on: the next day is reconciled as any other.
+func TestAnUnreadableRecordDoesNotStopTheReconciliation(t *testing.T) {
+	h := newHarness(t)
+	theirs := func(_ context.Context, _ *pgxpool.Pool, _ bool, day time.Time) ([]reconciliation.Record, error) {
+		return []reconciliation.Record{{Identity: day.Format(time.DateOnly) + "/fee", Key: "", Direction: reconciliation.Out, Amount: 350, Date: day}}, nil
+	}
+	recon := reconciliation.New(reconciliation.Config{Pool: h.pool, Now: h.clock.Now, Live: reconciliation.Mode{Streams: []reconciliation.Stream{{
+		Counterparty: "pix_bank", Name: "fees", Theirs: theirs,
+	}}}})
+	today := reconciliation.Day(h.clock.Now())
+	first, err := recon.Reconcile(t.Context(), true, today.AddDate(0, 0, -1))
+	if err != nil {
+		t.Fatalf("a run with a record that cannot be matched: %v", err)
+	}
+	second, err := recon.Reconcile(t.Context(), true, today)
+	if err != nil || !second.Through.After(first.Through) {
+		t.Fatalf("the next run: %+v, %v; want it a day further", second, err)
+	}
+	breaks, _, err := recon.Breaks(t.Context(), h.pool, true, "", "open", page.Request{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unreadable := 0
+	for _, b := range breaks {
+		if b.Kind == reconciliation.KindUnreadable {
+			unreadable++
+		}
+	}
+	// The first run read the week before its day, the second the days again and one
+	// more: one break for each day's record, none twice.
+	if unreadable != 9 {
+		t.Fatalf("%d unreadable breaks, want one per day's record", unreadable)
+	}
 }
