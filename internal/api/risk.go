@@ -218,6 +218,11 @@ func featuresJSON(f risk.Features) map[string]any {
 	}
 	out := map[string]any{}
 	_ = json.Unmarshal(raw, &out)
+	// What a card did at other merchants decides, but is not shown: a merchant holding a
+	// card number would learn whether it is declined elsewhere.
+	for _, shared := range []string{"card_attempts_1h", "card_attempts_24h", "card_declines_24h"} {
+		delete(out, shared)
+	}
 	return out
 }
 

@@ -100,25 +100,43 @@ const (
 // because a later node can use it twice, which lets a short expression double a string
 // at every step.
 func Compile(expression string) (*vm.Program, error) {
-	if program, ok := programs.get(expression); ok {
+	return cached(expression, false)
+}
+
+// CompileOwn compiles a merchant's own rule, which may not name what a card did at other
+// merchants: a rule on those counts, and whether it fired, would tell the merchant what
+// the decision log no longer shows.
+func CompileOwn(expression string) (*vm.Program, error) {
+	return cached(expression, true)
+}
+
+func cached(expression string, own bool) (*vm.Program, error) {
+	key := expression
+	if own {
+		key = "own\x00" + expression
+	}
+	if program, ok := programs.get(key); ok {
 		return program, nil
 	}
-	program, err := compile(expression)
+	program, err := compile(expression, own)
 	if err != nil {
 		return nil, err
 	}
-	programs.put(expression, program)
+	programs.put(key, program)
 	return program, nil
 }
 
-// Validate checks an expression as Compile does, without keeping its program: a
+// Validate checks a merchant's rule as CompileOwn does, without keeping its program: a
 // merchant creating rules must not grow the cache with rules it may never keep.
 func Validate(expression string) error {
-	_, err := compile(expression)
+	_, err := compile(expression, true)
 	return err
 }
 
-func compile(expression string) (*vm.Program, error) {
+// shared are the features counted across every merchant.
+var shared = map[string]bool{"card_attempts_1h": true, "card_attempts_24h": true, "card_declines_24h": true}
+
+func compile(expression string, own bool) (*vm.Program, error) {
 	if len(expression) > maxLength {
 		return nil, fmt.Errorf("%w: an expression is at most %d characters", ErrInvalid, maxLength)
 	}
@@ -126,7 +144,7 @@ func compile(expression string) (*vm.Program, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: the expression does not compile: %w", ErrInvalid, err)
 	}
-	var check restricted
+	check := restricted{own: own}
 	ast.Walk(&tree.Node, &check)
 	if check.err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalid, check.err)
@@ -148,6 +166,7 @@ var allowedOperators = map[string]bool{
 }
 
 type restricted struct {
+	own bool
 	err error
 }
 
@@ -156,7 +175,11 @@ func (r *restricted) Visit(node *ast.Node) {
 		return
 	}
 	switch n := (*node).(type) {
-	case *ast.IdentifierNode, *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode, *ast.StringNode, *ast.NilNode,
+	case *ast.IdentifierNode:
+		if r.own && shared[n.Value] {
+			r.err = fmt.Errorf("%s counts the card at every merchant, and only the platform's rules use it", n.Value)
+		}
+	case *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode, *ast.StringNode, *ast.NilNode,
 		*ast.ConstantNode, *ast.ArrayNode, *ast.ConditionalNode:
 	case *ast.UnaryNode:
 		if n.Operator != "!" && n.Operator != "not" && n.Operator != "-" && n.Operator != "+" {

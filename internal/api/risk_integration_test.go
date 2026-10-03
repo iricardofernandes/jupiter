@@ -24,6 +24,14 @@ func TestRiskRulesListsAndTheDecisionLog(t *testing.T) {
 		t.Fatalf("decision = %+v", d)
 	}
 	conforms(t, "RiskDecision", h.expect(call{method: "GET", path: "/v1/risk/decisions/" + d.Id}, http.StatusOK).body)
+	// What the card did at other merchants is not shown, nor may a rule of the merchant's
+	// count it.
+	for _, shared := range []string{"card_attempts_1h", "card_attempts_24h", "card_declines_24h"} {
+		if _, shown := d.Features[shared]; shown {
+			t.Fatalf("the decision shows %s", shared)
+		}
+	}
+	h.expect(call{method: "POST", path: "/v1/risk/rules", body: map[string]any{"action": "review", "expression": "card_declines_24h >= 1"}}, http.StatusBadRequest)
 
 	var rules openapi.RiskRulePage
 	h.expect(call{method: "GET", path: "/v1/risk/rules"}, http.StatusOK).decode(t, &rules)

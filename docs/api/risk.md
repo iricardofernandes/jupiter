@@ -33,7 +33,7 @@ features they saw ([ADR 0022](../adr/0022-risk-engine-rules-velocity-card-testin
 | `ip` | `customer_ip` from the payment (an IPv4 or IPv6 address), or empty |
 | `card_ip` | The address a web page sent the card from, as Jupiter's vault saw it, or empty for a card your server sent |
 | `installments`, `off_session`, `livemode` | |
-| `card_attempts_1h`, `card_attempts_24h`, `card_declines_24h` | This card's attempts and declines, at every merchant |
+| `card_attempts_1h`, `card_attempts_24h`, `card_declines_24h` | This card's attempts and declines, at every merchant. Only the platform's rules use them: your own rules cannot, and a decision does not show their values |
 | `ip_attempts_1h`, `ip_cards_24h` | Attempts, and different cards, from this address at your account: `card_ip` when there is one, else `ip`, an IPv6 address counting by its /64 |
 | `merchant_attempts_1m`, `merchant_attempts_10m`, `merchant_decline_ratio_10m` | Yours |
 | `throttled` | Whether you are throttled for card testing |

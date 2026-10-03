@@ -242,7 +242,7 @@ func (s *Service) rules(ctx context.Context, q *db.Queries, owner Owner, f Featu
 	var merchants []Rule
 	var inert []Fired
 	for _, r := range rows {
-		program, err := Compile(r.Expression)
+		program, err := CompileOwn(r.Expression)
 		if err != nil {
 			// A rule the language no longer admits is skipped, and the log says so.
 			inert = append(inert, Fired{ID: r.ID, Action: Allow, Description: "The rule is no longer allowed and was skipped: " + err.Error(), Expression: r.Expression})

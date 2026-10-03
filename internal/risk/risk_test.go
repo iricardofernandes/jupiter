@@ -55,6 +55,25 @@ func TestARuleCannotGrowWithoutBound(t *testing.T) {
 	}
 }
 
+// What a card did at other merchants decides the platform's rules; a merchant's own may
+// not name it, or the rule firing would tell the merchant the count.
+func TestAMerchantsRuleCannotCountTheCardElsewhere(t *testing.T) {
+	for _, expression := range []string{`card_attempts_24h >= 3`, `amount > 1 && card_declines_24h > 0`, `card_attempts_1h in [1, 2]`} {
+		if err := Validate(expression); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s was accepted of a merchant: %v", expression, err)
+		}
+		if _, err := CompileOwn(expression); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s compiled as a merchant's: %v", expression, err)
+		}
+		if _, err := Compile(expression); err != nil {
+			t.Errorf("%s was refused of the platform: %v", expression, err)
+		}
+	}
+	if err := Validate(`ip_cards_24h >= 3 && merchant_attempts_1m > 5`); err != nil {
+		t.Fatalf("the merchant's own counts: %v", err)
+	}
+}
+
 // The largest string a rule can build is bounded by its size: features and literals,
 // concatenated at most once each.
 func TestConcatenationIsBoundedByTheTree(t *testing.T) {
