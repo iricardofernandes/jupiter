@@ -112,7 +112,7 @@ func (s *Service) FreeAtRegistry(ctx context.Context, q db.DBTX, owner payments.
 // and the registry holds free, as FreeAtRegistry read it, and only once registered as it
 // is and before it settles.
 func (s *Service) Simulate(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string, unitIDs []string, free RegistryFree) (Quote, error) {
-	rec, _, err := s.anticipator(ctx, tx, owner, recipientID)
+	rec, err := s.anticipator(ctx, tx, owner, recipientID)
 	if err != nil {
 		return Quote{}, err
 	}
@@ -136,17 +136,16 @@ func (s *Service) Simulate(ctx context.Context, tx pgx.Tx, owner payments.Owner,
 	return q, err
 }
 
-// anticipator is a verified recipient of the merchant's, and its mode's registry.
-func (s *Service) anticipator(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string) (recipients.Recipient, Registry, error) {
+// anticipator is a verified recipient of the merchant's.
+func (s *Service) anticipator(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string) (recipients.Recipient, error) {
 	rec, err := s.recipient(ctx, tx, owner, recipientID)
 	if err != nil {
-		return rec, nil, err
+		return rec, err
 	}
 	if rec.Status != recipients.Verified {
-		return rec, nil, fmt.Errorf("%w: recipient %s is %s, not verified", ErrInvalid, rec.ID, rec.Status)
+		return rec, fmt.Errorf("%w: recipient %s is %s, not verified", ErrInvalid, rec.ID, rec.Status)
 	}
-	reg, err := s.registry(owner.Livemode)
-	return rec, reg, err
+	return rec, nil
 }
 
 // anticipable reads the recipient's units that can be anticipated, constituted by
@@ -239,24 +238,62 @@ func priced(items []Anticipated, rate string) ([]Anticipated, int64, int64, erro
 // purchase as an ownership transfer to Jupiter; the ledger moves the amount out of the
 // recipient's pending balance, the price into its available balance, and the difference
 // to Jupiter's anticipation fees. A quote is used once.
+//
+// The registry is called outside any transaction, so that a slow one holds no
+// connection: the quote is checked, its contracts placed, named by the quote so that a
+// repeat places the same ones, and only then are the units locked, checked again and
+// bought.
 func (s *Service) Anticipate(ctx context.Context, pool *pgxpool.Pool, owner payments.Owner, quoteID string) (Anticipation, error) {
 	var out Anticipation
+	var quote db.ReceivablesAnticipationQuote
+	var rec recipients.Recipient
 	err := postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
-		q := db.New(tx)
-		quote, err := q.LockQuote(ctx, db.LockQuoteParams{ID: quoteID, MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
-		if err != nil {
+		var err error
+		if quote, err = db.New(tx).LockQuote(ctx, db.LockQuoteParams{ID: quoteID, MerchantID: owner.Merchant.String(), Livemode: owner.Livemode}); err != nil {
 			return notFoundOr(err, quoteID)
 		}
 		if quote.Anticipation.Valid {
 			out, err = s.anticipation(ctx, tx, owner, quote.Anticipation.String)
 			return err
 		}
-		rec, reg, items, err := s.stillGood(ctx, tx, owner, quote)
+		rec, err = s.anticipator(ctx, tx, owner, quote.RecipientID)
+		return err
+	})
+	if err != nil || quote.Anticipation.Valid {
+		return out, err
+	}
+	reg, err := s.registry(owner.Livemode)
+	if err != nil {
+		return out, err
+	}
+	free, err := s.registryFree(ctx, reg, rec.TaxID, quote.ID)
+	if err != nil {
+		return out, err
+	}
+	var items []Anticipated
+	if err := postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		items, err = s.stillGood(ctx, tx, owner, rec, quote, free, false)
+		return err
+	}); err != nil {
+		return out, err
+	}
+	if err := s.place(ctx, pool, reg, rec, quoteID, items); err != nil {
+		return out, err
+	}
+	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		locked, err := q.LockQuote(ctx, db.LockQuoteParams{ID: quoteID, MerchantID: owner.Merchant.String(), Livemode: owner.Livemode})
 		if err != nil {
+			return notFoundOr(err, quoteID)
+		}
+		if locked.Anticipation.Valid {
+			out, err = s.anticipation(ctx, tx, owner, locked.Anticipation.String)
 			return err
 		}
-		out, err = s.execute(ctx, tx, reg, owner, rec, quoteID, quote.MonthlyRate, items, false)
-		if err != nil {
+		if _, err := s.stillGood(ctx, tx, owner, rec, locked, free, true); err != nil {
+			return err
+		}
+		if out, err = s.buy(ctx, tx, owner, rec, quoteID, quote.MonthlyRate, items, false); err != nil {
 			return err
 		}
 		return q.UseQuote(ctx, db.UseQuoteParams{ID: quoteID, Anticipation: pgtype.Text{String: out.ID, Valid: true}})
@@ -265,42 +302,53 @@ func (s *Service) Anticipate(ctx context.Context, pool *pgxpool.Pool, owner paym
 }
 
 // stillGood checks that a quote can be carried out: not expired, and each of its units,
-// locked, still with what the quote counted on, here and at the registry.
-func (s *Service) stillGood(ctx context.Context, tx pgx.Tx, owner payments.Owner, quote db.ReceivablesAnticipationQuote) (recipients.Recipient, Registry, []Anticipated, error) {
+// locked when they are about to be bought, still with what the quote counted on, here
+// and at the registry as free read it.
+func (s *Service) stillGood(ctx context.Context, tx pgx.Tx, owner payments.Owner, rec recipients.Recipient, quote db.ReceivablesAnticipationQuote, free RegistryFree, lock bool) ([]Anticipated, error) {
 	if s.cfg.Now().After(quote.ExpiresAt.Time) {
-		return recipients.Recipient{}, nil, nil, fmt.Errorf("%w: quote %s expired at %s", ErrInvalid, quote.ID, quote.ExpiresAt.Time.Format(time.RFC3339))
+		return nil, fmt.Errorf("%w: quote %s expired at %s", ErrInvalid, quote.ID, quote.ExpiresAt.Time.Format(time.RFC3339))
 	}
 	var items []Anticipated
 	if err := json.Unmarshal(quote.Units, &items); err != nil {
-		return recipients.Recipient{}, nil, nil, err
-	}
-	rec, reg, err := s.anticipator(ctx, tx, owner, quote.RecipientID)
-	if err != nil {
-		return rec, nil, nil, err
+		return nil, err
 	}
 	ids := make([]string, 0, len(items))
 	for _, it := range items {
 		ids = append(ids, it.Unit)
 	}
-	free, err := s.registryFree(ctx, reg, rec.TaxID, quote.ID)
+	now, _, err := s.anticipable(ctx, tx, free, owner, rec, ids, s.cfg.Now(), lock)
 	if err != nil {
-		return rec, nil, nil, err
-	}
-	now, _, err := s.anticipable(ctx, tx, free, owner, rec, ids, s.cfg.Now(), true)
-	if err != nil {
-		return rec, nil, nil, err
+		return nil, err
 	}
 	for i, it := range items {
 		if now[i].Unit != it.Unit || now[i].Amount < it.Amount {
-			return rec, nil, nil, fmt.Errorf("%w: unit %s no longer has what quote %s counted on", ErrInvalid, it.Unit, quote.ID)
+			return nil, fmt.Errorf("%w: unit %s no longer has what quote %s counted on", ErrInvalid, it.Unit, quote.ID)
 		}
 	}
-	return rec, reg, items, nil
+	return items, nil
 }
 
-// execute buys the units: contracts at the registry first, named by the quote so that a
-// repeat places the same ones, then the ledger and the units.
-func (s *Service) execute(ctx context.Context, tx pgx.Tx, reg Registry, owner payments.Owner, rec recipients.Recipient, quoteID, rate string, items []Anticipated, automatic bool) (Anticipation, error) {
+// place registers the purchase of the units at the registry, as contracts named by the
+// quote so that a repeat places the same ones. It runs outside any transaction.
+func (s *Service) place(ctx context.Context, q db.DBTX, reg Registry, rec recipients.Recipient, quoteID string, items []Anticipated) error {
+	for _, it := range items {
+		u, err := db.New(q).GetUnit(ctx, it.Unit)
+		if err != nil {
+			return err
+		}
+		if err := reg.AcceptContract(ctx, registryapi.Contract{
+			ID: quoteID + "/" + it.Unit, Holder: rec.TaxID, Effect: "ownership_transfer", Rule: "fixed", Amount: it.Amount,
+			Arrangements: []string{u.Arrangement}, Accreditors: []string{s.cfg.TaxID}, From: it.SettlementDate, To: it.SettlementDate,
+			Domicile: s.cfg.Domicile,
+		}); err != nil {
+			return fmt.Errorf("registering the anticipation of %s: %w", it.Unit, err)
+		}
+	}
+	return nil
+}
+
+// buy buys the units place registered: the ledger and the units.
+func (s *Service) buy(ctx context.Context, tx pgx.Tx, owner payments.Owner, rec recipients.Recipient, quoteID, rate string, items []Anticipated, automatic bool) (Anticipation, error) {
 	a := Anticipation{ID: AnticipationPrefix.New().String(), Recipient: rec.ID.String(), MonthlyRate: rate, Units: items, Automatic: automatic, CreatedAt: s.cfg.Now()}
 	q := db.New(tx)
 	for _, it := range items {
@@ -312,13 +360,6 @@ func (s *Service) execute(ctx context.Context, tx pgx.Tx, reg Registry, owner pa
 		}
 		if a.Currency, err = money.CurrencyByCode(u.Currency); err != nil {
 			return a, err
-		}
-		if err := reg.AcceptContract(ctx, registryapi.Contract{
-			ID: quoteID + "/" + it.Unit, Holder: rec.TaxID, Effect: "ownership_transfer", Rule: "fixed", Amount: it.Amount,
-			Arrangements: []string{u.Arrangement}, Accreditors: []string{s.cfg.TaxID}, From: it.SettlementDate, To: it.SettlementDate,
-			Domicile: s.cfg.Domicile,
-		}); err != nil {
-			return a, fmt.Errorf("registering the anticipation of %s: %w", it.Unit, err)
 		}
 	}
 	txn, err := s.postAnticipation(ctx, tx, owner, rec.ID.String(), a)
@@ -454,32 +495,53 @@ func (s *Service) anticipateMode(ctx context.Context, pool *pgxpool.Pool, livemo
 func (s *Service) anticipateAll(ctx context.Context, pool *pgxpool.Pool, rec recipients.Recipient) (bool, error) {
 	owner := payments.Owner{Merchant: rec.Owner.Merchant, Livemode: rec.Owner.Livemode}
 	before := s.cfg.Now().AddDate(0, 0, -rec.AutoAnticipation.DelayDays)
-	done := false
-	err := postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
-		reg, err := s.registry(owner.Livemode)
-		if err != nil {
+	reg, err := s.registry(owner.Livemode)
+	if err != nil {
+		return false, err
+	}
+	// The registry is asked, and its contracts placed, outside any transaction.
+	free, err := s.registryFree(ctx, reg, rec.TaxID, "")
+	if err != nil {
+		return false, err
+	}
+	rate := rules.RateFor(s.cfg.Now())
+	var items []Anticipated
+	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		var err error
+		if items, _, err = s.anticipable(ctx, tx, free, owner, rec, nil, before, false); err != nil {
 			return err
 		}
-		free, err := s.registryFree(ctx, reg, rec.TaxID, "")
-		if err != nil {
-			return err
-		}
-		items, _, err := s.anticipable(ctx, tx, free, owner, rec, nil, before, true)
-		if errors.Is(err, ErrInvalid) {
-			return nil // nothing to anticipate yet
-		}
-		if err != nil {
-			return err
-		}
-		rate := rules.RateFor(s.cfg.Now())
-		if items, _, _, err = priced(items, rate.Monthly); err != nil {
-			return err
-		}
-		// Named for this attempt alone: should it be undone after the registry took its
-		// contracts, the daily reconciliation ends them.
-		_, err = s.execute(ctx, tx, reg, owner, rec, "auto-"+AnticipationPrefix.New().String(), rate.Monthly, items, true)
-		done = err == nil
+		items, _, _, err = priced(items, rate.Monthly)
 		return err
 	})
-	return done, err
+	if errors.Is(err, ErrInvalid) {
+		return false, nil // nothing to anticipate yet
+	}
+	if err != nil {
+		return false, err
+	}
+	// Named for this attempt alone: should it be undone after the registry took its
+	// contracts, the daily reconciliation ends them.
+	name := "auto-" + AnticipationPrefix.New().String()
+	if err := s.place(ctx, pool, reg, rec, name, items); err != nil {
+		return false, err
+	}
+	err = postgres.InTx(ctx, pool, func(tx pgx.Tx) error {
+		ids := make([]string, 0, len(items))
+		for _, it := range items {
+			ids = append(ids, it.Unit)
+		}
+		now, _, err := s.anticipable(ctx, tx, free, owner, rec, ids, before, true)
+		if err != nil {
+			return err
+		}
+		for i, it := range items {
+			if now[i].Unit != it.Unit || now[i].Amount < it.Amount {
+				return fmt.Errorf("%w: unit %s changed while its anticipation was registered", ErrInvalid, it.Unit)
+			}
+		}
+		_, err = s.buy(ctx, tx, owner, rec, name, rate.Monthly, items, true)
+		return err
+	})
+	return err == nil, err
 }
