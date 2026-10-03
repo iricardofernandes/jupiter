@@ -116,7 +116,7 @@ func TestGoldenPath(t *testing.T) {
 	defer jupiter.Close()
 	network := cardnetwork.New(cardnetwork.Config{
 		AuthenticationKey: schemeKey, DisputeEventsURL: jupiter.URL + acquirer.DisputeEventsPath, DisputeEventsSecret: disputeEventsSecret,
-		AcquirerToken: networkToken,
+		AcquirerToken: networkToken, ClearingSecret: clearingSecret,
 	})
 	if err := network.Start("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestGoldenPath(t *testing.T) {
 	defer networkFiles.Close()
 	connector, err := acquirer.New(acquirer.Config{
 		Pool: pool, Addr: network.Addr(), NetworkURL: networkFiles.URL, Cards: cardVault.Client,
-		DisputeEventsSecret: disputeEventsSecret, NetworkToken: networkToken,
+		DisputeEventsSecret: disputeEventsSecret, NetworkToken: networkToken, ClearingSecret: clearingSecret,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -135,10 +135,10 @@ func TestGoldenPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = connector.Close() }()
-	directory := httptest.NewServer(threedssim.New(threedssim.Config{AuthenticationKey: schemeKey, ResultsSecret: "golden"}).Handler())
+	directory := httptest.NewServer(threedssim.New(threedssim.Config{AuthenticationKey: schemeKey, ResultsSecret: goldenResultsSecret}).Handler())
 	defer directory.Close()
 	authenticator, err := authentication.New(authentication.Config{
-		Pool: pool, DirectoryURL: directory.URL + "/ds/areq", PublicURL: jupiter.URL, ResultsSecret: "golden", Cards: cardVault.Client,
+		Pool: pool, DirectoryURL: directory.URL + "/ds/areq", PublicURL: jupiter.URL, ResultsSecret: goldenResultsSecret, Cards: cardVault.Client,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -797,3 +797,9 @@ func startBank(t *testing.T, pool *pgxpool.Pool, now func() time.Time) (*banksim
 	}
 	return sim, connector
 }
+
+// goldenResultsSecret signs the ACS's results, as long as Jupiter asks of one.
+const goldenResultsSecret = "golden-path-results-secret-0123456789"
+
+// clearingSecret is what the network signs its clearing files with.
+const clearingSecret = "clearing-files-secret"

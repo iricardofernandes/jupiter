@@ -26,6 +26,7 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/acquirer/migrations"
 	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/platform/secureurl"
 	"github.com/iricardofernandes/jupiter/pkg/cardnet"
 )
 
@@ -48,8 +49,10 @@ type Config struct {
 	// on its dispute events.
 	EventsSecret        string
 	DisputeEventsSecret string
-	// NetworkToken is what the acquirer's dispute requests carry as a bearer token.
-	NetworkToken string
+	// NetworkToken is what the acquirer's calls to the network carry as a bearer token;
+	// ClearingSecret checks the signature on its clearing files.
+	NetworkToken   string
+	ClearingSecret string
 	// Tokens, if set, lets the connector provision network tokens for live cards and
 	// keep them in the vault.
 	Tokens     TokenVault
@@ -98,6 +101,11 @@ func New(cfg Config) (*Connector, error) {
 	if cfg.NetworkURL != "" {
 		if err := checkNetworkURL(cfg.NetworkURL); err != nil {
 			return nil, err
+		}
+		// Only a network on this machine, a simulator, is called unnamed and believed
+		// unsigned.
+		if u, err := url.Parse(cfg.NetworkURL); err == nil && !secureurl.Loopback(u.Hostname()) && (cfg.NetworkToken == "" || cfg.ClearingSecret == "") {
+			return nil, errors.New("acquirer: a network away from this machine needs Jupiter's token and the clearing secret")
 		}
 	}
 	if cfg.HTTPClient == nil {
@@ -290,22 +298,10 @@ func merchantCode(merchant string) string {
 
 // checkNetworkURL accepts https, or http to this machine for the simulator.
 func checkNetworkURL(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
-		return fmt.Errorf("acquirer: the clearing URL %q is not an absolute URL", raw)
+	if err := secureurl.Check(raw); err != nil {
+		return fmt.Errorf("acquirer: the clearing URL %w", err)
 	}
-	if u.Scheme == "https" || (u.Scheme == "http" && isLoopback(u.Hostname())) {
-		return nil
-	}
-	return fmt.Errorf("acquirer: the clearing URL must be https, or http to this machine, not %q", raw)
-}
-
-func isLoopback(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return nil
 }
 
 // FromEnv builds and connects the connector from JUPITER_CARDNET_ADDR (the network's
@@ -322,13 +318,17 @@ func FromEnv(ctx context.Context, getenv func(string) string, pool *pgxpool.Pool
 	if err != nil {
 		return nil, fmt.Errorf("acquirer: JUPITER_CARDNET_ADDR: %w", err)
 	}
-	if !isLoopback(host) && getenv("JUPITER_CARDNET_PRIVATE_LINK") != "true" {
+	if !secureurl.Loopback(host) && getenv("JUPITER_CARDNET_PRIVATE_LINK") != "true" {
 		return nil, fmt.Errorf("acquirer: %s is not on this machine; set JUPITER_CARDNET_PRIVATE_LINK=true only over a private circuit", addr)
 	}
 	cfg := Config{
 		Pool: pool, Addr: addr, NetworkURL: getenv("JUPITER_CARDNET_URL"), EventsSecret: getenv("JUPITER_CARDNET_EVENTS_SECRET"),
 		DisputeEventsSecret: getenv("JUPITER_CARDNET_DISPUTE_EVENTS_SECRET"), NetworkToken: getenv("JUPITER_CARDNET_TOKEN"),
-		AcquirerID: getenv("JUPITER_ACQUIRER_ID"), Cards: cards, Logger: logger,
+		ClearingSecret: getenv("JUPITER_CARDNET_CLEARING_SECRET"), AcquirerID: getenv("JUPITER_ACQUIRER_ID"), Cards: cards, Logger: logger,
+	}
+	if cfg.NetworkURL != "" && (cfg.NetworkToken == "" || cfg.ClearingSecret == "") {
+		return nil, errors.New("acquirer: JUPITER_CARDNET_URL needs JUPITER_CARDNET_TOKEN, which names Jupiter to the network, " +
+			"and JUPITER_CARDNET_CLEARING_SECRET, which the network signs clearing files with")
 	}
 	if tokens, ok := cards.(TokenVault); ok {
 		cfg.Tokens = tokens

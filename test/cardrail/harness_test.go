@@ -58,7 +58,7 @@ func TestMain(m *testing.M) {
 var schemeKey = []byte("scheme test key")
 
 const (
-	resultsSecret = "results secret"
+	resultsSecret = "card-rail-results-secret-0123456789"
 	eventsSecret  = "events secret"
 	// disputeEventsSecret signs dispute events; networkToken is the acquirer's at the
 	// network's dispute system.
@@ -128,7 +128,7 @@ func newHarness(t *testing.T) *harness {
 	h.network = cardnetwork.New(cardnetwork.Config{
 		Now: h.clock.Now, LateAfter: 2 * timeout, Faults: h.fault, AuthenticationKey: schemeKey,
 		TokenEventsURL: h.api.URL + acquirer.EventsPath, TokenEventsSecret: eventsSecret,
-		DisputeEventsURL: h.api.URL + acquirer.DisputeEventsPath, DisputeEventsSecret: disputeEventsSecret, AcquirerToken: networkToken,
+		DisputeEventsURL: h.api.URL + acquirer.DisputeEventsPath, DisputeEventsSecret: disputeEventsSecret, AcquirerToken: networkToken, ClearingSecret: clearingSecret,
 		ClearingFaults: func(r cardnet.ClearingRecord) cardnetwork.RecordFault {
 			h.mu.Lock()
 			defer h.mu.Unlock()
@@ -149,7 +149,7 @@ func newHarness(t *testing.T) *harness {
 	connector, err := acquirer.New(acquirer.Config{
 		Pool: h.pool, Addr: h.network.Addr(), NetworkURL: h.files.URL, Timeout: timeout,
 		Cards: cardVault.Client, Tokens: vaulttest.ClientFor(t, cardVault.PKI, cardVault.URL, vault.WorkerIdentity), EventsSecret: eventsSecret, Now: h.clock.Now,
-		DisputeEventsSecret: disputeEventsSecret, NetworkToken: networkToken,
+		DisputeEventsSecret: disputeEventsSecret, NetworkToken: networkToken, ClearingSecret: clearingSecret,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -369,3 +369,6 @@ func (nopCards) Detokenize(context.Context, string, string) (vault.CardData, err
 func decodeJSON(r io.Reader, v any) error {
 	return json.NewDecoder(r).Decode(v)
 }
+
+// clearingSecret is what the network signs its clearing files with.
+const clearingSecret = "clearing-files-secret"

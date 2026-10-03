@@ -31,7 +31,7 @@ func main() {
 			Logger: logger, AuthenticationKey: key,
 			TokenEventsURL: os.Getenv("JUPITER_CARDNET_EVENTS_URL"), TokenEventsSecret: os.Getenv("JUPITER_CARDNET_EVENTS_SECRET"),
 			DisputeEventsURL: os.Getenv("JUPITER_CARDNET_DISPUTE_EVENTS_URL"), DisputeEventsSecret: os.Getenv("JUPITER_CARDNET_DISPUTE_EVENTS_SECRET"),
-			AcquirerToken: os.Getenv("JUPITER_CARDNET_TOKEN"),
+			AcquirerToken: os.Getenv("JUPITER_CARDNET_TOKEN"), ClearingSecret: os.Getenv("JUPITER_CARDNET_CLEARING_SECRET"),
 		})
 		if err := network.Start(addr); err != nil {
 			return service.App{}, err

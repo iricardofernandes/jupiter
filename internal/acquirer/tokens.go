@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/iricardofernandes/jupiter/internal/disputes"
@@ -86,6 +88,10 @@ func (c *Connector) provision(ctx context.Context, ref payments.CardReference) (
 	}, &out); err != nil {
 		return "", err
 	}
+	if !tokenNumber.MatchString(out.Token) || !tokenReference.MatchString(out.Reference) ||
+		out.ExpMonth < 1 || out.ExpMonth > 12 || out.ExpYear < 2000 || out.ExpYear > 2100 {
+		return "", errors.New("the network answered a token that is not one")
+	}
 	nt := vault.NetworkToken{Number: out.Token, ExpMonth: out.ExpMonth, ExpYear: out.ExpYear, Reference: out.Reference}
 	if err := c.cfg.Tokens.StoreNetworkToken(ctx, ref.Token, ref.Owner, nt); err != nil {
 		return "", err
@@ -98,8 +104,25 @@ func (c *Connector) cryptogram(ctx context.Context, reference string, amount int
 	var out struct {
 		Cryptogram string `json:"cryptogram"`
 	}
-	err := c.networkCall(ctx, "/v1/tokens/"+reference+"/cryptograms", map[string]any{"amount": amount}, &out)
+	if !tokenReference.MatchString(reference) {
+		return "", fmt.Errorf("a token reference %q that is not one", reference)
+	}
+	err := c.networkCall(ctx, "/v1/tokens/"+url.PathEscape(reference)+"/cryptograms", map[string]any{"amount": amount}, &out)
 	return out.Cryptogram, err
+}
+
+// What the network's token service answers is checked before it is kept, or put in a
+// path: a token is a card number, a reference a short name.
+var (
+	tokenNumber    = regexp.MustCompile(`^[0-9]{13,19}$`)
+	tokenReference = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+)
+
+// authorize names Jupiter to the network, on every call it makes.
+func (c *Connector) authorize(req *http.Request) {
+	if c.cfg.NetworkToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.NetworkToken)
+	}
 }
 
 func (c *Connector) networkCall(ctx context.Context, path string, body, out any) error {
@@ -112,6 +135,7 @@ func (c *Connector) networkCall(ctx context.Context, path string, body, out any)
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
 	resp, err := c.cfg.HTTPClient.Do(req)
 	if err != nil {
 		return err

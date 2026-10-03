@@ -160,7 +160,7 @@ func (n *Network) notify(ctx context.Context, token networkToken, eventType stri
 }
 
 func (n *Network) tokenRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /v1/tokens", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /v1/tokens", n.acquirerOnly(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Requestor string `json:"token_requestor_id"`
 			PAN       string `json:"pan"`
@@ -179,8 +179,8 @@ func (n *Network) tokenRoutes(mux *http.ServeMux) {
 		writeJSON(w, map[string]any{
 			"token_reference": token.Reference, "token": token.Number, "exp_month": token.ExpMonth, "exp_year": token.ExpYear, "status": token.Status,
 		})
-	})
-	mux.HandleFunc("POST /v1/tokens/{reference}/cryptograms", func(w http.ResponseWriter, r *http.Request) {
+	}))
+	mux.HandleFunc("POST /v1/tokens/{reference}/cryptograms", n.acquirerOnly(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Amount int64 `json:"amount"`
 		}
@@ -194,7 +194,7 @@ func (n *Network) tokenRoutes(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, map[string]any{"cryptogram": c})
-	})
+	}))
 	mux.HandleFunc("POST /admin/cards/replace", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			PAN      string `json:"pan"`

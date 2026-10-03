@@ -36,9 +36,11 @@ type Config struct {
 	// reports, signed with DisputeEventsSecret.
 	DisputeEventsURL    string
 	DisputeEventsSecret string
-	// AcquirerToken, if set, is what the acquirer's dispute requests must carry as a
+	// AcquirerToken, if set, is what the acquirer's requests must carry as a
 	// bearer token.
 	AcquirerToken string
+	// ClearingSecret, if set, signs the clearing files the acquirer fetches.
+	ClearingSecret string
 	// ClearingFaults, if set, is asked about every record before it goes into a clearing
 	// file.
 	ClearingFaults func(cardnet.ClearingRecord) RecordFault

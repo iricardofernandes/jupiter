@@ -330,10 +330,10 @@ var schemeKey = []byte("simulation scheme key")
 // that ask for 3-D Secure authenticate there, frictionless.
 func (s *sim) startDirectory(t *testing.T, pool *pgxpool.Pool, cards authentication.CardReader) *authentication.Server {
 	t.Helper()
-	directory := httptest.NewServer(threedssim.New(threedssim.Config{AuthenticationKey: schemeKey, ResultsSecret: "simulation"}).Handler())
+	directory := httptest.NewServer(threedssim.New(threedssim.Config{AuthenticationKey: schemeKey, ResultsSecret: simulationResultsSecret}).Handler())
 	t.Cleanup(directory.Close)
 	authenticator, err := authentication.New(authentication.Config{
-		Pool: pool, DirectoryURL: directory.URL + "/ds/areq", PublicURL: "http://jupiter.invalid", ResultsSecret: "simulation", Cards: cards,
+		Pool: pool, DirectoryURL: directory.URL + "/ds/areq", PublicURL: "http://127.0.0.1", ResultsSecret: simulationResultsSecret, Cards: cards,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -462,3 +462,6 @@ func (s *sim) send(key, method, path, idempotencyKey string, body any) response 
 	}
 	return response{status: rec.Code, body: rec.Body.Bytes()}
 }
+
+// simulationResultsSecret signs the ACS's results, as long as Jupiter asks of one.
+const simulationResultsSecret = "simulation-results-secret-0123456789"

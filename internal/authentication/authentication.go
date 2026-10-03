@@ -27,7 +27,9 @@ import (
 	"github.com/iricardofernandes/jupiter/internal/authentication/migrations"
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/payments"
+	"github.com/iricardofernandes/jupiter/internal/platform/mtls"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
+	"github.com/iricardofernandes/jupiter/internal/platform/secureurl"
 	"github.com/iricardofernandes/jupiter/internal/vault"
 	"github.com/iricardofernandes/jupiter/pkg/threeds"
 )
@@ -51,8 +53,8 @@ type Config struct {
 	// ResultsSecret checks the directory server's signature on results.
 	ResultsSecret string
 	Cards         CardReader
-	// AllowHTTP accepts ACS addresses over plain HTTP, for simulators on a developer's
-	// machine; otherwise the customer is only sent to an ACS over HTTPS.
+	// AllowHTTP accepts ACS addresses over plain HTTP on this machine, for simulators on a
+	// developer's; otherwise the customer is only sent to an ACS over HTTPS.
 	AllowHTTP   bool
 	RequestorID string
 	Now         func() time.Time
@@ -81,9 +83,23 @@ type CardReader interface {
 	ReadCard(ctx context.Context, token, owner string) (vault.CardData, error)
 }
 
+// minResultsSecret is the shortest secret the ACS's results are signed with.
+const minResultsSecret = 32
+
 func New(cfg Config) (*Server, error) {
 	if cfg.Pool == nil || cfg.DirectoryURL == "" || cfg.PublicURL == "" || cfg.Cards == nil || cfg.ResultsSecret == "" {
 		return nil, errors.New("authentication: a pool, the directory server's URL, Jupiter's public URL, a card source and the results secret are required")
+	}
+	// The directory server is sent card numbers, and the public URL is where results and
+	// customers come back.
+	if err := secureurl.Check(cfg.DirectoryURL); err != nil {
+		return nil, fmt.Errorf("authentication: the directory server's URL %w", err)
+	}
+	if err := secureurl.Check(cfg.PublicURL); err != nil {
+		return nil, fmt.Errorf("authentication: Jupiter's public URL %w", err)
+	}
+	if len(cfg.ResultsSecret) < minResultsSecret {
+		return nil, fmt.Errorf("authentication: the results secret must be at least %d bytes", minResultsSecret)
 	}
 	if cfg.RequestorID == "" {
 		cfg.RequestorID = defaultRequestor
@@ -204,7 +220,7 @@ func (s *Server) acceptableACS(u string) bool {
 	if err != nil || acs.Host == "" || acs.User != nil {
 		return false
 	}
-	return acs.Scheme == "https" || (s.cfg.AllowHTTP && acs.Scheme == "http")
+	return acs.Scheme == "https" || (s.cfg.AllowHTTP && acs.Scheme == "http" && secureurl.Loopback(acs.Hostname()))
 }
 
 func (s *Server) authentication(tx db.AuthenticationTransaction) payments.Authentication {
@@ -243,9 +259,22 @@ func FromEnv(getenv func(string) string, pool *pgxpool.Pool, cards CardReader, l
 	if directory == "" {
 		return nil, nil //nolint:nilnil // no directory server configured is not an error
 	}
-	return New(Config{
+	cfg := Config{
 		Pool: pool, DirectoryURL: directory, PublicURL: getenv("JUPITER_PUBLIC_URL"),
 		ResultsSecret: getenv("JUPITER_3DS_RESULTS_SECRET"), Cards: cards, Logger: logger,
 		AllowHTTP: getenv("JUPITER_3DS_ALLOW_HTTP") == "true",
-	})
+	}
+	// A directory server that knows Jupiter by its certificate gets it.
+	if cert := getenv("JUPITER_3DS_CLIENT_CERT"); cert != "" {
+		tlsConfig, err := mtls.LoadClientConfig(cert, getenv("JUPITER_3DS_CLIENT_KEY"), getenv("JUPITER_3DS_CA"))
+		if err != nil {
+			return nil, fmt.Errorf("JUPITER_3DS_CLIENT_CERT: %w", err)
+		}
+		cfg.HTTPClient = &http.Client{
+			Timeout:       requestTimeout,
+			Transport:     &http.Transport{TLSClientConfig: tlsConfig},
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
+	}
+	return New(cfg)
 }

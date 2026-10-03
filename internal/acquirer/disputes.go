@@ -82,9 +82,7 @@ func (c *Connector) disputeCall(ctx context.Context, method, path string, body, 
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if c.cfg.NetworkToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.NetworkToken)
-	}
+	c.authorize(req)
 	resp, err := c.cfg.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("the network's dispute system: %w", err)

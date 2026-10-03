@@ -5,11 +5,13 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/iricardofernandes/jupiter/pkg/cardnet"
 )
 
 // Handler serves the network's files to acquirers, and an operator's control:
 //
-//	GET  /v1/acquirers/{acquirer}/clearing/{YYYY-MM-DD}  a closed day's clearing file
+//	GET  /v1/acquirers/{acquirer}/clearing/{YYYY-MM-DD}  a closed day's clearing file, signed
 //	POST /admin/close-day?date=YYYY-MM-DD                close a business day now
 //	POST /v1/tokens                                      provision a network token for a card
 //	POST /v1/tokens/{reference}/cryptograms              a one-time cryptogram for a payment
@@ -22,7 +24,7 @@ func (n *Network) Handler() http.Handler {
 	mux := http.NewServeMux()
 	n.tokenRoutes(mux)
 	n.disputeRoutes(mux)
-	mux.HandleFunc("GET /v1/acquirers/{acquirer}/clearing/{date}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /v1/acquirers/{acquirer}/clearing/{date}", n.acquirerOnly(func(w http.ResponseWriter, r *http.Request) {
 		date, err := time.Parse(time.DateOnly, r.PathValue("date"))
 		if err != nil {
 			http.Error(w, "the date must be YYYY-MM-DD", http.StatusBadRequest)
@@ -34,8 +36,11 @@ func (n *Network) Handler() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=us-ascii")
+		if n.cfg.ClearingSecret != "" {
+			w.Header().Set(cardnet.EventSignatureHeader, cardnet.SignEvent(file, n.cfg.ClearingSecret, n.cfg.Now()))
+		}
 		_, _ = w.Write(file)
-	})
+	}))
 	mux.HandleFunc("POST /admin/close-day", func(w http.ResponseWriter, r *http.Request) {
 		date := n.cfg.Now().UTC()
 		if s := r.URL.Query().Get("date"); s != "" {

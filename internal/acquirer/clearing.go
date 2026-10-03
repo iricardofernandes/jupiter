@@ -201,6 +201,7 @@ func (c *Connector) fetchClearing(ctx context.Context, day time.Time) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
+	c.authorize(req)
 	resp, err := c.cfg.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching the clearing file: %w", err)
@@ -217,8 +218,17 @@ func (c *Connector) fetchClearing(ctx context.Context, day time.Time) ([]byte, e
 	if err != nil {
 		return nil, fmt.Errorf("reading the clearing file: %w", err)
 	}
+	// The file decides which captures are cleared: it is taken only as the network signed it.
+	if c.cfg.ClearingSecret != "" {
+		if err := cardnet.VerifyEvent(data, resp.Header.Get(cardnet.EventSignatureHeader), c.cfg.ClearingSecret, clearingTolerance, c.cfg.Now()); err != nil {
+			return nil, fmt.Errorf("the clearing file's signature: %w", err)
+		}
+	}
 	return data, nil
 }
+
+// clearingTolerance is how old a clearing file's signature may be when it arrives.
+const clearingTolerance = 5 * time.Minute
 
 // ImportRecentClearing imports every closed business day of the last days not imported
 // yet, then retries the exceptions, and returns how many days it imported. A day that

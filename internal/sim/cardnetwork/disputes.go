@@ -373,7 +373,7 @@ func (n *Network) disputeRoutes(mux *http.ServeMux) {
 	n.disputeAdminRoutes(mux)
 }
 
-// acquirerOnly asks an acquirer's dispute requests for its token, when one is set.
+// acquirerOnly asks an acquirer's requests for its token, when one is set.
 func (n *Network) acquirerOnly(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		got, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
