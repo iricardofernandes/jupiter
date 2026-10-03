@@ -155,6 +155,12 @@ func (s *Service) WithdrawDisputed(ctx context.Context, tx pgx.Tx, reference str
 	if err := lockBalance(ctx, q, p.Owner, most.Currency(), ""); err != nil {
 		return 0, err
 	}
+	if most.Minor() > left {
+		// The network took more than the payment had left once refunds and other disputes
+		// were counted: the rest is Jupiter's to contest with the network, not the
+		// merchant's to pay twice.
+		s.cfg.Logger.ErrorContext(ctx, "a chargeback beyond what is left of its payment", "dispute", reference, "intent", p.Intent, "beyond", most.Minor()-left)
+	}
 	amount, _ := money.New(min(most.Minor(), left), most.Currency())
 	accts, err := s.ledgerAccounts(ctx, tx, p.Owner, amount.Currency())
 	if err != nil {
@@ -286,6 +292,86 @@ func (s *Service) SettleDisputeHold(ctx context.Context, tx pgx.Tx, reference st
 	return q.SaveDisputeFunds(ctx, db.SaveDisputeFundsParams{
 		Reference: reference, Status: status, SplitBack: f.SplitBack, LedgerTxn: text(txnID), Now: ts(s.cfg.Now().UTC()),
 	})
+}
+
+// ReturnedOnMED records that the Pix bank returned a MED claim's amount to the payer. The
+// claim's hold, if one was set, is withdrawn; what the bank returned beyond it, which
+// left Jupiter's Pix account all the same, is taken from the merchant's balance too, below
+// zero if the balance has not got it: the merchant owes it. It answers what the claim
+// took in all, nothing when it was released or reinstated already.
+func (s *Service) ReturnedOnMED(ctx context.Context, tx pgx.Tx, reference string, p DisputedPayment, returned int64) (int64, error) {
+	if err := s.SettleDisputeHold(ctx, tx, reference, true); err != nil {
+		return 0, err
+	}
+	q := db.New(tx)
+	held := int64(0)
+	f, err := q.LockDisputeFunds(ctx, reference)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+	case err != nil:
+		return 0, err
+	case f.Status != fundsWithdrawn:
+		return 0, nil
+	default:
+		held = f.Amount
+	}
+	// The bank cannot have returned more than the payment still had: what a message says
+	// beyond that is not taken from the merchant.
+	if most := p.Captured.Minor() - p.Refunded; returned > most {
+		s.cfg.Logger.ErrorContext(ctx, "a MED return beyond what is left of its payment", "dispute", reference, "returned", returned, "left", most)
+		returned = most
+	}
+	beyond := returned - held
+	if beyond <= 0 {
+		return held, nil
+	}
+	currency := p.Captured.Currency()
+	txn, err := s.postBeyondHold(ctx, tx, reference, p, beyond)
+	if err != nil {
+		return 0, err
+	}
+	now := ts(s.cfg.Now().UTC())
+	if held > 0 {
+		return returned, q.AddToDisputeFunds(ctx, db.AddToDisputeFundsParams{Reference: reference, Amount: beyond, Now: now})
+	}
+	inserted, err := q.InsertDisputeFunds(ctx, db.InsertDisputeFundsParams{
+		Reference: reference, IntentID: p.Intent.String(), AttemptID: p.Attempt, MerchantID: p.Owner.Merchant.String(),
+		Livemode: p.Owner.Livemode, Currency: currency.Code(), Amount: beyond, Status: fundsWithdrawn,
+		LedgerTxn: text(txn.ID.String()), Now: now,
+	})
+	if err != nil || inserted == 0 {
+		return 0, errors.Join(err, errDisputeFundsExist)
+	}
+	return returned, nil
+}
+
+// postBeyondHold takes from the merchant's balance, under its lock, what a MED return
+// took from Jupiter's Pix account beyond the claim's hold.
+func (s *Service) postBeyondHold(ctx context.Context, tx pgx.Tx, reference string, p DisputedPayment, beyond int64) (ledger.Transaction, error) {
+	currency := p.Captured.Currency()
+	if err := lockBalance(ctx, db.New(tx), p.Owner, currency, ""); err != nil {
+		return ledger.Transaction{}, err
+	}
+	accts, err := s.ledgerAccounts(ctx, tx, p.Owner, currency)
+	if err != nil {
+		return ledger.Transaction{}, err
+	}
+	pix, err := s.pixAccounts(ctx, tx, p.Owner.Livemode, currency)
+	if err != nil {
+		return ledger.Transaction{}, err
+	}
+	amount, err := money.New(beyond, currency)
+	if err != nil {
+		return ledger.Transaction{}, err
+	}
+	txn, err := s.cfg.Ledger.Post(ctx, tx, ledger.Posting{
+		Description: "MED return " + reference + " beyond the hold",
+		Legs:        []ledger.Leg{ledger.Debit(accts.merchantBalance, amount), ledger.Credit(pix.settlement, amount)},
+	})
+	if err != nil {
+		return ledger.Transaction{}, fmt.Errorf("posting a MED return beyond its hold: %w", err)
+	}
+	return txn, nil
 }
 
 // ReinstateDisputed gives back what a dispute withdrew: from the network, for a card,

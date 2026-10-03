@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addToDisputeFunds = `-- name: AddToDisputeFunds :exec
+UPDATE payments.dispute_funds SET amount = amount + $1, updated_at = $2 WHERE reference = $3
+`
+
+type AddToDisputeFundsParams struct {
+	Amount    int64
+	Now       pgtype.Timestamptz
+	Reference string
+}
+
+func (q *Queries) AddToDisputeFunds(ctx context.Context, arg AddToDisputeFundsParams) error {
+	_, err := q.db.Exec(ctx, addToDisputeFunds, arg.Amount, arg.Now, arg.Reference)
+	return err
+}
+
 const allDisputeFunds = `-- name: AllDisputeFunds :many
 SELECT reference, status, amount FROM payments.dispute_funds ORDER BY reference
 `
@@ -384,7 +399,8 @@ const feeTotals = `-- name: FeeTotals :many
 SELECT i.livemode, i.currency,
        (coalesce(sum(a.fee), 0) - coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r
             JOIN payments.intents ri ON ri.id = r.intent_id
-            WHERE r.status = 'succeeded' AND ri.livemode = i.livemode AND ri.currency = i.currency), 0))::bigint AS held
+            WHERE r.status = 'succeeded' AND ri.livemode = i.livemode AND ri.currency = i.currency), 0)
+        - coalesce((SELECT sum(f.amount) FROM payments.fee_sweeps f WHERE f.livemode = i.livemode AND f.currency = i.currency), 0))::bigint AS held
 FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
 GROUP BY i.livemode, i.currency
 `
@@ -395,7 +411,8 @@ type FeeTotalsRow struct {
 	Held     int64
 }
 
-// What each mode's fee account should hold: the fees charged less what refunds gave back.
+// What each mode's fee account should hold: the fees charged less what refunds gave back
+// and what settlements moved to Jupiter's own funds.
 func (q *Queries) FeeTotals(ctx context.Context) ([]FeeTotalsRow, error) {
 	rows, err := q.db.Query(ctx, feeTotals)
 	if err != nil {
@@ -1083,6 +1100,36 @@ func (q *Queries) InsertDisputeFunds(ctx context.Context, arg InsertDisputeFunds
 		arg.Amount,
 		arg.Status,
 		arg.LedgerHold,
+		arg.LedgerTxn,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const insertFeeSweep = `-- name: InsertFeeSweep :execrows
+INSERT INTO payments.fee_sweeps (reference, livemode, currency, amount, ledger_txn, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (livemode, reference) DO NOTHING
+`
+
+type InsertFeeSweepParams struct {
+	Reference string
+	Livemode  bool
+	Currency  string
+	Amount    int64
+	LedgerTxn string
+	Now       pgtype.Timestamptz
+}
+
+func (q *Queries) InsertFeeSweep(ctx context.Context, arg InsertFeeSweepParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertFeeSweep,
+		arg.Reference,
+		arg.Livemode,
+		arg.Currency,
+		arg.Amount,
 		arg.LedgerTxn,
 		arg.Now,
 	)

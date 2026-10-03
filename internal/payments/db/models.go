@@ -66,6 +66,15 @@ type PaymentsDisputeFund struct {
 	WithdrawnAt pgtype.Timestamptz
 }
 
+type PaymentsFeeSweep struct {
+	Reference string
+	Livemode  bool
+	Currency  string
+	Amount    int64
+	LedgerTxn string
+	CreatedAt pgtype.Timestamptz
+}
+
 type PaymentsIntent struct {
 	ID                     string
 	MerchantID             string

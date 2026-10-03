@@ -112,6 +112,12 @@ func (w *deliveryWorker) Work(ctx context.Context, job *river.Job[DeliveryArgs])
 		record.Error = truncate(sendErr.Error(), maxErrorLength)
 	}
 	if err := q.InsertDelivery(ctx, record); err != nil {
+		if sendErr == nil {
+			// The endpoint has the event: failing the job would send it again. Only the
+			// log of the attempt is lost.
+			s.cfg.Logger.ErrorContext(ctx, "recording a delivery the endpoint took", "event", eventRow.ID, "endpoint", endpointRow.ID, "error", err)
+			return nil
+		}
 		return fmt.Errorf("recording delivery: %w", err)
 	}
 	if sendErr != nil && job.Attempt >= job.MaxAttempts {

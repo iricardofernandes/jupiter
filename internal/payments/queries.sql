@@ -398,13 +398,20 @@ UPDATE payments.refunds SET split_back = @split_back WHERE id = @id;
 SELECT coalesce(sum(fee_returned), 0)::bigint FROM payments.refunds WHERE intent_id = @intent_id AND status = 'succeeded';
 
 -- name: FeeTotals :many
--- What each mode's fee account should hold: the fees charged less what refunds gave back.
+-- What each mode's fee account should hold: the fees charged less what refunds gave back
+-- and what settlements moved to Jupiter's own funds.
 SELECT i.livemode, i.currency,
        (coalesce(sum(a.fee), 0) - coalesce((SELECT sum(r.fee_returned) FROM payments.refunds r
             JOIN payments.intents ri ON ri.id = r.intent_id
-            WHERE r.status = 'succeeded' AND ri.livemode = i.livemode AND ri.currency = i.currency), 0))::bigint AS held
+            WHERE r.status = 'succeeded' AND ri.livemode = i.livemode AND ri.currency = i.currency), 0)
+        - coalesce((SELECT sum(f.amount) FROM payments.fee_sweeps f WHERE f.livemode = i.livemode AND f.currency = i.currency), 0))::bigint AS held
 FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
 GROUP BY i.livemode, i.currency;
+
+-- name: InsertFeeSweep :execrows
+INSERT INTO payments.fee_sweeps (reference, livemode, currency, amount, ledger_txn, created_at)
+VALUES (@reference, @livemode, @currency, @amount, @ledger_txn, @now)
+ON CONFLICT (livemode, reference) DO NOTHING;
 
 -- name: FeeLedgerAccounts :many
 SELECT livemode, currency, account_id FROM payments.ledger_accounts WHERE merchant_id = '' AND role = 'card_fees';
@@ -425,6 +432,9 @@ ON CONFLICT (reference) DO NOTHING;
 
 -- name: LockDisputeFunds :one
 SELECT * FROM payments.dispute_funds WHERE reference = @reference FOR UPDATE;
+
+-- name: AddToDisputeFunds :exec
+UPDATE payments.dispute_funds SET amount = amount + @amount, updated_at = @now WHERE reference = @reference;
 
 -- name: SaveDisputeFunds :exec
 UPDATE payments.dispute_funds

@@ -3,6 +3,7 @@ package payments
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -151,6 +152,7 @@ type Config struct {
 	// balance in a day (Brasília), in centavos: what a stolen key could send away.
 	DailyPayoutLimit int64
 	Now              func() time.Time
+	Logger           *slog.Logger
 	// ResolveAfter is how long an operation stays in flight before the resolver asks
 	// the rail what happened; GiveUpAfter is when an authorization still unknown is
 	// reversed and failed, so no attempt stays unknown for longer.
@@ -171,6 +173,9 @@ func New(cfg Config) *Service {
 	}
 	if cfg.GiveUpAfter == 0 {
 		cfg.GiveUpAfter = 15 * time.Minute
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 	return &Service{cfg: cfg}
 }

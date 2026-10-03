@@ -260,6 +260,16 @@ func (s *Service) postGrade(ctx context.Context, tx pgx.Tx, livemode bool, day t
 	if err != nil {
 		return fmt.Errorf("posting the settlement: %w", err)
 	}
+	// Jupiter's fees on what settled reached its account with the rest, and are its own:
+	// what the fee account holds beyond the fees yet to settle moves to own funds. A fee
+	// a refund gave back after its settlement makes the next move that much smaller.
+	keep, err := q.FeesNotSettled(ctx, db.FeesNotSettledParams{Livemode: livemode, Settling: dateOf(day)})
+	if err != nil {
+		return err
+	}
+	if err := s.cfg.Payments.SweepFees(ctx, tx, livemode, currency, keep, "grade/"+day.Format(time.DateOnly)); err != nil {
+		return err
+	}
 	moved, err := q.SetGradeStatus(ctx, db.SetGradeStatusParams{
 		Livemode: livemode, Date: dateOf(day), Status: "settled", LedgerTxn: txn.ID.String(), Now: ts(s.cfg.Now()), FromStatus: g.Status,
 	})

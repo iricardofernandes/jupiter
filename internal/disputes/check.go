@@ -74,7 +74,9 @@ func (s *Service) checkFunds(ctx context.Context, tx pgx.Tx) ([]Violation, error
 			out = append(out, Violation{d.ID, fmt.Sprintf("its funds are %s; payments recorded none", d.Funds)})
 		case f.Status != d.Funds:
 			out = append(out, Violation{d.ID, fmt.Sprintf("its funds are %s; payments recorded them %s", d.Funds, f.Status)})
-		case d.Kind == KindMED && f.Amount != d.Blocked:
+		// A MED claim withdrawn, and one given back since, may have taken more than it held:
+		// what the bank returned beyond the hold.
+		case d.Kind == KindMED && (f.Amount < d.Blocked || (d.Funds != FundsWithdrawn && d.Funds != FundsReinstated && f.Amount != d.Blocked)):
 			out = append(out, Violation{d.ID, fmt.Sprintf("it held %d; payments recorded %d", d.Blocked, f.Amount)})
 		}
 		delete(recorded, d.ID)

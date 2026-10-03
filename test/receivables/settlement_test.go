@@ -4,6 +4,7 @@ package receivables_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +80,15 @@ func TestSettlementThroughTheSLC(t *testing.T) {
 	}
 	if r := h.reconcile("weekly"); len(r.Divergences) != 0 {
 		t.Fatalf("divergences: %+v", r.Divergences)
+	}
+	// Jupiter's fee on each month, 349, reached its account with the rest and moved to
+	// its own funds, once a grade.
+	var swept, sweeps int64
+	if err := h.pool.QueryRow(t.Context(), `SELECT coalesce(sum(amount), 0), count(*) FROM payments.fee_sweeps`).Scan(&swept, &sweeps); err != nil {
+		t.Fatal(err)
+	}
+	if swept != 2*349 || sweeps != 2 {
+		t.Fatalf("%d fees moved to own funds in %d sweeps", swept, sweeps)
 	}
 	h.consistent()
 }
@@ -185,6 +195,15 @@ func TestAPayoutByBankTransferReturned(t *testing.T) {
 	p := h.payout(str(po, "id"))
 	if str(p, "status") != "returned" || str(p, "failure_code") != "transfer_returned" || p["returned_at"] == nil {
 		t.Fatalf("returned: %v", p)
+	}
+	events := h.ok(http.MethodGet, "/v1/events?type=payout.returned", nil)
+	data, _ := events["data"].([]any)
+	if len(data) != 1 {
+		t.Fatalf("payout.returned events: %v", events)
+	}
+	event, _ := data[0].(map[string]any)
+	if related := obj(event, "related_object"); str(related, "id") != str(po, "id") || str(related, "type") != "payout" || !strings.HasPrefix(str(related, "url"), "/v1/payouts/") {
+		t.Fatalf("the event names %v", related)
 	}
 	if b := h.balance(seller); num(b, "available") != available {
 		t.Fatalf("the balance after the return: %v", b)

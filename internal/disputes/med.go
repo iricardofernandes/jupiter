@@ -201,6 +201,30 @@ func (s *Service) trace(ctx context.Context, tx pgx.Tx, p payments.DisputedPayme
 	return out, nil
 }
 
+// returned takes what the bank returned to the payer: the hold, and what it returned
+// beyond it. A claim whose payment can no longer be read still has its hold settled.
+func (s *Service) returned(ctx context.Context, tx pgx.Tx, row *db.DisputesDispute, inf Infraction) error {
+	if inf.Refunded <= row.Blocked {
+		if err := s.cfg.Payments.SettleDisputeHold(ctx, tx, row.ID, true); err != nil {
+			return err
+		}
+		if row.Funds == FundsHeld {
+			row.Funds = FundsWithdrawn
+		}
+		return nil
+	}
+	p, err := s.cfg.Payments.DisputedPaymentByNetworkID(ctx, tx, row.Livemode, row.NetworkTransactionID)
+	if err != nil {
+		return err
+	}
+	// The bank cannot have returned more than the claim was for.
+	taken, err := s.cfg.Payments.ReturnedOnMED(ctx, tx, row.ID, p, min(inf.Refunded, row.Amount))
+	if err == nil && taken > 0 {
+		row.Funds = FundsWithdrawn
+	}
+	return err
+}
+
 // moveOnMED applies a change the bank made to a claim: the return it was asked for made,
 // the claim disagreed with, a contestation decided.
 func (s *Service) moveOnMED(ctx context.Context, tx pgx.Tx, row db.DisputesDispute, inf Infraction) error {
@@ -211,11 +235,8 @@ func (s *Service) moveOnMED(ctx context.Context, tx pgx.Tx, row db.DisputesDispu
 	case row.Stage != StageMEDAnalysis:
 		return nil
 	case inf.Result == agreed && inf.RefundStatus == refundDone && row.Status != Lost:
-		if err := s.cfg.Payments.SettleDisputeHold(ctx, tx, row.ID, true); err != nil {
+		if err := s.returned(ctx, tx, &row, inf); err != nil {
 			return err
-		}
-		if row.Funds == FundsHeld {
-			row.Funds = FundsWithdrawn
 		}
 		if row.Outcome == "" {
 			row.Outcome = "agreed"

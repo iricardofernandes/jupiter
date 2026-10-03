@@ -12,6 +12,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iricardofernandes/jupiter/internal/merchant"
+	"github.com/iricardofernandes/jupiter/internal/payments"
 	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	"github.com/iricardofernandes/jupiter/internal/recipients"
 	registrysim "github.com/iricardofernandes/jupiter/internal/sim/registry"
@@ -371,4 +373,51 @@ func TestADocumentIsReservedOnlyOnceVerified(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.consistent()
+}
+
+// A card whose receivables could not be kept is refused before it is authorized: one of a
+// scheme without an arrangement, and in live mode one for an account without a CPF or
+// CNPJ. Test mode, where an account may not have one yet, lets the latter through.
+func TestCardsReceivablesCannotCarryAreRefused(t *testing.T) {
+	h := newHarness(t)
+	ctx := t.Context()
+	err := postgres.InTx(ctx, h.pool, func(tx pgx.Tx) error {
+		if err := h.receivables.Carries(ctx, tx, h.owner, "unknown"); !errors.Is(err, payments.ErrInvalid) {
+			return fmt.Errorf("a card of an unknown brand: %w", err)
+		}
+		if err := h.receivables.Carries(ctx, tx, payments.Owner{Merchant: h.owner.Merchant, Livemode: true}, "visa"); err != nil {
+			return fmt.Errorf("a live Visa of an account with a CNPJ: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.key = h.another("")
+	var bare payments.Owner
+	var bareID string
+	if err := h.pool.QueryRow(ctx, `SELECT id FROM merchant.merchants WHERE tax_id = '' ORDER BY created_at DESC LIMIT 1`).Scan(&bareID); err != nil {
+		t.Fatal(err)
+	}
+	if bare.Merchant, err = merchant.MerchantPrefix.Parse(bareID); err != nil {
+		t.Fatal(err)
+	}
+	err = postgres.InTx(ctx, h.pool, func(tx pgx.Tx) error {
+		if err := h.receivables.Carries(ctx, tx, bare, "visa"); err != nil {
+			return fmt.Errorf("a test Visa of an account without a CNPJ: %w", err)
+		}
+		bare.Livemode = true
+		if err := h.receivables.Carries(ctx, tx, bare, "visa"); !errors.Is(err, payments.ErrInvalid) {
+			return fmt.Errorf("a live Visa of an account without a CNPJ: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Through the API, a test card of an unknown brand is never one: the test cards are
+	// Visa and Mastercard, and every brand Jupiter reads a number as has an arrangement.
+	if r := h.call(http.MethodPost, "/v1/payment_intents", map[string]any{"amount": 1000, "currency": "brl", "payment_method": "pm_card_visa", "confirm": true}); r.status != http.StatusOK {
+		t.Fatalf("a test Visa of an account without a CNPJ: %d %s", r.status, r.raw)
+	}
 }

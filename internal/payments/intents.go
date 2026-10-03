@@ -348,7 +348,22 @@ func (s *Service) confirmable(ctx context.Context, tx pgx.Tx, owner Owner, row d
 	if err := s.checkRail(owner, row.PaymentMethod, p.OffSession); err != nil {
 		return err
 	}
+	if err := s.checkCarried(ctx, tx, owner, row.PaymentMethod); err != nil {
+		return err
+	}
 	return s.checkStoredCredential(ctx, tx, owner, row, p.OffSession)
+}
+
+// checkCarried asks receivables, when they are kept, whether a card's can be.
+func (s *Service) checkCarried(ctx context.Context, tx pgx.Tx, owner Owner, paymentMethod string) error {
+	if s.cfg.Receivables == nil || isPix(paymentMethod) || paymentMethod == PaymentMethodBoleto {
+		return nil
+	}
+	scheme, err := s.schemeOf(ctx, tx, owner, paymentMethod)
+	if err != nil {
+		return err
+	}
+	return s.cfg.Receivables.Carries(ctx, tx, owner, scheme)
 }
 
 // startAttempt makes attemptID the intent's latest and forgets what the previous one
@@ -671,16 +686,16 @@ func (s *Service) setStatus(ctx context.Context, tx pgx.Tx, row *db.PaymentsInte
 	return s.publish(ctx, tx, owner, eventType, row.ID)
 }
 
-func (s *Service) publish(ctx context.Context, tx pgx.Tx, owner Owner, eventType, intentID string) error {
+// publish records an event about one of the merchant's objects, whose type its id names.
+func (s *Service) publish(ctx context.Context, tx pgx.Tx, owner Owner, eventType, objectID string) error {
 	objectType := "payment_intent"
-	switch eventType {
-	case events.TypeRefundCreated, events.TypeRefundUpdated:
+	if _, err := RefundPrefix.Parse(objectID); err == nil {
 		objectType = "refund"
-	case events.TypePayoutCreated, events.TypePayoutPaid, events.TypePayoutFailed:
+	} else if _, err := PayoutPrefix.Parse(objectID); err == nil {
 		objectType = "payout"
 	}
 	_, err := s.cfg.Events.Publish(ctx, tx, events.Owner{Merchant: owner.Merchant, Livemode: owner.Livemode}, eventType,
-		events.ObjectRef{ID: intentID, Type: objectType})
+		events.ObjectRef{ID: objectID, Type: objectType})
 	return err
 }
 

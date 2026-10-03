@@ -399,6 +399,27 @@ func (q *Queries) Debtors(ctx context.Context, after string) ([]DebtorsRow, erro
 	return items, nil
 }
 
+const feesNotSettled = `-- name: FeesNotSettled :one
+SELECT coalesce(sum(i.fee - i.fee_reduced), 0)::bigint FROM receivables.installments i
+JOIN receivables.units u ON u.id = i.unit_id
+LEFT JOIN receivables.grades g ON g.livemode = u.livemode AND g.date = u.grade_date
+WHERE u.livemode = $1 AND u.grade_date IS DISTINCT FROM $2::date AND (g.status IS NULL OR g.status <> 'settled')
+`
+
+type FeesNotSettledParams struct {
+	Livemode bool
+	Settling pgtype.Date
+}
+
+// Jupiter's fees on installments yet to settle, less what refunds gave back: those of
+// units in no grade, or in one not settled, but the grade being settled now.
+func (q *Queries) FeesNotSettled(ctx context.Context, arg FeesNotSettledParams) (int64, error) {
+	row := q.db.QueryRow(ctx, feesNotSettled, arg.Livemode, arg.Settling)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getAnticipation = `-- name: GetAnticipation :one
 SELECT id, merchant_id, livemode, recipient_id, currency, amount, price, monthly_rate, automatic, ledger_txn, created_at FROM receivables.anticipations WHERE id = $1 AND merchant_id = $2 AND livemode = $3
 `

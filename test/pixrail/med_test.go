@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
+	"github.com/iricardofernandes/jupiter/internal/platform/postgres"
 	pixsim "github.com/iricardofernandes/jupiter/internal/sim/pix"
 	"github.com/iricardofernandes/jupiter/pkg/pixapi"
 )
@@ -173,6 +176,41 @@ func TestAnAgreedClaimWaitsForItsReturn(t *testing.T) {
 	h.advance(2 * day)
 	if d := h.claimOf(intent); str(d, "status") != "lost" || str(d, "funds") != "withdrawn" {
 		t.Fatalf("once the return is made: %v", d)
+	}
+	h.consistent()
+}
+
+// The bank returns more than Jupiter held: what left Jupiter's Pix account beyond the hold
+// is taken from the merchant's balance too, below zero if need be, and posted once.
+func TestAMEDReturnBeyondItsHold(t *testing.T) {
+	h := newHarness(t)
+	intent, e2e := h.paid(10000)
+	if po := h.call(http.MethodPost, "/v1/payouts", payout(4000, sellerKey)); str(po.body, "status") != "paid" {
+		t.Fatalf("the payout: %d %s", po.status, po.raw)
+	}
+	h.claim(e2e, 0, false)
+	d := h.claimOf(intent)
+	for range 2 {
+		err := postgres.InTx(t.Context(), h.pool, func(tx pgx.Tx) error {
+			p, err := h.payments.DisputedPaymentByNetworkID(t.Context(), tx, true, e2e)
+			if err != nil {
+				return err
+			}
+			taken, err := h.payments.ReturnedOnMED(t.Context(), tx, str(d, "id"), p, 10000)
+			if err == nil && taken != 10000 {
+				t.Errorf("the claim took %d, want all the bank returned", taken)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r := h.call(http.MethodPost, "/v1/payouts", payout(100, sellerKey)); r.status != http.StatusBadRequest {
+		t.Fatalf("paying out a balance below zero: %d %s", r.status, r.raw)
+	}
+	if closed := h.call(http.MethodPost, "/v1/disputes/"+str(d, "id")+"/close", nil); str(closed.body, "funds") != "withdrawn" {
+		t.Fatalf("closing the claim: %d %s", closed.status, closed.raw)
 	}
 	h.consistent()
 }

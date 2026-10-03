@@ -373,3 +373,11 @@ SELECT * FROM receivables.recoveries WHERE recipient_id = @recipient_id ORDER BY
 
 -- name: SettledGradesSince :many
 SELECT * FROM receivables.grades WHERE livemode = @livemode AND status = 'settled' AND date >= @since ORDER BY date;
+
+-- name: FeesNotSettled :one
+-- Jupiter's fees on installments yet to settle, less what refunds gave back: those of
+-- units in no grade, or in one not settled, but the grade being settled now.
+SELECT coalesce(sum(i.fee - i.fee_reduced), 0)::bigint FROM receivables.installments i
+JOIN receivables.units u ON u.id = i.unit_id
+LEFT JOIN receivables.grades g ON g.livemode = u.livemode AND g.date = u.grade_date
+WHERE u.livemode = @livemode AND u.grade_date IS DISTINCT FROM @settling::date AND (g.status IS NULL OR g.status <> 'settled');

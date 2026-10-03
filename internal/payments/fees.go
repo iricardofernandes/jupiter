@@ -28,6 +28,9 @@ type Receivables interface {
 	// merchant's balance, and answers how much; DisputeReinstated gives it back.
 	Disputed(ctx context.Context, tx pgx.Tx, d CardDispute) (int64, error)
 	DisputeReinstated(ctx context.Context, tx pgx.Tx, d CardDispute) (int64, error)
+	// Carries refuses a card payment whose receivables it could not keep, before it is
+	// authorized: its money would otherwise be paid out long before the network pays it.
+	Carries(ctx context.Context, tx pgx.Tx, owner Owner, scheme string) error
 }
 
 // CardCapture is a card payment Jupiter captured: Amount is what was captured and Fee
@@ -62,9 +65,74 @@ type CardRefund struct {
 
 func (s *Service) feeAccount(ctx context.Context, tx pgx.Tx, livemode bool, currency money.Currency) (id.ID, error) {
 	// Every fee in a mode and currency lands here: a hot account (ADR 0008). The fees
-	// stay among client funds until settlement moves them to Jupiter's own.
+	// stay among client funds until settlement moves them to Jupiter's own (SweepFees).
 	return s.scopedAccount(ctx, tx, db.New(tx), "", livemode, currency, roleCardFees,
 		ledger.AccountSpec{Book: ledger.ClientFunds, Code: "card_fees", Currency: currency, Normal: ledger.CreditNormal, Batched: true})
+}
+
+const (
+	roleOwnBank        = "own_bank"
+	roleCardFeeRevenue = "card_fee_revenue"
+)
+
+// SweepFees moves to Jupiter's own funds what the fee account holds beyond keep, the fees
+// of payments yet to settle, once per reference: a settlement paid the rest into the
+// client funds account with the merchants' money, and they are Jupiter's. In each book
+// the money moves between the bank account and what it is for: out of the card fees
+// Jupiter holds among client funds, into its revenue.
+func (s *Service) SweepFees(ctx context.Context, tx pgx.Tx, livemode bool, currency money.Currency, keep int64, reference string) error {
+	q := db.New(tx)
+	fees, err := s.feeAccount(ctx, tx, livemode, currency)
+	if err != nil {
+		return err
+	}
+	balance, err := s.cfg.Ledger.Balance(ctx, tx, fees)
+	if err != nil {
+		return err
+	}
+	posted, err := balance.Posted()
+	if err != nil {
+		return err
+	}
+	if posted.Minor() <= keep {
+		return nil
+	}
+	amount, err := money.New(posted.Minor()-keep, currency)
+	if err != nil {
+		return err
+	}
+	clientBank, err := s.bankAccount(ctx, tx, livemode, amount.Currency())
+	if err != nil {
+		return err
+	}
+	ownBank, err := s.scopedAccount(ctx, tx, q, "", livemode, amount.Currency(), roleOwnBank,
+		ledger.AccountSpec{Book: ledger.OwnFunds, Code: "own_bank", Currency: amount.Currency(), Normal: ledger.DebitNormal})
+	if err != nil {
+		return err
+	}
+	revenue, err := s.scopedAccount(ctx, tx, q, "", livemode, amount.Currency(), roleCardFeeRevenue,
+		ledger.AccountSpec{Book: ledger.OwnFunds, Code: "card_fee_revenue", Currency: amount.Currency(), Normal: ledger.CreditNormal})
+	if err != nil {
+		return err
+	}
+	txn, err := s.cfg.Ledger.Post(ctx, tx, ledger.Posting{
+		Description: "fees of " + reference + " to own funds",
+		Legs: []ledger.Leg{
+			ledger.Debit(fees, amount), ledger.Credit(clientBank, amount),
+			ledger.Debit(ownBank, amount), ledger.Credit(revenue, amount),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("moving fees to own funds: %w", err)
+	}
+	inserted, err := q.InsertFeeSweep(ctx, db.InsertFeeSweepParams{
+		Reference: reference, Livemode: livemode, Currency: amount.Currency().Code(), Amount: amount.Minor(),
+		LedgerTxn: txn.ID.String(), Now: ts(s.cfg.Now().UTC()),
+	})
+	if err == nil && inserted == 0 {
+		err = fmt.Errorf("payments: the fees of %s were moved already", reference)
+	}
+	return err
 }
 
 // chargeFee takes Jupiter's fee on a card capture out of the merchant's balance, at the

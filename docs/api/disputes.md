@@ -96,7 +96,9 @@ has it (`funds: held`, `held`). Payouts cannot spend held money. What already le
 payout is traced instead: `trace` lists those payouts, which the payer's bank can follow.
 Then:
 - if you accept, or Jupiter agrees after weighing your answer, the bank returns the
-  amount held to the payer, and the claim is lost;
+  amount held to the payer, and the claim is lost. Should the bank return more than was
+  held, what it returned beyond the hold is taken from your balance too, below zero if it
+  has not got it, as a chargeback's would be;
 - if Jupiter disagrees, or no decision is reached within the 11-day block, the hold ends
   and the claim is won.
 

@@ -37,6 +37,11 @@ Retries mean events can arrive out of order. Events are thin: they say what chan
 not what it looks like now. Fetch the object from `related_object.url`, or ask for it
 inline with `include[]=related_object`, to act on its current state.
 
+If you also read `GET /v1/events` to catch up, know that an event's id is taken when its
+change begins and it appears when the change commits, so one may appear behind an id you
+have already read. Ask again from a few seconds before your last event, and skip the ids
+you have handled.
+
 ## Answer quickly
 
 Answer 2xx within ten seconds and do the work afterwards. Any other answer, a timeout

@@ -88,7 +88,7 @@ type services struct {
 }
 
 func (r rails) services(pool *pgxpool.Pool, l *ledger.Ledger, e *events.Service, riskEngine *risk.Service, cards *vault.Client, logger *slog.Logger) services {
-	cfg := payments.Config{Ledger: l, Events: e, Risk: riskEngine, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards)}
+	cfg := payments.Config{Ledger: l, Events: e, Risk: riskEngine, TestRail: payments.NewTestRail(pool, nil, logger).WithCards(cards), Logger: logger}
 	r.configure(&cfg)
 	s := services{merchants: merchant.New(nil)}
 	s.recipients = recipients.New(recipients.Config{Merchants: s.merchants, Events: e})

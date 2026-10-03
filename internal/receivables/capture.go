@@ -22,6 +22,23 @@ import (
 
 var _ payments.Receivables = (*Service)(nil)
 
+// Carries refuses a card of a scheme without an arrangement, whose receivables have no
+// unit to be kept in, and in live mode a card of a merchant without a CPF or CNPJ, which
+// has no recipient to register them under.
+func (s *Service) Carries(ctx context.Context, tx pgx.Tx, owner payments.Owner, scheme string) error {
+	if arrangements[scheme] == "" {
+		return fmt.Errorf("%w: cards of this brand are not accepted", payments.ErrInvalid)
+	}
+	if !owner.Livemode {
+		return nil
+	}
+	_, err := s.cfg.Recipients.Default(ctx, tx, recipients.Owner{Merchant: owner.Merchant, Livemode: true})
+	if errors.Is(err, recipients.ErrInvalid) {
+		return fmt.Errorf("%w: a live card payment needs the account's CPF or CNPJ, which its receivables are registered under", payments.ErrInvalid)
+	}
+	return err
+}
+
 // Captured divides a card capture among its recipients, by its split or, with none, all
 // to the merchant's own recipient. One ledger transaction moves each recipient's net
 // share from the merchant's balance to the recipient's pending balance; the typed lines
