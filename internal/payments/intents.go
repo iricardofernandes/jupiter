@@ -565,6 +565,9 @@ func (s *Service) authorized(ctx context.Context, tx pgx.Tx, row *db.PaymentsInt
 // CompleteAction answers a requires_action intent in test mode, as a cardholder passing
 // or failing authentication would.
 func (s *Service) CompleteAction(ctx context.Context, tx pgx.Tx, owner Owner, intentID id.ID, succeeded bool) (Intent, Step, error) {
+	if owner.Livemode {
+		return Intent{}, StepDone, fmt.Errorf("%w: a live payment's action is the cardholder's to complete", ErrInvalidState)
+	}
 	q := db.New(tx)
 	row, attempt, err := s.lockCurrent(ctx, q, owner, intentID)
 	if err != nil {

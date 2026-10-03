@@ -49,13 +49,18 @@ func fromEnv(getenv func(string) string, prefix string, livemode bool, pool *pgx
 	if !taxid.Valid(getenv("JUPITER_TAX_ID")) || getenv("JUPITER_LEGAL_NAME") == "" {
 		return nil, errors.New("JUPITER_TAX_ID and JUPITER_LEGAL_NAME must be Jupiter's when a bank is configured")
 	}
+	// The agreement is compared with the 20 characters a return file's header carries.
+	agreement := strings.TrimSpace(getenv(prefix + "AGREEMENT"))
+	if len(agreement) > 20 {
+		return nil, fmt.Errorf("%sAGREEMENT is longer than the 20 characters a file carries", prefix)
+	}
 	return New(Config{
 		BaseURL: getenv(prefix + "URL"), Token: getenv(prefix + "TOKEN"), Livemode: livemode,
 		Profile: cnab240.Febraban{BankCode: code, BankName: getenv(prefix + "NAME")},
 		Account: cnab240.Account{
 			Branch: fmt.Sprintf("%05s", branch), BranchDV: branchDV, Number: fmt.Sprintf("%012s", number), NumberDV: numberDV,
 		},
-		Agreement: getenv(prefix + "AGREEMENT"), TaxID: getenv("JUPITER_TAX_ID"), Name: getenv("JUPITER_LEGAL_NAME"),
+		Agreement: agreement, TaxID: getenv("JUPITER_TAX_ID"), Name: getenv("JUPITER_LEGAL_NAME"),
 		Pool: pool, Logger: logger,
 	})
 }

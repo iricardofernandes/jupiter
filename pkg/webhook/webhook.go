@@ -43,6 +43,10 @@ func Sign(payload []byte, at time.Time, secrets ...string) string {
 // tolerance of now in either direction. A receiver should also discard an event whose
 // id it has already processed, because delivery is at least once.
 func Verify(payload []byte, header, secret string, tolerance time.Duration, now time.Time) error {
+	if secret == "" {
+		// A signature under no secret is one anybody can make.
+		return ErrSignatureMismatch
+	}
 	timestamp, unix, signatures, err := parse(header)
 	if err != nil {
 		return err

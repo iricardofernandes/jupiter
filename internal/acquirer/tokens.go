@@ -176,7 +176,14 @@ func (c *Connector) Handler(p *payments.Service, d *disputes.Service) http.Handl
 			http.Error(w, "not a token event", http.StatusBadRequest)
 			return
 		}
-		if _, err := p.UpdateFromNetworkToken(r.Context(), c.cfg.Pool, e); err != nil {
+		_, err = p.UpdateFromNetworkToken(r.Context(), c.cfg.Pool, e)
+		if errors.Is(err, payments.ErrInvalid) {
+			// Not an event Jupiter will ever apply: sending it again would not help.
+			c.cfg.Logger.WarnContext(r.Context(), "a token event refused", "type", e.Type, "reference", e.Reference, "error", err)
+			http.Error(w, "not a token event Jupiter applies", http.StatusBadRequest)
+			return
+		}
+		if err != nil {
 			c.cfg.Logger.ErrorContext(r.Context(), "applying a token event", "type", e.Type, "reference", e.Reference, "error", err)
 			http.Error(w, "not applied", http.StatusInternalServerError)
 			return

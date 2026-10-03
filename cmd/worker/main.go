@@ -94,9 +94,7 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 		return service.App{}, err
 	}
 	eventService := events.New(events.Config{
-		Box: box, Jobs: inserter, Render: api.RenderEvent,
-		// Only for local development, where webhook receivers run on this machine.
-		AllowPrivateNetworks: os.Getenv("JUPITER_WEBHOOK_ALLOW_PRIVATE") == "true", Logger: logger,
+		Box: box, Jobs: inserter, Render: api.RenderEvent, AllowPrivateNetworks: allowPrivateWebhooks(ctx, logger), Logger: logger,
 	})
 	workers := river.NewWorkers()
 	eventService.RegisterWorkers(workers, pool)
@@ -133,4 +131,14 @@ func build(ctx context.Context, cfg service.Config, logger *slog.Logger) (servic
 			pool.Close()
 		},
 	}, nil
+}
+
+// allowPrivateWebhooks reads JUPITER_WEBHOOK_ALLOW_PRIVATE, only for local development,
+// where webhook receivers run on this machine, and says so when it is set.
+func allowPrivateWebhooks(ctx context.Context, logger *slog.Logger) bool {
+	allow := os.Getenv("JUPITER_WEBHOOK_ALLOW_PRIVATE") == "true"
+	if allow {
+		logger.WarnContext(ctx, "JUPITER_WEBHOOK_ALLOW_PRIVATE is set: webhooks are delivered to private and loopback addresses, which merchants could aim at this network")
+	}
+	return allow
 }

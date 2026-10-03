@@ -2,6 +2,7 @@ package receivables
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -155,8 +156,13 @@ func (s *Service) recipient(ctx context.Context, tx pgx.Tx, owner payments.Owner
 // PayoutSource is a verified recipient's available account and payout destination.
 func (s *Service) PayoutSource(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientID string, currency money.Currency) (payments.PayoutSource, error) {
 	rec, err := s.recipient(ctx, tx, owner, recipientID)
-	if err != nil {
+	// Only that the recipient is not the merchant's is the merchant's mistake: a failure
+	// to read it is not, and must neither be told to it nor kept as the request's answer.
+	if errors.Is(err, ErrNotFound) || errors.Is(err, recipients.ErrInvalid) {
 		return payments.PayoutSource{}, fmt.Errorf("%w: %w", payments.ErrInvalid, err)
+	}
+	if err != nil {
+		return payments.PayoutSource{}, err
 	}
 	if rec.Status != recipients.Verified {
 		return payments.PayoutSource{}, fmt.Errorf("%w: recipient %s is %s, not verified", payments.ErrInvalid, recipientID, rec.Status)

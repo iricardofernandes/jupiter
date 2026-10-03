@@ -418,7 +418,10 @@ func loopbackJSON(next http.Handler) http.Handler {
 		if err != nil {
 			host = r.Host
 		}
-		if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		// The Host header is the caller's to write: the connection must come from this
+		// machine too.
+		peer, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if ip := net.ParseIP(host); (host != "localhost" && (ip == nil || !ip.IsLoopback())) || !net.ParseIP(peer).IsLoopback() {
 			http.Error(w, "the admin controls answer on loopback only", http.StatusForbidden)
 			return
 		}

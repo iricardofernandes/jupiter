@@ -129,6 +129,10 @@ A payout, or a refund paid from the balance (a Pix's, or a card's whose money no
 receivables carried), asked for more than the balance has available: what payments
 posted, less refunds, payouts and both still in flight.
 
+### amount_too_large
+An amount is more than one payment or payout may be, R$ 10,000,000.00, or a capture or
+refund asks for more than its payment has left.
+
 ### payout_limit_reached
 The payouts asked for today from one balance would pass the daily limit. The rest can be
 paid out tomorrow; scheduled payouts are not counted.

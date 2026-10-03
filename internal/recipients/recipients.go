@@ -489,8 +489,11 @@ var _ payments.Recipients = (*Service)(nil)
 // receivables are registered under their CPF or CNPJ, which must be theirs.
 func (s *Service) CheckSplit(ctx context.Context, tx pgx.Tx, owner payments.Owner, recipientIDs []string) error {
 	recs, err := s.Of(ctx, tx, Owner{Merchant: owner.Merchant, Livemode: owner.Livemode}, recipientIDs)
-	if err != nil {
+	if errors.Is(err, ErrInvalid) {
 		return fmt.Errorf("%w: %w", payments.ErrInvalid, err)
+	}
+	if err != nil {
+		return err
 	}
 	for _, rec := range recs {
 		if rec.Status != Verified {
@@ -553,17 +556,21 @@ func (t Transfers) Due(day time.Time) bool {
 	if !bizday.IsBusinessDay(day) {
 		return false
 	}
-	var target time.Time
+	// The period's own day, or the period before's when a holiday carried it over into
+	// this one: a Friday off is paid on the Monday after, which is another week.
+	var target, before time.Time
 	switch t.Interval {
 	case Daily:
 		return true
 	case Weekly:
 		monday := day.AddDate(0, 0, -((int(day.Weekday()) + 6) % 7))
 		target = monday.AddDate(0, 0, t.Day-1)
+		before = target.AddDate(0, 0, -7)
 	case Monthly:
 		target = time.Date(day.Year(), day.Month(), t.Day, 0, 0, 0, 0, day.Location())
+		before = target.AddDate(0, -1, 0)
 	default:
 		return false
 	}
-	return bizday.Next(target).Equal(day)
+	return bizday.Next(target).Equal(day) || bizday.Next(before).Equal(day)
 }

@@ -256,8 +256,12 @@ func (a *API) writeJSON(w http.ResponseWriter, r *http.Request, body any) {
 	writeRaw(w, http.StatusOK, raw)
 }
 
+// writeRaw answers with JSON no cache may keep, and no browser read as anything else:
+// answers carry keys, secrets and customers' data.
 func writeRaw(w http.ResponseWriter, status int, raw []byte) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(status)
 	_, _ = w.Write(raw) //nolint:gosec // raw is JSON served as application/json, not HTML
 }

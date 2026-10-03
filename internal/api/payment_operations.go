@@ -455,8 +455,15 @@ func parseAmount(minor int64, currency, param string) (money.Amount, error) {
 	if err != nil || !amount.IsPositive() {
 		return money.Amount{}, invalidRequest("parameter_invalid", param, "%s must be a positive number of minor units.", param)
 	}
+	if minor > maxAmount {
+		return money.Amount{}, invalidRequest("amount_too_large", param, "%s is at most %d minor units.", param, maxAmount)
+	}
 	return amount, nil
 }
+
+// maxAmount bounds one payment or payout: R$ 10,000,000.00, well within what the rails'
+// messages can carry and beyond what a mistyped amount should move.
+const maxAmount = 10_000_000_00
 
 func paymentsError(err error, objectID string) error {
 	for sentinel, code := range map[error]string{

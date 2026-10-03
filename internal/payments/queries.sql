@@ -378,9 +378,13 @@ WHERE merchant_id = @merchant_id AND livemode = @livemode AND recipient_id = @re
 SELECT pg_advisory_xact_lock(hashtext('payments.payouts/' || @scope::text));
 
 -- name: RefundsInFlight :one
--- What refunds not yet confirmed will take from a merchant's balance.
-SELECT coalesce(sum(amount), 0)::bigint FROM payments.refunds
-WHERE merchant_id = @merchant_id AND livemode = @livemode AND currency = @currency AND status IN ('pending', 'refund_unknown');
+-- What refunds not yet confirmed will take from a merchant's balance: those of a Pix, and
+-- of a card no receivables carried. A card's that receivables carried comes back from
+-- its recipients, and holds none of the balance.
+SELECT coalesce(sum(r.amount), 0)::bigint FROM payments.refunds r
+JOIN payments.attempts a ON a.id = r.attempt_id
+WHERE r.merchant_id = @merchant_id AND r.livemode = @livemode AND r.currency = @currency AND r.status IN ('pending', 'refund_unknown')
+  AND (a.payment_method IN ('pix', 'pix_automatico') OR a.split_out = 0);
 
 -- name: SetAttemptFee :exec
 UPDATE payments.attempts SET fee = @fee WHERE id = @id;

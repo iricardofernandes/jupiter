@@ -29,6 +29,8 @@ const (
 	idleTimeout       = 60 * time.Second
 	shutdownTimeout   = 10 * time.Second
 	readyTimeout      = 2 * time.Second
+	// maxHeaderBytes is far more than a key and a few headers take.
+	maxHeaderBytes = 64 << 10
 )
 
 type Config struct {
@@ -127,6 +129,7 @@ func serveHTTP(ctx context.Context, ln net.Listener, app App, logger *slog.Logge
 	server := &http.Server{
 		Handler:           routes(app),
 		ReadHeaderTimeout: readHeaderTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
 		IdleTimeout:       idleTimeout,

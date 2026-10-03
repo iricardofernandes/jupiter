@@ -193,7 +193,7 @@ func Verify(body []byte, header, secret string, tolerance time.Duration, now tim
 		}
 	}
 	unix, err := strconv.ParseInt(t, 10, 64)
-	if err != nil || v1 == "" {
+	if err != nil || v1 == "" || secret == "" {
 		return ErrSignature
 	}
 	if age := now.Sub(time.Unix(unix, 0)); age > tolerance || age < -tolerance {

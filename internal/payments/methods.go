@@ -217,12 +217,19 @@ func (s *Service) SetNetworkToken(ctx context.Context, q db.DBTX, c Tokenization
 	})
 }
 
+// tokenEventSkew is how far ahead of Jupiter's clock the network's may run.
+const tokenEventSkew = 5 * time.Minute
+
 // UpdateFromNetworkToken applies what the card network says of a token: the card behind
 // it was replaced (a new last four and expiry), or the token was suspended. An event
 // older than the last one applied is ignored.
 func (s *Service) UpdateFromNetworkToken(ctx context.Context, q db.DBTX, e cardnet.TokenEvent) (bool, error) {
 	if !e.Valid() {
 		return false, fmt.Errorf("%w: not a token event", ErrInvalid)
+	}
+	// One dated ahead would keep every later event from applying until its date came.
+	if e.OccurredAt.After(s.cfg.Now().Add(tokenEventSkew)) {
+		return false, fmt.Errorf("%w: a token event dated %s, ahead of now", ErrInvalid, e.OccurredAt.Format(time.RFC3339))
 	}
 	n, err := db.New(q).UpdateCardFromNetworkToken(ctx, db.UpdateCardFromNetworkTokenParams{
 		NetworkTokenReference: e.Reference, Last4: e.Last4, ExpMonth: int32(e.ExpMonth), ExpYear: int32(e.ExpYear), //nolint:gosec // an expiry

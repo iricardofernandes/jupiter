@@ -143,6 +143,10 @@ func (p PrivateData) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(p.Strin
 
 func (p PrivateData) LogValue() slog.Value { return slog.StringValue(p.String()) }
 
+func (p PrivateData) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("cardnet: PrivateData is never marshaled: it carries the security code")
+}
+
 func (m Message) String() string {
 	return fmt.Sprintf("%s stan=%s rrn=%s pan=%s amount=%d rc=%s", m.MTI, m.STAN, m.RRN, MaskPAN(m.PAN), m.Amount, m.ResponseCode)
 }
@@ -152,6 +156,10 @@ func (m Message) GoString() string { return m.String() }
 func (m Message) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(m.String())) }
 
 func (m Message) LogValue() slog.Value { return slog.StringValue(m.String()) }
+
+func (m Message) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("cardnet: Message is never marshaled: it carries the card number")
+}
 
 // MaskPAN keeps the last four digits.
 func MaskPAN(pan string) string {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -188,6 +189,10 @@ func (c *Connector) ImportReturns(ctx context.Context, pool *pgxpool.Pool, p *pa
 		}
 		if f.Header.Sequence != sequence {
 			return imported, fmt.Errorf("bank: return %d says it is %d", sequence, f.Header.Sequence)
+		}
+		// A return of another bank's, or of another agreement, is not Jupiter's to apply.
+		if f.Header.Bank != c.cfg.Profile.Code() || strings.TrimSpace(f.Header.Agreement) != c.cfg.Agreement {
+			return imported, fmt.Errorf("bank: return %d is of bank %s and agreement %q, not Jupiter's", sequence, f.Header.Bank, strings.TrimSpace(f.Header.Agreement))
 		}
 		if err := postgres.InTx(ctx, pool, func(tx pgx.Tx) error { return c.apply(ctx, tx, p, sequence, f) }); err != nil {
 			return imported, err

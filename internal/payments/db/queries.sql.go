@@ -2702,8 +2702,10 @@ func (q *Queries) RailApprovedTotal(ctx context.Context, arg RailApprovedTotalPa
 }
 
 const refundsInFlight = `-- name: RefundsInFlight :one
-SELECT coalesce(sum(amount), 0)::bigint FROM payments.refunds
-WHERE merchant_id = $1 AND livemode = $2 AND currency = $3 AND status IN ('pending', 'refund_unknown')
+SELECT coalesce(sum(r.amount), 0)::bigint FROM payments.refunds r
+JOIN payments.attempts a ON a.id = r.attempt_id
+WHERE r.merchant_id = $1 AND r.livemode = $2 AND r.currency = $3 AND r.status IN ('pending', 'refund_unknown')
+  AND (a.payment_method IN ('pix', 'pix_automatico') OR a.split_out = 0)
 `
 
 type RefundsInFlightParams struct {
@@ -2712,7 +2714,9 @@ type RefundsInFlightParams struct {
 	Currency   string
 }
 
-// What refunds not yet confirmed will take from a merchant's balance.
+// What refunds not yet confirmed will take from a merchant's balance: those of a Pix, and
+// of a card no receivables carried. A card's that receivables carried comes back from
+// its recipients, and holds none of the balance.
 func (q *Queries) RefundsInFlight(ctx context.Context, arg RefundsInFlightParams) (int64, error) {
 	row := q.db.QueryRow(ctx, refundsInFlight, arg.MerchantID, arg.Livemode, arg.Currency)
 	var column_1 int64

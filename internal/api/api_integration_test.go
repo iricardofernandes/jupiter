@@ -474,3 +474,23 @@ func TestASecretIsReplayedOnlyToItsKey(t *testing.T) {
 		t.Fatal("the request body is stored in the clear")
 	}
 }
+
+// Answers are never cached and never read as anything but JSON, and an amount is bounded.
+func TestAnswersAreNotCachedAndAmountsAreBounded(t *testing.T) {
+	h := newHarness(t, api.CurrentVersion)
+	resp := h.expect(call{method: "GET", path: "/v1/payment_intents"}, http.StatusOK)
+	if resp.header.Get("Cache-Control") != "no-store" || resp.header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("headers: %v", resp.header)
+	}
+	unauthorized := h.expect(call{method: "GET", path: "/v1/payment_intents", key: "-"}, http.StatusUnauthorized)
+	if unauthorized.header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("an error's headers: %v", unauthorized.header)
+	}
+	over := h.expect(call{method: "POST", path: "/v1/payment_intents", body: map[string]any{"amount": 10_000_000_01, "currency": "brl"}}, http.StatusBadRequest)
+	var e openapi.ErrorResponse
+	over.decode(t, &e)
+	if e.Error.Code != "amount_too_large" {
+		t.Fatalf("an amount past the bound: %s", over.body)
+	}
+	h.expect(call{method: "POST", path: "/v1/payment_intents", body: map[string]any{"amount": 10_000_000_00, "currency": "brl"}}, http.StatusOK)
+}
