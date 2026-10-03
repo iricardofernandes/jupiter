@@ -47,6 +47,7 @@ type PaymentsAttempt struct {
 	LiabilityShift         bool
 	Fee                    int64
 	SplitOut               int64
+	VoidAtIssuer           bool
 }
 
 type PaymentsDisputeFund struct {

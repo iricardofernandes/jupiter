@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -449,6 +450,51 @@ func TestACaptureResolvedAfterItsHoldLapsedIsPostedOnce(t *testing.T) {
 	wantStatus(t, it, "succeeded")
 	if posted, held := h.merchantBalance(); posted != 5000-150 || held != 0 {
 		t.Fatalf("merchant balance: posted %d, held %d; want 4850 (less the fee) and 0", posted, held)
+	}
+	h.consistent()
+}
+
+// refusingCaptureRail refuses every capture, and counts the voids it is asked for.
+type refusingCaptureRail struct {
+	payments.Rail
+	voids atomic.Int32
+}
+
+func (r *refusingCaptureRail) Capture(context.Context, payments.OperationRequest) payments.Result {
+	return payments.Result{Outcome: payments.Declined, DeclineCode: "processing_error"}
+}
+
+func (r *refusingCaptureRail) Void(ctx context.Context, req payments.OperationRequest) payments.Result {
+	r.voids.Add(1)
+	return r.Rail.Void(ctx, req)
+}
+
+// A capture the rail refuses ends the payment at once, and its authorization, which may
+// still hold the cardholder's limit, is voided at the issuer in the background, once.
+func TestARefusedCaptureVoidsItsAuthorization(t *testing.T) {
+	rail := &refusingCaptureRail{}
+	h := newHarness(t, api.CurrentVersion, withRail(rail))
+	rail.Rail = payments.NewTestRail(h.pool, h.clock.Now, nil)
+
+	it := h.createIntent(map[string]any{"amount": 1000, "payment_method": payments.TestCardVisa, "capture_method": "manual", "confirm": true}, http.StatusOK)
+	wantStatus(t, it, "requires_capture")
+	wantStatus(t, h.post("/v1/payment_intents/"+it.Id+"/capture", nil, http.StatusOK), "canceled")
+	if rail.voids.Load() != 0 {
+		t.Fatal("the request itself waited on the void")
+	}
+	h.clock.Advance(2 * time.Minute)
+	h.resolve()
+	if n := rail.voids.Load(); n != 1 {
+		t.Fatalf("the rail was asked for %d voids, want 1", n)
+	}
+	h.clock.Advance(2 * time.Minute)
+	h.resolve()
+	if n := rail.voids.Load(); n != 1 {
+		t.Fatalf("a settled void was asked for again: %d", n)
+	}
+	wantStatus(t, h.getIntent(it.Id), "canceled")
+	if posted, held := h.merchantBalance(); posted != 0 || held != 0 {
+		t.Fatalf("merchant balance: posted %d, held %d", posted, held)
 	}
 	h.consistent()
 }

@@ -77,6 +77,14 @@ WHERE status IN ('authenticating', 'authorizing', 'authorization_unknown', 'capt
 ORDER BY updated_at, id
 LIMIT @max_count::integer;
 
+-- name: SetVoidAtIssuer :exec
+UPDATE payments.attempts SET void_at_issuer = @void, updated_at = @now WHERE id = @id;
+
+-- name: AttemptsToVoidAtIssuer :many
+SELECT id FROM payments.attempts WHERE void_at_issuer AND updated_at <= @before::timestamptz
+ORDER BY updated_at, id
+LIMIT @max_count::integer;
+
 -- name: AttemptsToExpire :many
 SELECT id FROM payments.attempts
 WHERE status = 'authorized' AND authorization_expires_at <= @now::timestamptz

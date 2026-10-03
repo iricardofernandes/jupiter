@@ -56,7 +56,8 @@ func (s *Service) Resolve(ctx context.Context, pool *pgxpool.Pool) (int, error) 
 			resolved++
 		}
 	}
-	return resolved, errors.Join(failures...)
+	voided, err := s.VoidAtIssuer(ctx, pool)
+	return resolved + voided, errors.Join(append(failures, err)...)
 }
 
 func (s *Service) resolveAttempt(ctx context.Context, pool *pgxpool.Pool, attemptID string) (bool, error) {

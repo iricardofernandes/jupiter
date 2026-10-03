@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iricardofernandes/jupiter/internal/id"
 	"github.com/iricardofernandes/jupiter/internal/ledger"
@@ -85,16 +86,20 @@ func (s *Service) FinishCapture(ctx context.Context, tx pgx.Tx, owner Owner, int
 		return it, err
 	}
 	now := s.cfg.Now().UTC()
+	voidAtIssuer := false
 	switch res.Outcome {
 	case Approved:
 		err = s.captured(ctx, tx, &row, &attempt)
 	case Declined:
-		// The rail refused to capture, so the authorization is gone: release the hold.
+		// The rail refused to capture: the payment ends here and its hold is released. The
+		// authorization may still hold the cardholder's limit at the issuer, so it is
+		// voided there in the background (VoidAtIssuer).
 		if err = s.releaseHold(ctx, tx, attempt); err == nil {
 			attempt.Status, attempt.DeclineCode = string(attemptFailed), res.DeclineCode
 			row.CancellationReason = "capture_failed"
 			err = s.setStatus(ctx, tx, &row, Canceled)
 		}
+		voidAtIssuer = err == nil
 	default:
 		attempt.Status = string(attemptCaptureUnknown)
 		if !attempt.UnknownSince.Valid {
@@ -108,7 +113,52 @@ func (s *Service) FinishCapture(ctx context.Context, tx pgx.Tx, owner Owner, int
 	if err := saveAttempt(ctx, q, attempt); err != nil {
 		return Intent{}, err
 	}
+	if voidAtIssuer {
+		if err := q.SetVoidAtIssuer(ctx, db.SetVoidAtIssuerParams{ID: attempt.ID, Void: true, Now: ts(now)}); err != nil {
+			return Intent{}, err
+		}
+	}
 	return s.save(ctx, q, row)
+}
+
+// VoidAtIssuer voids, at the rail, the authorizations of captures it refused, and answers
+// how many it settled. An answer either way settles one: voided, or refused because the
+// authorization is no longer there. Without an answer it is asked again, by the same key.
+func (s *Service) VoidAtIssuer(ctx context.Context, pool *pgxpool.Pool) (int, error) {
+	q := db.New(pool)
+	ids, err := q.AttemptsToVoidAtIssuer(ctx, db.AttemptsToVoidAtIssuerParams{
+		Before: ts(s.cfg.Now().UTC().Add(-s.cfg.ResolveAfter)), MaxCount: resolveBatch,
+	})
+	if err != nil {
+		return 0, err
+	}
+	settled := 0
+	var failures []error
+	for _, attemptID := range ids {
+		attempt, err := q.GetAttempt(ctx, attemptID)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		intent, err := q.GetIntentByID(ctx, attempt.IntentID)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		res, err := s.voidOnRail(ctx, intent, attempt)
+		done := err == nil && (res.Outcome == Approved || res.Outcome == Declined || res.Outcome == NotFound)
+		// Either settled, or moved to the back of the queue to be asked again.
+		if err := q.SetVoidAtIssuer(ctx, db.SetVoidAtIssuerParams{ID: attemptID, Void: !done, Now: ts(s.cfg.Now().UTC())}); err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if done {
+			settled++
+		} else if err != nil {
+			failures = append(failures, fmt.Errorf("voiding %s at the issuer: %w", attemptID, err))
+		}
+	}
+	return settled, errors.Join(failures...)
 }
 
 func (s *Service) captured(ctx context.Context, tx pgx.Tx, row *db.PaymentsIntent, attempt *db.PaymentsAttempt) error {

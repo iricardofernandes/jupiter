@@ -145,13 +145,13 @@ type sim struct {
 }
 
 type stats struct {
-	requests, crashes, duplicates, lostRequests, lostResponses, lostQueries, vaultFaults, networkFaults, resolverRuns, checks, expiryJumps, live int
-	outcomes                                                                                                                                     map[string]int
+	requests, crashes, duplicates, lostRequests, lostResponses, lostQueries, vaultFaults, networkFaults, resolverRuns, checks, expiryJumps, live, refusedCaptures int
+	outcomes                                                                                                                                                      map[string]int
 }
 
 func (s stats) String() string {
-	return fmt.Sprintf("%d requests, %d crashed between phases, %d duplicates, rail lost %d requests, %d responses and %d queries, %d vault calls failed, %d live payments with %d network faults, %d background runs, %d jumps past authorization expiry, %d invariant checks, final statuses %v",
-		s.requests, s.crashes, s.duplicates, s.lostRequests, s.lostResponses, s.lostQueries, s.vaultFaults, s.live, s.networkFaults, s.resolverRuns, s.expiryJumps, s.checks, s.outcomes)
+	return fmt.Sprintf("%d requests, %d crashed between phases, %d duplicates, rail lost %d requests, %d responses and %d queries and refused %d captures, %d vault calls failed, %d live payments with %d network faults, %d background runs, %d jumps past authorization expiry, %d invariant checks, final statuses %v",
+		s.requests, s.crashes, s.duplicates, s.lostRequests, s.lostResponses, s.lostQueries, s.refusedCaptures, s.vaultFaults, s.live, s.networkFaults, s.resolverRuns, s.expiryJumps, s.checks, s.outcomes)
 }
 
 func newSim(t *testing.T, seed uint64) *sim {
@@ -275,7 +275,14 @@ func (f *faultyRail) Authorize(ctx context.Context, r payments.AuthorizeRequest)
 	return f.fault("authorize", func() payments.Result { return f.inner.Authorize(ctx, r) })
 }
 
+// Capture is now and then refused outright, the authorization left standing at the
+// rail: Jupiter must void it, or it would hold the cardholder's limit for nothing.
 func (f *faultyRail) Capture(ctx context.Context, r payments.OperationRequest) payments.Result {
+	if f.sim.rng.IntN(100) == 0 {
+		f.sim.stats.refusedCaptures++
+		f.sim.record("rail capture: refused")
+		return payments.Result{Outcome: payments.Declined, DeclineCode: "processing_error"}
+	}
 	return f.fault("capture", func() payments.Result { return f.inner.Capture(ctx, r) })
 }
 

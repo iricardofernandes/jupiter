@@ -57,7 +57,7 @@ func (q *Queries) AllDisputeFunds(ctx context.Context) ([]AllDisputeFundsRow, er
 }
 
 const attemptByServerTransaction = `-- name: AttemptByServerTransaction :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out FROM payments.attempts WHERE three_ds_server_trans_id = $1
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out, void_at_issuer FROM payments.attempts WHERE three_ds_server_trans_id = $1
 `
 
 func (q *Queries) AttemptByServerTransaction(ctx context.Context, threeDsServerTransID string) (PaymentsAttempt, error) {
@@ -102,6 +102,7 @@ func (q *Queries) AttemptByServerTransaction(ctx context.Context, threeDsServerT
 		&i.LiabilityShift,
 		&i.Fee,
 		&i.SplitOut,
+		&i.VoidAtIssuer,
 	)
 	return i, err
 }
@@ -171,8 +172,39 @@ func (q *Queries) AttemptsToResolve(ctx context.Context, arg AttemptsToResolvePa
 	return items, nil
 }
 
+const attemptsToVoidAtIssuer = `-- name: AttemptsToVoidAtIssuer :many
+SELECT id FROM payments.attempts WHERE void_at_issuer AND updated_at <= $1::timestamptz
+ORDER BY updated_at, id
+LIMIT $2::integer
+`
+
+type AttemptsToVoidAtIssuerParams struct {
+	Before   pgtype.Timestamptz
+	MaxCount int32
+}
+
+func (q *Queries) AttemptsToVoidAtIssuer(ctx context.Context, arg AttemptsToVoidAtIssuerParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, attemptsToVoidAtIssuer, arg.Before, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const capturedAttemptByNetworkID = `-- name: CapturedAttemptByNetworkID :one
-SELECT a.id, a.intent_id, a.number, a.payment_method, a.amount, a.status, a.authenticated, a.rail_reference, a.decline_code, a.ledger_hold, a.capture_amount, a.amount_captured, a.authorization_expires_at, a.unknown_since, a.resolutions, a.created_at, a.updated_at, a.initiator, a.stores_credential, a.installments, a.installments_financed_by, a.network_transaction_id, a.cleared_on, a.amount_cleared, a.ip, a.risk_decision, a.risk_decision_id, a.three_ds_server_trans_id, a.three_ds_version, a.three_ds_status, a.ds_trans_id, a.acs_trans_id, a.acs_url, a.eci, a.authentication_value, a.liability_shift, a.fee, a.split_out FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
+SELECT a.id, a.intent_id, a.number, a.payment_method, a.amount, a.status, a.authenticated, a.rail_reference, a.decline_code, a.ledger_hold, a.capture_amount, a.amount_captured, a.authorization_expires_at, a.unknown_since, a.resolutions, a.created_at, a.updated_at, a.initiator, a.stores_credential, a.installments, a.installments_financed_by, a.network_transaction_id, a.cleared_on, a.amount_cleared, a.ip, a.risk_decision, a.risk_decision_id, a.three_ds_server_trans_id, a.three_ds_version, a.three_ds_status, a.ds_trans_id, a.acs_trans_id, a.acs_url, a.eci, a.authentication_value, a.liability_shift, a.fee, a.split_out, a.void_at_issuer FROM payments.attempts a JOIN payments.intents i ON i.id = a.intent_id
 WHERE a.network_transaction_id = $1 AND i.livemode = $2 AND a.status = 'captured'
 ORDER BY a.created_at DESC
 LIMIT 1
@@ -227,6 +259,7 @@ func (q *Queries) CapturedAttemptByNetworkID(ctx context.Context, arg CapturedAt
 		&i.LiabilityShift,
 		&i.Fee,
 		&i.SplitOut,
+		&i.VoidAtIssuer,
 	)
 	return i, err
 }
@@ -445,7 +478,7 @@ func (q *Queries) FeesReturned(ctx context.Context, intentID string) (int64, err
 }
 
 const getAttempt = `-- name: GetAttempt :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out FROM payments.attempts WHERE id = $1
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out, void_at_issuer FROM payments.attempts WHERE id = $1
 `
 
 func (q *Queries) GetAttempt(ctx context.Context, id string) (PaymentsAttempt, error) {
@@ -490,6 +523,7 @@ func (q *Queries) GetAttempt(ctx context.Context, id string) (PaymentsAttempt, e
 		&i.LiabilityShift,
 		&i.Fee,
 		&i.SplitOut,
+		&i.VoidAtIssuer,
 	)
 	return i, err
 }
@@ -1730,7 +1764,7 @@ func (q *Queries) ListRefunds(ctx context.Context, arg ListRefundsParams) ([]Pay
 }
 
 const lockAttempt = `-- name: LockAttempt :one
-SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out FROM payments.attempts WHERE id = $1 FOR UPDATE
+SELECT id, intent_id, number, payment_method, amount, status, authenticated, rail_reference, decline_code, ledger_hold, capture_amount, amount_captured, authorization_expires_at, unknown_since, resolutions, created_at, updated_at, initiator, stores_credential, installments, installments_financed_by, network_transaction_id, cleared_on, amount_cleared, ip, risk_decision, risk_decision_id, three_ds_server_trans_id, three_ds_version, three_ds_status, ds_trans_id, acs_trans_id, acs_url, eci, authentication_value, liability_shift, fee, split_out, void_at_issuer FROM payments.attempts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, error) {
@@ -1775,6 +1809,7 @@ func (q *Queries) LockAttempt(ctx context.Context, id string) (PaymentsAttempt, 
 		&i.LiabilityShift,
 		&i.Fee,
 		&i.SplitOut,
+		&i.VoidAtIssuer,
 	)
 	return i, err
 }
@@ -3177,6 +3212,21 @@ type SetSplitOutParams struct {
 
 func (q *Queries) SetSplitOut(ctx context.Context, arg SetSplitOutParams) error {
 	_, err := q.db.Exec(ctx, setSplitOut, arg.SplitOut, arg.ID)
+	return err
+}
+
+const setVoidAtIssuer = `-- name: SetVoidAtIssuer :exec
+UPDATE payments.attempts SET void_at_issuer = $1, updated_at = $2 WHERE id = $3
+`
+
+type SetVoidAtIssuerParams struct {
+	Void bool
+	Now  pgtype.Timestamptz
+	ID   string
+}
+
+func (q *Queries) SetVoidAtIssuer(ctx context.Context, arg SetVoidAtIssuerParams) error {
+	_, err := q.db.Exec(ctx, setVoidAtIssuer, arg.Void, arg.Now, arg.ID)
 	return err
 }
 
